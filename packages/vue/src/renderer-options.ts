@@ -39,10 +39,18 @@ export function createRendererOptions(
     } else if (child.kind === "raw-text" || child.kind === "span") {
       const text = enclosingText(parent);
       if (!text) {
-        throw new Error("vui: bare strings and inline spans must be wrapped in <text>");
+        // Vue fragments (v-for / multi-root) bracket their children with EMPTY
+        // text nodes as anchors, inserted into the enclosing container — often a
+        // <box>. Let an empty raw-text through as an inert, paint-free anchor;
+        // only a non-empty bare string or an inline span outside a <text> is the
+        // authoring mistake this guard is for.
+        if (!(child.kind === "raw-text" && child.text === "")) {
+          throw new Error("vui: bare strings and inline spans must be wrapped in <text>");
+        }
+      } else {
+        text.directText = null;
+        ctx.dirtyText.add(text);
       }
-      text.directText = null;
-      ctx.dirtyText.add(text);
     }
     // comment: inert fragment/anchor placeholder, JS mirror only.
     ctx.scheduleRender();
@@ -70,6 +78,13 @@ export function createRendererOptions(
     if (owner) {
       ctx.dirtyText.add(owner);
       ctx.scheduleRender();
+    } else if (text !== "" && (node.kind === "raw-text" || node.kind === "span")) {
+      // `insert` lets an EMPTY raw-text into a non-<text> parent (fragment
+      // anchors are empty). If such a node — or a bare interpolation mistakenly
+      // placed beside element children of a <box> — later gets real content, it
+      // has no <text> to render into. Fail loud here rather than silently drop
+      // it; the previous unconditional throw in `insert` couldn't see this case.
+      throw new Error("vui: bare strings and inline spans must be wrapped in <text>");
     }
   }
 

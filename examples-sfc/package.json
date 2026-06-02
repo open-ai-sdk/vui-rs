@@ -1,0 +1,11 @@
+{
+  "name": "@vui-rs/examples-sfc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vue/runtime-core": "^3.5.0",
+    "@vui-rs/core": "workspace:*",
+    "@vui-rs/vue": "workspace:*"
+  }
+}

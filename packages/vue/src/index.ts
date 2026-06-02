@@ -3,7 +3,7 @@
 // the native cell buffer. Build a tree with `h()`, feed it to `createApp`, and
 // `mount()` paints it; reactive state changes coalesce into one repaint per frame.
 export { createApp, type MountOptions, type VuiApp } from "./create-app.ts";
-export { extend, type CatalogueEntry, type HostKind } from "./catalogue.ts";
+export { extend, isVuiTag, type CatalogueEntry, type HostKind } from "./catalogue.ts";
 export { parseColor } from "./color.ts";
 export type { VuiContext, VuiHostNode } from "./host-node.ts";
 export {

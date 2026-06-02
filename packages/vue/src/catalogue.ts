@@ -42,3 +42,23 @@ export function lookup(tag: string): CatalogueEntry {
   }
   return entry;
 }
+
+/**
+ * Is `tag` a vui *element* (vs. a Vue component) for the SFC compiler?
+ *
+ * The template compiler's `isCustomElement` must answer "treat this tag as a
+ * native element" so it emits `createElementVNode(tag, …)` instead of resolving
+ * it as a component. `box`/`text` and the inline `span`-kind tags are elements.
+ * `edit`-kind tags (`<input>`) are NOT: they need the editing logic that only
+ * the `VuiInput` *component* carries, so `<input>` resolves to that component
+ * (registered globally at app create) and round-trips v-model through it.
+ *
+ * Build-time caveat: this only knows built-in + `extend()`-ed tags present in
+ * *this* process. The Vite build runs in a separate process where app-time
+ * `extend()` calls haven't happened, so runtime-only custom tags must be listed
+ * in the plugin's tag set explicitly.
+ */
+export function isVuiTag(tag: string): boolean {
+  const entry = catalogue[tag];
+  return entry !== undefined && entry.kind !== "edit";
+}

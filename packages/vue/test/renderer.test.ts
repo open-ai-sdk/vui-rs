@@ -146,6 +146,35 @@ describe("renderer-option rules", () => {
     }
   });
 
+  test("an EMPTY text node is allowed in a box (Vue fragment/v-for anchor)", () => {
+    const r = new Renderer(20, 6);
+    try {
+      const ops = createRendererOptions(makeCtx(r));
+      const box = ops.createElement("box");
+      const anchor = ops.createText("");
+      expect(() => ops.insert(anchor, box, null)).not.toThrow();
+      // It lives in the mirror tree as an inert anchor, removable without error.
+      expect(box.children).toContain(anchor);
+      expect(() => ops.remove(anchor)).not.toThrow();
+    } finally {
+      r.free();
+    }
+  });
+
+  test("an anchor that later gets real content fails loud (no silent drop)", () => {
+    const r = new Renderer(20, 6);
+    try {
+      const ops = createRendererOptions(makeCtx(r));
+      const box = ops.createElement("box");
+      const anchor = ops.createText(""); // allowed in as an empty anchor
+      ops.insert(anchor, box, null);
+      // Populating it has no <text> to render into — must throw, not vanish.
+      expect(() => ops.setText(anchor, "boom")).toThrow(/wrapped in <text>/);
+    } finally {
+      r.free();
+    }
+  });
+
   test("<text> flattens plain + styled spans into ordered runs", () => {
     const r = new Renderer(20, 6);
     try {

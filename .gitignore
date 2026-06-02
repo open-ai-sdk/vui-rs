@@ -5,6 +5,10 @@
 node_modules/
 *.tsbuildinfo
 
+# Vite SFC build output
+/examples-sfc/dist/
+/dist/
+
 # Native artifacts copied by scripts/build-native.ts (rebuilt on demand)
 /packages/core/native/
 

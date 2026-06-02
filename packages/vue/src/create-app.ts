@@ -20,6 +20,7 @@ import { createFocusManager } from "./focus.ts";
 import { createRendererOptions } from "./renderer-options.ts";
 import { createScheduler } from "./scheduler.ts";
 import { type Theme, ThemeSymbol, darkTheme } from "./theme.ts";
+import { VuiInput } from "./components/input.ts";
 
 export interface MountOptions {
   /** Reuse an existing renderer (tests / embedding); otherwise one is created. */
@@ -77,6 +78,13 @@ export function createApp(rootComponent: Component, rootProps?: Record<string, u
     createRendererOptions(ctx),
   );
   const vueApp = createVueApp(rootComponent, rootProps ?? null);
+  // Built-in components, so SFC templates can use `<input>` (the editable widget)
+  // without importing it. `isVuiTag` keeps `input` out of the compiler's element
+  // set, so the template resolves it to this component; v-model then round-trips
+  // through `VuiInput`'s `value`/`update:value` contract. A literal `h("input")`
+  // (inside `VuiInput` itself) is still a host element — Vue only resolves global
+  // components for compiler-emitted `resolveComponent`, never for string `h()`.
+  vueApp.component("input", VuiInput);
 
   let mounted = false;
   let ownsRenderer = false;
