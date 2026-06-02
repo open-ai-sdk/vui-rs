@@ -1,28 +1,14 @@
-import { dlopen, FFIType, suffix } from "bun:ffi";
+import { dlopen, suffix } from "bun:ffi";
 import { existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CELL_BYTES, EXPECTED_ABI_VERSION, symbols } from "./ffi-symbols.ts";
+
+export { Attr, CELL_BYTES, EXPECTED_ABI_VERSION, Status, symbols } from "./ffi-symbols.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // packages/core/src/native -> repo root is four levels up.
 const repoRoot = join(here, "..", "..", "..", "..");
-
-/**
- * FFI symbol table. MUST stay in lockstep with the `#[unsafe(no_mangle)]
- * extern "C"` exports in crates/vui-core/src/lib.rs. Any change here is an ABI
- * change — bump ABI_VERSION on both sides.
- */
-export const symbols = {
-  vui_version: { args: [], returns: FFIType.u32 },
-  vui_abi_version: { args: [], returns: FFIType.u32 },
-} as const;
-
-/**
- * TS-side mirror of `ABI_VERSION` in crates/vui-core/src/lib.rs. Moves in
- * lockstep with the symbol table above; `loadNativeLib` enforces it at load so
- * no downstream caller can run against a mismatched library.
- */
-export const EXPECTED_ABI_VERSION = 1;
 
 function libFileName(): string {
   // Windows produces `vui_core.dll`; Unix toolchains prefix with `lib`.
@@ -80,6 +66,15 @@ export function loadNativeLib(): NativeLib {
   if (abi !== EXPECTED_ABI_VERSION) {
     throw new Error(
       `vui-core ABI mismatch: native=${abi}, expected=${EXPECTED_ABI_VERSION}. ` +
+        "Rebuild the native lib: bun run build:native",
+    );
+  }
+  // The zero-copy back-buffer view strides by CELL_BYTES; a layout drift here
+  // would corrupt every cell read/write, so fail loud at load.
+  const cellBytes = Number(lib.symbols.vui_cell_size_bytes());
+  if (cellBytes !== CELL_BYTES) {
+    throw new Error(
+      `vui-core Cell size mismatch: native=${cellBytes}, expected=${CELL_BYTES}. ` +
         "Rebuild the native lib: bun run build:native",
     );
   }

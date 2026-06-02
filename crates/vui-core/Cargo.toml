@@ -9,8 +9,8 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# Pinned for later phases (exact versions recorded in docs/code-standards.md).
-# Kept commented until first used so Phase 00 builds stay minimal and fast.
+# Exact versions recorded in docs/code-standards.md.
+unicode-width = "=0.2.2"
+unicode-segmentation = "=1.13.3"
+# Enabled in Phase 02 (taffy layout).
 # taffy = "=0.10.1"
-# unicode-width = "=0.2.2"
-# unicode-segmentation = "=1.13.3"

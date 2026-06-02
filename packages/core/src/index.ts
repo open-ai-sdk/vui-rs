@@ -1,7 +1,14 @@
 import { loadNativeLib } from "./native/load-native-lib.ts";
 
-export { symbols, EXPECTED_ABI_VERSION } from "./native/load-native-lib.ts";
+export {
+  Attr,
+  CELL_BYTES,
+  EXPECTED_ABI_VERSION,
+  Status,
+  symbols,
+} from "./native/load-native-lib.ts";
 export type { NativeLib } from "./native/load-native-lib.ts";
+export { Renderer, rgba, type TextStyle } from "./renderer.ts";
 
 /**
  * Memoized handle to the loaded vui-core native library. The first call

@@ -13,8 +13,9 @@ Cargo workspace uses `resolver = "3"`. Edition is `2024` across crates.
 
 ## Pinned Rust dependencies
 
-Exact-pinned (`=x.y.z`) for reproducible builds. Declared (commented) in
-`crates/vui-core/Cargo.toml`; uncomment as each is first used.
+Exact-pinned (`=x.y.z`) for reproducible builds, declared in
+`crates/vui-core/Cargo.toml`. `unicode-width`/`unicode-segmentation` are active
+as of Phase 01; `taffy` stays commented until Phase 02.
 
 | Crate                  | Version  | Used from | Purpose |
 |------------------------|----------|-----------|---------|
@@ -44,6 +45,11 @@ reproducibility.
 - The native `ABI_VERSION` constant and the TS `EXPECTED_ABI_VERSION` constant
   move in lockstep. Bump both on any exported-signature or `#[repr(C)]` layout
   change. The loader/smoke test refuses a mismatch.
+- The FFI symbol table is the single source of truth in
+  `packages/core/src/native/ffi-symbols.ts` (mirrors the `extern "C"` exports).
+- `#[repr(C)]` structs shared zero-copy (e.g. `Cell`, 16 bytes) have a size
+  probe (`vui_cell_size_bytes`) the loader checks against the TS `CELL_BYTES`
+  constant, so a layout drift fails loud at load — not as silent corruption.
 - Native library name: `libvui_core.{dylib,so}` on Unix, `vui_core.dll` on
   Windows. The FFI loader resolves a stable copy under
   `packages/core/native/<platform>-<arch>/`, falling back to the cargo build dir.
