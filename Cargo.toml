@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/vui-core"]
+resolver = "3"

@@ -1,0 +1,12 @@
+# Rust (cargo workspace build dir at repo root)
+/target
+
+# Bun / Node
+node_modules/
+*.tsbuildinfo
+
+# Native artifacts copied by scripts/build-native.ts (rebuilt on demand)
+/packages/core/native/
+
+# OS noise
+.DS_Store

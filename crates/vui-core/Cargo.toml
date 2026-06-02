@@ -1,0 +1,16 @@
+[package]
+name = "vui-core"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+# cdylib: loaded by Bun via bun:ffi. rlib: lets `cargo test -p vui-core` link the
+# crate for native unit tests in later phases.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Pinned for later phases (exact versions recorded in docs/code-standards.md).
+# Kept commented until first used so Phase 00 builds stay minimal and fast.
+# taffy = "=0.10.1"
+# unicode-width = "=0.2.2"
+# unicode-segmentation = "=1.13.3"

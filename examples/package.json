@@ -1,0 +1,9 @@
+{
+  "name": "@vui-rs/examples",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vui-rs/core": "workspace:*"
+  }
+}

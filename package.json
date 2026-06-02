@@ -1,0 +1,16 @@
+{
+  "name": "vui-rs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "examples"],
+  "scripts": {
+    "build:native": "bun run scripts/build-native.ts",
+    "dev": "bun run examples/smoke-version.ts",
+    "test": "cargo test -p vui-core && bun run examples/smoke-version.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}
