@@ -9,6 +9,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@vui-rs/core": "workspace:*"
+    "@vui-rs/core": "workspace:*",
+    "@vue/reactivity": "^3.5.0",
+    "@vue/runtime-core": "^3.5.0"
   }
 }

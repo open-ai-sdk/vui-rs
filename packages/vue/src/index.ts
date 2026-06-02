@@ -1,3 +1,30 @@
-// @vui-rs/vue — Vue custom renderer binding. Stubbed in Phase 00; the renderer,
-// createApp, and element catalogue land in Phase 03.
-export {};
+// @vui-rs/vue — Vue custom renderer binding for the vui-rs Rust core. Drive a
+// terminal UI with Vue's reactivity + components; `<box>`/`<text>` render through
+// the native cell buffer. Build a tree with `h()`, feed it to `createApp`, and
+// `mount()` paints it; reactive state changes coalesce into one repaint per frame.
+export { createApp, type MountOptions, type VuiApp } from "./create-app.ts";
+export { extend, type CatalogueEntry, type HostKind } from "./catalogue.ts";
+export { parseColor } from "./color.ts";
+export type { VuiContext, VuiHostNode } from "./host-node.ts";
+
+// Re-export the color/attr helpers so apps need not also import @vui-rs/core.
+export { Attr, rgba } from "@vui-rs/core";
+
+// Vue reactivity + authoring API, re-exported so apps depend on @vui-rs/vue alone.
+export {
+  computed,
+  defineComponent,
+  h,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  shallowReactive,
+  shallowRef,
+  toRef,
+  toRefs,
+  watch,
+  watchEffect,
+} from "@vue/runtime-core";
