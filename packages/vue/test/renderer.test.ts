@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { Attr, hostTreeHash, Renderer } from "@vui-rs/core";
 import { createApp, defineComponent, h, nextTick, ref } from "../src/index.ts";
 import { type VuiContext } from "../src/host-node.ts";
+import { darkTheme } from "../src/theme.ts";
 import { flattenRuns } from "../src/runs.ts";
 import { createRendererOptions } from "../src/renderer-options.ts";
 
@@ -21,6 +22,7 @@ function makeCtx(renderer: Renderer): VuiContext {
     dirtyText: new Set(),
     pendingFree: [],
     liveNative: new Set(),
+    theme: darkTheme,
     scheduleRender: () => {},
     flushNow: () => {},
     dispose: () => {},

@@ -9,6 +9,7 @@ import { type VuiNode as CoreNode, type VuiStyle, Renderer } from "@vui-rs/core"
 import { markRaw } from "@vue/runtime-core";
 import { lookup } from "./catalogue.ts";
 import type { FocusManager } from "./focus.ts";
+import { type Theme, darkTheme } from "./theme.ts";
 
 export type HostNodeKind = "box" | "text" | "edit" | "span" | "raw-text" | "comment";
 
@@ -72,6 +73,8 @@ export interface VuiContext {
   pendingFree: VuiHostNode[];
   /** Live Rust-backed nodes; must be empty after unmount (the leak guard). */
   liveNative: Set<VuiHostNode>;
+  /** App-level theme; seeds host `box`/`text` color defaults. Set at mount. */
+  theme: Theme;
   scheduleRender: () => void;
   /** Apply all staged mutations and render synchronously (mount/unmount/tests). */
   flushNow: () => void;
@@ -122,13 +125,32 @@ export function createHostElement(ctx: VuiContext, tag: string): VuiHostNode {
   const renderer = requireRenderer(ctx);
   const core = renderer.createNode(entry.kind);
   const node = baseNode(ctx, entry.kind, tag, core);
+  applyThemeDefaults(node);
   ctx.liveNative.add(node);
   return node;
 }
 
 /** Wrap the renderer's implicit root node as the mount container. */
 export function createHostRoot(ctx: VuiContext, core: CoreNode): VuiHostNode {
-  return baseNode(ctx, "box", "#root", core);
+  const node = baseNode(ctx, "box", "#root", core);
+  // The root is the canvas: paint the theme background and base foreground.
+  core.setBg(ctx.theme.bg).setFg(ctx.theme.fg);
+  return node;
+}
+
+/**
+ * Seed a node's colors from the app theme so an unstyled element is still
+ * readable. Text gets the default foreground; boxes default their border color
+ * (used only once a border is set). Explicit `fg`/`bg`/`borderColor` props
+ * applied by `patchProp` afterwards always win.
+ */
+function applyThemeDefaults(node: VuiHostNode): void {
+  const { theme } = node.ctx;
+  if (node.kind === "text" || node.kind === "edit") {
+    node.core?.setFg(theme.fg);
+  } else if (node.kind === "box") {
+    node.paint.borderColor = theme.border;
+  }
 }
 
 export function createHostText(ctx: VuiContext, text: string): VuiHostNode {

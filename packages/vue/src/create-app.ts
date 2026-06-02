@@ -19,6 +19,7 @@ import { type VuiContext, type VuiHostNode, createHostRoot } from "./host-node.t
 import { createFocusManager } from "./focus.ts";
 import { createRendererOptions } from "./renderer-options.ts";
 import { createScheduler } from "./scheduler.ts";
+import { type Theme, ThemeSymbol, darkTheme } from "./theme.ts";
 
 export interface MountOptions {
   /** Reuse an existing renderer (tests / embedding); otherwise one is created. */
@@ -32,6 +33,12 @@ export interface MountOptions {
    * (so tests stay offscreen). When false, the app renders without terminal I/O.
    */
   altScreen?: boolean;
+  /**
+   * App-level theme. Seeds host `<box>`/`<text>` color defaults (canvas bg/fg,
+   * text fg, default border color) and becomes the value `useTheme()` returns
+   * unless a component overrides it with `provideTheme()`. Defaults to `darkTheme`.
+   */
+  theme?: Theme;
 }
 
 export interface VuiApp {
@@ -49,6 +56,7 @@ function newContext(): VuiContext {
     dirtyText: new Set(),
     pendingFree: [],
     liveNative: new Set(),
+    theme: darkTheme,
     scheduleRender: () => {},
     flushNow: () => {},
     dispose: () => {},
@@ -84,6 +92,11 @@ export function createApp(rootComponent: Component, rootProps?: Record<string, u
     mount(options: MountOptions = {}): VuiApp {
       if (mounted) return app;
       mounted = true;
+      // Theme must be set before the root/host nodes are created — they seed
+      // their color defaults from it. Also provide it app-wide so `useTheme()`
+      // returns it unless a component overrides with `provideTheme()`.
+      ctx.theme = options.theme ?? darkTheme;
+      vueApp.provide(ThemeSymbol, ctx.theme);
       const renderer = options.renderer ?? createDefaultRenderer(options);
       ownsRenderer = options.renderer === undefined;
       ctx.renderer = renderer;

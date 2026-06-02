@@ -12,6 +12,12 @@ export {
   type DispatchableEvent,
 } from "./focus.ts";
 export { VuiInput } from "./components/input.ts";
+export { VuiSpinner } from "./components/spinner.ts";
+
+// Theming: tokens + composables. Pass a `theme` to `mount()`; read it in
+// components with `useTheme()`, or restyle a subtree with `provideTheme()`.
+export { type Theme, ThemeSymbol, darkTheme } from "./theme.ts";
+export { useTheme, provideTheme } from "./use-theme.ts";
 
 // Re-export the color/attr helpers + key utilities so apps depend on @vui-rs/vue alone.
 export { Attr, rgba, Key, matchesKey, type KeyEvent, type InputEvent } from "@vui-rs/core";
