@@ -4,6 +4,16 @@
 // `mount()` paints it; reactive state changes coalesce into one repaint per frame.
 export { createApp, type MountOptions, type VuiApp } from "./create-app.ts";
 export { extend, isVuiTag, type CatalogueEntry, type HostKind } from "./catalogue.ts";
+// Re-export the element prop types AND pull `vui-elements` into the module graph
+// so its `GlobalComponents` augmentation (template type-support for <box>/<text>/
+// <input>) ships in the bundled dist .d.ts. Types-only: erased from the JS bundle.
+export type {
+  BoxProps,
+  Color,
+  InputProps,
+  SpanProps,
+  TextProps,
+} from "./vui-elements.ts";
 export { parseColor } from "./color.ts";
 export type { VuiContext, VuiHostNode } from "./host-node.ts";
 export {

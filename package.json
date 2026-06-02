@@ -3,22 +3,36 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "examples", "examples-sfc"],
+  "workspaces": {
+    "packages": ["packages/*", "examples", "examples-sfc"],
+    "catalog": {
+      "@vitejs/plugin-vue": "^6.0.0",
+      "@vue/compiler-core": "3.5.35",
+      "@vue/compiler-sfc": "3.5.35",
+      "@vue/reactivity": "3.5.35",
+      "@vue/runtime-core": "3.5.35",
+      "vite": "^8.0.0"
+    }
+  },
   "scripts": {
     "build:native": "bun run scripts/build-native.ts",
+    "build:packages": "bun run --filter '@vui-rs/*' build",
     "dev": "bun run examples/smoke-version.ts",
     "build:sfc": "vite build",
     "start:sfc": "bun examples-sfc/dist/app.js",
     "dev:sfc": "vite build && bun examples-sfc/dist/app.js",
+    "typecheck:sfc": "vue-tsc --noEmit",
     "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test && bun run examples/smoke-version.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",
-    "@vitejs/plugin-vue": "^5.2.0",
-    "@vue/compiler-core": "3.5.35",
-    "@vue/compiler-sfc": "3.5.35",
-    "@vue/runtime-core": "3.5.35",
+    "@vitejs/plugin-vue": "catalog:",
+    "@vue/compiler-core": "catalog:",
+    "@vue/compiler-sfc": "catalog:",
+    "@vue/runtime-core": "catalog:",
+    "tsdown": "^0.22.1",
     "typescript": "^5.9.0",
-    "vite": "^7.0.0"
+    "vite": "catalog:",
+    "vue-tsc": "^2.2.0"
   }
 }

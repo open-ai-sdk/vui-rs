@@ -8,9 +8,23 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
   "dependencies": {
     "@vui-rs/core": "workspace:*",
-    "@vue/reactivity": "^3.5.0",
-    "@vue/runtime-core": "^3.5.0"
+    "@vue/reactivity": "catalog:",
+    "@vue/runtime-core": "catalog:"
   }
 }

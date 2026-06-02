@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@vue/runtime-core": "^3.5.0",
+    "@vue/runtime-core": "catalog:",
     "@vui-rs/core": "workspace:*",
     "@vui-rs/vue": "workspace:*"
   }
