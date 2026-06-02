@@ -8,5 +8,7 @@ node_modules/
 # Native artifacts copied by scripts/build-native.ts (rebuilt on demand)
 /packages/core/native/
 
+.claude/
+docs/
 # OS noise
 .DS_Store

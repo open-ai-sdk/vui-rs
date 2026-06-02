@@ -1,13 +1,18 @@
-//! vui-core: native core for vui-rs (cell buffer, frame diff, ANSI emission,
-//! taffy layout and paint). Phase 01 adds the rendering heart: a
+//! vui-core: native core for vui-rs. Owns the rendering heart — a
 //! double-buffered cell grid, a minimal-ANSI frame differ, unicode-aware cell
-//! width, and a C ABI to drive it all from Bun.
+//! width, a taffy flexbox layout + paint pass over a render-node tree, and a C
+//! ABI to drive it all from Bun.
 
 pub mod ansi;
+pub mod border;
 pub mod buffer;
 pub mod color;
 pub mod ffi;
+pub mod layout;
+pub mod node;
+pub mod paint;
 pub mod renderer;
+pub mod style;
 pub mod width;
 
 use std::panic::catch_unwind;
@@ -18,8 +23,9 @@ const VERSION: u32 = 0x00_01_00;
 
 /// FFI ABI contract version. Bump on ANY change to an exported signature or a
 /// `#[repr(C)]` struct layout so the JS loader can refuse a mismatched library.
-/// v2: Phase 01 added the renderer/buffer exports and the `repr(C)` `Cell`.
-const ABI_VERSION: u32 = 2;
+/// v2: the renderer/buffer exports and the `repr(C)` `Cell`.
+/// v3: the render-node tree exports, `StyleFfi`, and `TextRunFfi`.
+const ABI_VERSION: u32 = 3;
 
 /// Returns the packed semver of the native core.
 ///

@@ -1,6 +1,7 @@
 import { type Pointer, toArrayBuffer } from "bun:ffi";
 import { loadNativeLib } from "./native/load-native-lib.ts";
-import { CELL_BYTES, Status } from "./native/ffi-symbols.ts";
+import { CELL_BYTES, NodeKindCode, Status } from "./native/ffi-symbols.ts";
+import { VuiNode } from "./node.ts";
 
 /** Pack 8-bit channels into the `0xRRGGBBAA` u32 the FFI expects. */
 export function rgba(r: number, g: number, b: number, a = 255): number {
@@ -97,6 +98,30 @@ export class Renderer {
   /** Diff the back buffer and write the frame to stdout. */
   render(): void {
     check(this.#lib.symbols.vui_renderer_render(this.#ptr), "render");
+  }
+
+  /**
+   * The implicit root node, created with the renderer and sized to the terminal.
+   * Build the UI as its descendants; `render()` lays out and paints the tree.
+   */
+  rootNode(): VuiNode {
+    const id = this.#lib.symbols.vui_renderer_set_root(this.#ptr);
+    return new VuiNode(this.#lib, this.#ptr, id, 0);
+  }
+
+  /** Create a detached node (`"box"` or `"text"`); attach it under a parent. */
+  createNode(kind: "box" | "text"): VuiNode {
+    const code = kind === "text" ? NodeKindCode.Text : NodeKindCode.Box;
+    const id = this.#lib.symbols.vui_node_new(this.#ptr, code);
+    if (id === 0) {
+      throw new Error("vui-core: failed to create node");
+    }
+    return new VuiNode(this.#lib, this.#ptr, id, code);
+  }
+
+  /** Native structural hash of the tree; compare to `hostTreeHash` for desync. */
+  treeHash(): bigint {
+    return this.#lib.symbols.vui_debug_tree_hash(this.#ptr);
   }
 
   /** Reallocate to a new size; forces a full repaint on the next `render()`. */

@@ -2,9 +2,20 @@ import { dlopen, suffix } from "bun:ffi";
 import { existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CELL_BYTES, EXPECTED_ABI_VERSION, symbols } from "./ffi-symbols.ts";
+import { CELL_BYTES, EXPECTED_ABI_VERSION, STYLE_FFI_BYTES, symbols } from "./ffi-symbols.ts";
 
-export { Attr, CELL_BYTES, EXPECTED_ABI_VERSION, Status, symbols } from "./ffi-symbols.ts";
+export {
+  Attr,
+  BorderStyleCode,
+  CELL_BYTES,
+  EXPECTED_ABI_VERSION,
+  NodeKindCode,
+  Status,
+  STYLE_FFI_BYTES,
+  symbols,
+  TEXT_RUN_FFI_BYTES,
+  TitleAlignCode,
+} from "./ffi-symbols.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // packages/core/src/native -> repo root is four levels up.
@@ -75,6 +86,15 @@ export function loadNativeLib(): NativeLib {
   if (cellBytes !== CELL_BYTES) {
     throw new Error(
       `vui-core Cell size mismatch: native=${cellBytes}, expected=${CELL_BYTES}. ` +
+        "Rebuild the native lib: bun run build:native",
+    );
+  }
+  // The StyleFfi packer writes fields at fixed offsets; a size drift means the
+  // packer and the native struct disagree on layout — corrupting every style.
+  const styleBytes = Number(lib.symbols.vui_style_ffi_size());
+  if (styleBytes !== STYLE_FFI_BYTES) {
+    throw new Error(
+      `vui-core StyleFfi size mismatch: native=${styleBytes}, expected=${STYLE_FFI_BYTES}. ` +
         "Rebuild the native lib: bun run build:native",
     );
   }

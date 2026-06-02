@@ -1,0 +1,428 @@
+//! Render-node tree FFI exports. The JS host mirrors the Vue element tree into
+//! this Rust tree: it creates nodes, wires parent/child links, and pushes layout
+//! style + paint props, all by `NodeId` handle (a `u32`; `0` means null/error).
+//!
+//! Same boundary contract as `ffi/render.rs`: null pointers are checked, every
+//! body runs in `catch_unwind`, and a `u32` status (`ffi::status`) is returned
+//! (except constructors, which return a handle and use `0` for failure). Text
+//! and titles are stored as data and only ever painted as cells.
+
+// C-ABI entry points: callers pass raw pointers by contract; each export
+// null-checks and runs inside `catch_unwind`, so no `unsafe fn` is needed.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
+use crate::color::Rgba;
+use crate::ffi::status;
+use crate::node::{BorderStyle, NodeId, NodeKind, TextContent, TextRun, TitleAlign};
+use crate::renderer::Renderer;
+use crate::style::StyleFfi;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+/// Run `f` with the renderer, returning a status code. Null renderer →
+/// `NULL_PTR`; panic → `PANIC`.
+fn with_renderer(r: *mut Renderer, f: impl FnOnce(&mut Renderer) -> u32) -> u32 {
+    catch_unwind(AssertUnwindSafe(|| match unsafe { r.as_mut() } {
+        Some(rr) => f(rr),
+        None => status::NULL_PTR,
+    }))
+    .unwrap_or(status::PANIC)
+}
+
+/// Decode an optional packed color: `has == 0` → `None`, else `Some(rgba)`.
+fn opt_color(rgba: u32, has: u8) -> Option<Rgba> {
+    if has == 0 {
+        None
+    } else {
+        Some(Rgba::from_packed(rgba))
+    }
+}
+
+/// A styled text run as packed by the JS host. `text_off`/`text_len` index into
+/// a separate concatenated UTF-8 byte buffer passed alongside, so one
+/// `set_text_runs` call carries N runs + one string blob (no per-run pointers).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TextRunFfi {
+    pub text_off: u32,
+    pub text_len: u32,
+    pub fg: u32,
+    pub bg: u32,
+    pub attrs: u16,
+    pub has_fg: u8,
+    pub has_bg: u8,
+}
+
+// The TS packer (`node.ts`) writes run fields at hand-computed offsets assuming a
+// 20-byte stride. Fail the build (not at runtime) if a field change drifts that.
+const _: () = assert!(std::mem::size_of::<TextRunFfi>() == 20);
+
+/// Return the implicit root node's handle (created with the renderer).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_set_root(r: *mut Renderer) -> u32 {
+    catch_unwind(AssertUnwindSafe(|| match unsafe { r.as_ref() } {
+        Some(rr) => rr.root().0,
+        None => 0,
+    }))
+    .unwrap_or(0)
+}
+
+/// Create a detached node of `kind` (1 = box, 2 = text). Returns its handle, or
+/// `0` on failure. Attach it with `vui_node_append_child`/`_insert_before`.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_new(r: *mut Renderer, kind: u8) -> u32 {
+    catch_unwind(AssertUnwindSafe(|| match unsafe { r.as_mut() } {
+        Some(rr) => rr.tree_mut().create(NodeKind::from_u8(kind)).0,
+        None => 0,
+    }))
+    .unwrap_or(0)
+}
+
+/// Destroy a node and its whole subtree (frees render + taffy nodes). The root
+/// cannot be freed. `BAD_ARG` if the handle is stale or refers to the root.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_free(r: *mut Renderer, id: u32) -> u32 {
+    with_renderer(r, |rr| bool_status(rr.tree_mut().free(NodeId(id))))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_append_child(r: *mut Renderer, parent: u32, child: u32) -> u32 {
+    with_renderer(r, |rr| {
+        bool_status(rr.tree_mut().append_child(NodeId(parent), NodeId(child)))
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_insert_before(
+    r: *mut Renderer,
+    parent: u32,
+    child: u32,
+    anchor: u32,
+) -> u32 {
+    with_renderer(r, |rr| {
+        bool_status(
+            rr.tree_mut()
+                .insert_before(NodeId(parent), NodeId(child), NodeId(anchor)),
+        )
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_remove_child(r: *mut Renderer, parent: u32, child: u32) -> u32 {
+    with_renderer(r, |rr| {
+        bool_status(rr.tree_mut().remove_child(NodeId(parent), NodeId(child)))
+    })
+}
+
+/// Set a node's text to a single unstyled run (convenience over `set_text_runs`).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_text(r: *mut Renderer, id: u32, ptr: *const u8, len: usize) -> u32 {
+    with_renderer(r, |rr| {
+        if len > 0 && ptr.is_null() {
+            return status::NULL_PTR;
+        }
+        let bytes = byte_slice(ptr, len);
+        let Ok(text) = std::str::from_utf8(bytes) else {
+            return status::BAD_ARG;
+        };
+        let run = TextRun {
+            text: text.to_owned(),
+            fg: None,
+            bg: None,
+            attrs: 0,
+        };
+        match rr.tree_mut().get_mut(NodeId(id)) {
+            Some(node) => {
+                node.text = Some(TextContent { runs: vec![run] });
+                status::OK
+            }
+            None => status::BAD_ARG,
+        }
+    })
+}
+
+/// Set a node's rich text: `runs` styled spans whose text comes from the
+/// concatenated UTF-8 `bytes` buffer via each run's `text_off`/`text_len`. A run
+/// whose slice is out of range or non-UTF-8 makes the whole call `BAD_ARG` (the
+/// node's text is left unchanged).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_text_runs(
+    r: *mut Renderer,
+    id: u32,
+    runs_ptr: *const TextRunFfi,
+    runs_len: usize,
+    bytes_ptr: *const u8,
+    bytes_len: usize,
+) -> u32 {
+    with_renderer(r, |rr| {
+        if (runs_len > 0 && runs_ptr.is_null()) || (bytes_len > 0 && bytes_ptr.is_null()) {
+            return status::NULL_PTR;
+        }
+        let bytes = byte_slice(bytes_ptr, bytes_len);
+        // Safety: caller guarantees `runs_ptr` points to `runs_len` valid structs.
+        let runs_ffi = if runs_len == 0 {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(runs_ptr, runs_len) }
+        };
+
+        let mut runs = Vec::with_capacity(runs_ffi.len());
+        for rf in runs_ffi {
+            let start = rf.text_off as usize;
+            let end = start.saturating_add(rf.text_len as usize);
+            let Some(slice) = bytes.get(start..end) else {
+                return status::BAD_ARG;
+            };
+            let Ok(text) = std::str::from_utf8(slice) else {
+                return status::BAD_ARG;
+            };
+            runs.push(TextRun {
+                text: text.to_owned(),
+                fg: opt_color(rf.fg, rf.has_fg),
+                bg: opt_color(rf.bg, rf.has_bg),
+                attrs: rf.attrs,
+            });
+        }
+        match rr.tree_mut().get_mut(NodeId(id)) {
+            Some(node) => {
+                node.text = Some(TextContent { runs });
+                status::OK
+            }
+            None => status::BAD_ARG,
+        }
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_bg(r: *mut Renderer, id: u32, rgba: u32, has: u8) -> u32 {
+    paint_set(r, id, |p| p.bg = opt_color(rgba, has))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_fg(r: *mut Renderer, id: u32, rgba: u32, has: u8) -> u32 {
+    paint_set(r, id, |p| p.fg = opt_color(rgba, has))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_attrs(r: *mut Renderer, id: u32, attrs: u16) -> u32 {
+    paint_set(r, id, |p| p.attrs = attrs)
+}
+
+/// Set the visual border. `style`: 0 = none, 1 = single, 2 = double, 3 = rounded.
+/// `has_color == 0` leaves the border color unset (falls back to fg at paint).
+/// NOTE: this is paint only — to reserve a layout cell for the frame, also set
+/// the matching `border` in the node's `StyleFfi`.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_border(
+    r: *mut Renderer,
+    id: u32,
+    style: u8,
+    rgba: u32,
+    has_color: u8,
+) -> u32 {
+    paint_set(r, id, |p| {
+        p.border = BorderStyle::from_u8(style);
+        p.border_color = opt_color(rgba, has_color);
+    })
+}
+
+/// Set the border title (drawn on the top edge). `align`: 0 = left, 1 = center,
+/// 2 = right. Empty text clears the title.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_title(
+    r: *mut Renderer,
+    id: u32,
+    ptr: *const u8,
+    len: usize,
+    align: u8,
+) -> u32 {
+    with_renderer(r, |rr| {
+        if len > 0 && ptr.is_null() {
+            return status::NULL_PTR;
+        }
+        let Ok(text) = std::str::from_utf8(byte_slice(ptr, len)) else {
+            return status::BAD_ARG;
+        };
+        let title = if text.is_empty() {
+            None
+        } else {
+            Some(text.to_owned())
+        };
+        match rr.tree_mut().get_mut(NodeId(id)) {
+            Some(node) => {
+                node.paint.title = title;
+                node.paint.title_align = TitleAlign::from_u8(align);
+                status::OK
+            }
+            None => status::BAD_ARG,
+        }
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_visible(r: *mut Renderer, id: u32, visible: u8) -> u32 {
+    paint_set(r, id, |p| p.visible = visible != 0)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_opacity(r: *mut Renderer, id: u32, opacity: f32) -> u32 {
+    paint_set(r, id, |p| p.opacity = opacity)
+}
+
+/// Apply a packed layout style (`StyleFfi`) to a node in one call.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_style(r: *mut Renderer, id: u32, style: *const StyleFfi) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(style) = (unsafe { style.as_ref() }) else {
+            return status::NULL_PTR;
+        };
+        bool_status(rr.tree_mut().set_style(NodeId(id), style))
+    })
+}
+
+/// Size of `StyleFfi` in bytes, so the JS packer can assert its buffer matches
+/// the native layout (a drift would silently mis-map every style field).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_style_ffi_size() -> usize {
+    std::mem::size_of::<StyleFfi>()
+}
+
+/// Order-sensitive structural hash of the tree (kind + child order), for JS↔Rust
+/// tree-consistency tests. `0` on null/panic.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_debug_tree_hash(r: *mut Renderer) -> u64 {
+    catch_unwind(AssertUnwindSafe(|| match unsafe { r.as_ref() } {
+        Some(rr) => rr.tree().debug_tree_hash(),
+        None => 0,
+    }))
+    .unwrap_or(0)
+}
+
+/// Borrow `len` bytes from `ptr`, or an empty slice when `len == 0` (so a
+/// null/zero-length pointer is safe).
+fn byte_slice<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
+    if len == 0 {
+        &[]
+    } else {
+        // Safety: caller guarantees `ptr` covers `len` valid bytes.
+        unsafe { std::slice::from_raw_parts(ptr, len) }
+    }
+}
+
+/// Shared body for paint-prop setters: resolve the node, mutate its paint props,
+/// return `OK`/`BAD_ARG`.
+fn paint_set(
+    r: *mut Renderer,
+    id: u32,
+    f: impl FnOnce(&mut crate::node::PaintProps),
+) -> u32 {
+    with_renderer(r, |rr| match rr.tree_mut().get_mut(NodeId(id)) {
+        Some(node) => {
+            f(&mut node.paint);
+            status::OK
+        }
+        None => status::BAD_ARG,
+    })
+}
+
+fn bool_status(ok: bool) -> u32 {
+    if ok {
+        status::OK
+    } else {
+        status::BAD_ARG
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_renderer() -> *mut Renderer {
+        vui_renderer_new_ptr(20, 6)
+    }
+    fn vui_renderer_new_ptr(w: u32, h: u32) -> *mut Renderer {
+        Box::into_raw(Box::new(Renderer::new(w, h)))
+    }
+    fn free_renderer(r: *mut Renderer) {
+        drop(unsafe { Box::from_raw(r) });
+    }
+
+    #[test]
+    fn build_tree_over_ffi_and_hash_tracks_structure() {
+        let r = new_renderer();
+        let root = vui_renderer_set_root(r);
+        assert_ne!(root, 0);
+        let a = vui_node_new(r, 1); // box
+        let b = vui_node_new(r, 2); // text
+        assert_ne!(a, 0);
+        assert_ne!(b, 0);
+        assert_eq!(vui_node_append_child(r, root, a), status::OK);
+        assert_eq!(vui_node_append_child(r, root, b), status::OK);
+        let h1 = vui_debug_tree_hash(r);
+        // Reordering children changes the structural hash.
+        assert_eq!(vui_node_remove_child(r, root, a), status::OK);
+        assert_eq!(vui_node_append_child(r, root, a), status::OK);
+        assert_ne!(h1, vui_debug_tree_hash(r));
+        free_renderer(r);
+    }
+
+    #[test]
+    fn stale_handle_returns_bad_arg_not_panic() {
+        let r = new_renderer();
+        let a = vui_node_new(r, 1);
+        assert_eq!(vui_node_free(r, a), status::OK);
+        // Operating on the freed handle is rejected, never a panic across FFI.
+        assert_eq!(vui_node_set_attrs(r, a, 1), status::BAD_ARG);
+        assert_eq!(vui_node_free(r, a), status::BAD_ARG);
+        free_renderer(r);
+    }
+
+    #[test]
+    fn null_renderer_is_handled() {
+        assert_eq!(
+            vui_node_append_child(std::ptr::null_mut(), 1, 2),
+            status::NULL_PTR
+        );
+        assert_eq!(vui_node_new(std::ptr::null_mut(), 1), 0);
+        assert_eq!(vui_debug_tree_hash(std::ptr::null_mut()), 0);
+    }
+
+    #[test]
+    fn set_text_runs_validates_ranges() {
+        let r = new_renderer();
+        let t = vui_node_new(r, 2);
+        let bytes = b"hello";
+        let runs = [TextRunFfi {
+            text_off: 0,
+            text_len: 5,
+            fg: 0,
+            bg: 0,
+            attrs: 0,
+            has_fg: 0,
+            has_bg: 0,
+        }];
+        assert_eq!(
+            vui_node_set_text_runs(r, t, runs.as_ptr(), 1, bytes.as_ptr(), bytes.len()),
+            status::OK
+        );
+        // An out-of-range slice is rejected, not read out of bounds.
+        let bad = [TextRunFfi {
+            text_off: 3,
+            text_len: 99,
+            fg: 0,
+            bg: 0,
+            attrs: 0,
+            has_fg: 0,
+            has_bg: 0,
+        }];
+        assert_eq!(
+            vui_node_set_text_runs(r, t, bad.as_ptr(), 1, bytes.as_ptr(), bytes.len()),
+            status::BAD_ARG
+        );
+        free_renderer(r);
+    }
+
+    #[test]
+    fn style_ffi_size_is_reported() {
+        assert_eq!(vui_style_ffi_size(), std::mem::size_of::<StyleFfi>());
+    }
+}

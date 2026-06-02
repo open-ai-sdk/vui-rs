@@ -3,6 +3,7 @@
 //! becomes an error status instead of unwinding across the ABI (UB), and a
 //! `u32` status code (`status` module) is returned where applicable.
 
+pub mod node;
 pub mod render;
 
 /// FFI status codes shared by the exported functions.

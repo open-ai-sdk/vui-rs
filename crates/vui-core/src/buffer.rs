@@ -82,6 +82,13 @@ impl CellBuffer {
         }
     }
 
+    /// Read a cell, if `(x, y)` is in bounds. Used by paint to preserve the
+    /// existing background under "transparent" text (a glyph whose node sets no
+    /// bg should not stamp a black cell over whatever it sits on).
+    pub fn get_cell(&self, x: u32, y: u32) -> Option<Cell> {
+        self.index(x, y).map(|i| self.cells[i])
+    }
+
     /// Overwrite every cell with a blank of the given background.
     pub fn clear(&mut self, bg: Rgba) {
         let blank = Cell::blank(DEFAULT_FG, bg);
