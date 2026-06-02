@@ -12,6 +12,7 @@ import {
   TitleAlignCode,
 } from "./native/ffi-symbols.ts";
 import type { NativeLib } from "./native/load-native-lib.ts";
+import { EditApi } from "./edit.ts";
 import { packStyle, type VuiStyle } from "./style.ts";
 
 const encoder = new TextEncoder();
@@ -41,12 +42,22 @@ export class VuiNode {
   #parent: VuiNode | undefined;
   #lib: NativeLib;
   #ptr: Pointer;
+  #edit: EditApi | undefined;
 
   constructor(lib: NativeLib, ptr: Pointer, id: number, kindCode: number) {
     this.#lib = lib;
     this.#ptr = ptr;
     this.id = id;
     this.kindCode = kindCode;
+  }
+
+  /**
+   * The native edit buffer for an `Edit` node (`kindCode === 3`). Lazily bound
+   * and memoized. Calling edit ops on a non-edit node returns `BAD_ARG` natively,
+   * which surfaces as a thrown error — only use this on `<input>`-backed nodes.
+   */
+  get edit(): EditApi {
+    return (this.#edit ??= new EditApi(this.#lib, this.#ptr, this.id));
   }
 
   setStyle(style: VuiStyle): this {

@@ -8,8 +8,9 @@
 import { type VuiNode as CoreNode, type VuiStyle, Renderer } from "@vui-rs/core";
 import { markRaw } from "@vue/runtime-core";
 import { lookup } from "./catalogue.ts";
+import type { FocusManager } from "./focus.ts";
 
-export type HostNodeKind = "box" | "text" | "span" | "raw-text" | "comment";
+export type HostNodeKind = "box" | "text" | "edit" | "span" | "raw-text" | "comment";
 
 /** Cached paint props on a node; companion values for the multi-arg Rust setters. */
 export interface PaintCache {
@@ -48,6 +49,8 @@ export interface VuiHostNode {
   paint: PaintCache;
   /** `on*` handlers, stored for the input layer to dispatch (keyboard/focus). */
   events: Map<string, (...args: unknown[]) => void>;
+  /** Whether this node participates in Tab focus traversal (set via `focusable`). */
+  focusable: boolean;
   /** Unknown props, kept for debugging. */
   props: Record<string, unknown>;
   /** Single-string content set via `setElementText`; used only when no children. */
@@ -76,6 +79,8 @@ export interface VuiContext {
   dispose: () => void;
   /** Count of `render()` calls — instrumentation for the coalescing tests. */
   renderCount: number;
+  /** Keyboard focus model; wired at mount. Null until then / in offscreen tests. */
+  focusManager: FocusManager | null;
 }
 
 function newPaint(): PaintCache {
@@ -100,6 +105,7 @@ function baseNode(
     styleCache: {},
     paint: newPaint(),
     events: new Map(),
+    focusable: false,
     props: {},
     directText: null,
   });
@@ -143,14 +149,14 @@ export function requireRenderer(ctx: VuiContext): Renderer {
 }
 
 export function isNative(node: VuiHostNode): boolean {
-  return node.kind === "box" || node.kind === "text";
+  return node.kind === "box" || node.kind === "text" || node.kind === "edit";
 }
 
 /** Nearest enclosing `<text>` ancestor (inclusive), or null if outside one. */
 export function enclosingText(node: VuiHostNode | null): VuiHostNode | null {
   for (let n = node; n; n = n.parent) {
     if (n.kind === "text") return n;
-    if (n.kind === "box") return null; // a box breaks the text chain
+    if (n.kind === "box" || n.kind === "edit") return null; // a box/input breaks the text chain
   }
   return null;
 }

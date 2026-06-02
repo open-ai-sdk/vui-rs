@@ -13,8 +13,9 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::border::{glyphs, BorderGlyphs};
-use crate::buffer::{CellBuffer, DEFAULT_FG};
+use crate::buffer::{attr, CellBuffer, DEFAULT_FG};
 use crate::color::Rgba;
+use crate::edit_buffer::EditBuffer;
 use crate::layout::node_box;
 use crate::node::{NodeId, NodeKind, NodeTree, RenderNode, TitleAlign};
 use crate::width::char_width;
@@ -118,6 +119,12 @@ fn paint_node(
         && let Some(text) = &node.text
     {
         draw_runs(buf, content_clip, cx0, cy0, cx1, cy1, text, node);
+    }
+
+    if node.kind == NodeKind::Edit
+        && let Some(edit) = &node.edit
+    {
+        draw_edit(buf, content_clip, cx0, cy0, cx1, edit, node);
     }
 
     // Children paint over this node, clipped to its content box.
@@ -288,6 +295,112 @@ fn draw_runs(
             }
             col += w;
         }
+    }
+}
+
+/// Paint a single-line `<input>`: the value (or placeholder when empty) on the
+/// content row, horizontally scrolled to keep the cursor in view, plus the block
+/// cursor (inverse, or `cursor_color`) when the input has focus.
+fn draw_edit(
+    buf: &mut CellBuffer,
+    clip: Clip,
+    cx0: i64,
+    cy0: i64,
+    cx1: i64,
+    edit: &EditBuffer,
+    node: &RenderNode,
+) {
+    let width = cx1 - cx0;
+    if width <= 0 {
+        return;
+    }
+    let row = cy0;
+    let fg = node.paint.fg.unwrap_or(DEFAULT_FG);
+    let cursor_col = edit.cursor_column() as i64;
+    // Keep the cursor on screen: scroll so it sits at the right edge once the
+    // value overflows the content box; no scroll while it fits.
+    let scroll = if cursor_col >= width {
+        cursor_col - width + 1
+    } else {
+        0
+    };
+
+    if edit.is_empty() {
+        if !edit.placeholder().is_empty() {
+            let color = edit.placeholder_color.unwrap_or(fg);
+            let attrs = if edit.placeholder_color.is_some() { 0 } else { attr::DIM };
+            let cells = glyph_cells(edit.placeholder());
+            draw_glyphs(buf, clip, cx0, cx1, row, &cells, 0, color, node.paint.bg, attrs);
+        }
+    } else {
+        let value: String = edit.iter_graphemes().map(|(g, _)| g).collect();
+        let cells = glyph_cells(&value);
+        draw_glyphs(buf, clip, cx0, cx1, row, &cells, scroll, fg, node.paint.bg, node.paint.attrs);
+    }
+
+    if edit.focused {
+        let sx = cx0 + cursor_col - scroll;
+        if sx >= cx0 && sx < cx1 {
+            let under = edit.cursor_grapheme().and_then(|g| g.chars().next()).unwrap_or(' ');
+            let wide = char_width(under).max(1) == 2 && sx + 1 < cx1;
+            let (cfg, cbg, cattrs) = match edit.cursor_color {
+                Some(cc) => (node.paint.bg.unwrap_or(crate::buffer::DEFAULT_BG), cc, node.paint.attrs),
+                None => (fg, node.paint.bg.unwrap_or_else(|| bg_under(buf, sx, row)), node.paint.attrs | attr::INVERSE),
+            };
+            put(buf, clip, sx, row, under as u32, cfg, cbg, cattrs);
+            // A wide glyph under the cursor needs its continuation cell too, or the
+            // differ could leave the trailing half un-inverted next to the cursor.
+            if wide {
+                put(buf, clip, sx + 1, row, 0, cfg, cbg, cattrs | attr::WIDE_CONTINUATION);
+            }
+        }
+    }
+}
+
+/// Flatten a string to `(leading char, column width)` per grapheme — the form
+/// `draw_glyphs` consumes (v0 measures width on the leading codepoint).
+fn glyph_cells(s: &str) -> Vec<(char, i64)> {
+    s.graphemes(true)
+        .filter_map(|g| g.chars().next().map(|c| (c, char_width(c).max(1) as i64)))
+        .collect()
+}
+
+/// Draw `cells` on `row` starting at column `cx0`, dropping the leading `scroll`
+/// columns and clipping at `cx1`. A wide glyph that the scroll would bisect is
+/// skipped rather than half-drawn.
+#[allow(clippy::too_many_arguments)]
+fn draw_glyphs(
+    buf: &mut CellBuffer,
+    clip: Clip,
+    cx0: i64,
+    cx1: i64,
+    row: i64,
+    cells: &[(char, i64)],
+    scroll: i64,
+    fg: Rgba,
+    bg: Option<Rgba>,
+    attrs: u16,
+) {
+    let mut col: i64 = 0;
+    for &(ch, w) in cells {
+        if col + w <= scroll {
+            col += w; // fully scrolled off the left
+            continue;
+        }
+        let sx = cx0 + col - scroll;
+        if sx >= cx1 {
+            break;
+        }
+        if sx < cx0 {
+            col += w; // wide glyph bisected by the scroll edge
+            continue;
+        }
+        let cell_bg = bg.unwrap_or_else(|| bg_under(buf, sx, row));
+        put(buf, clip, sx, row, ch as u32, fg, cell_bg, attrs);
+        if w == 2 && sx + 1 < cx1 {
+            put(buf, clip, sx + 1, row, 0, fg, cell_bg, attrs | attr::WIDE_CONTINUATION);
+        }
+        col += w;
     }
 }
 

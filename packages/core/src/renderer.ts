@@ -109,9 +109,10 @@ export class Renderer {
     return new VuiNode(this.#lib, this.#ptr, id, 0);
   }
 
-  /** Create a detached node (`"box"` or `"text"`); attach it under a parent. */
-  createNode(kind: "box" | "text"): VuiNode {
-    const code = kind === "text" ? NodeKindCode.Text : NodeKindCode.Box;
+  /** Create a detached node (`"box"`, `"text"`, or `"edit"`); attach under a parent. */
+  createNode(kind: "box" | "text" | "edit"): VuiNode {
+    const code =
+      kind === "text" ? NodeKindCode.Text : kind === "edit" ? NodeKindCode.Edit : NodeKindCode.Box;
     const id = this.#lib.symbols.vui_node_new(this.#ptr, code);
     if (id === 0) {
       throw new Error("vui-core: failed to create node");

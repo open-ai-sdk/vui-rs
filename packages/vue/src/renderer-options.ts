@@ -50,6 +50,7 @@ export function createRendererOptions(
 
   function remove(el: VuiHostNode): void {
     const parent = el.parent;
+    if (el.focusable) ctx.focusManager?.release(el);
     detachFromParent(el);
     if (isNative(el)) {
       parent?.core?.removeChild(el.core!);

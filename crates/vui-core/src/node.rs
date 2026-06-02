@@ -9,6 +9,7 @@
 //! dirty so `layout::compute` only re-runs when something actually moved.
 
 use crate::color::Rgba;
+use crate::edit_buffer::EditBuffer;
 use crate::style::StyleFfi;
 use taffy::geometry::Size;
 use taffy::style::{Dimension, Style};
@@ -40,6 +41,8 @@ pub enum NodeKind {
     Root,
     Box,
     Text,
+    /// A single-line editable input owning an `EditBuffer`.
+    Edit,
 }
 
 impl NodeKind {
@@ -49,6 +52,7 @@ impl NodeKind {
     pub fn from_u8(v: u8) -> Self {
         match v {
             2 => NodeKind::Text,
+            3 => NodeKind::Edit,
             _ => NodeKind::Box,
         }
     }
@@ -57,6 +61,7 @@ impl NodeKind {
             NodeKind::Root => 0,
             NodeKind::Box => 1,
             NodeKind::Text => 2,
+            NodeKind::Edit => 3,
         }
     }
 }
@@ -160,6 +165,8 @@ pub struct RenderNode {
     pub children: Vec<NodeId>,
     pub paint: PaintProps,
     pub text: Option<TextContent>,
+    /// Present only for `NodeKind::Edit` — the input's editable text + cursor.
+    pub edit: Option<EditBuffer>,
 }
 
 struct Slot {
@@ -195,6 +202,7 @@ impl NodeTree {
             children: Vec::new(),
             paint: PaintProps::default(),
             text: None,
+            edit: None,
         });
         tree
     }
@@ -260,6 +268,11 @@ impl NodeTree {
         } else {
             None
         };
+        let edit = if kind == NodeKind::Edit {
+            Some(EditBuffer::default())
+        } else {
+            None
+        };
         self.dirty = true;
         self.alloc(RenderNode {
             kind,
@@ -268,6 +281,7 @@ impl NodeTree {
             children: Vec::new(),
             paint: PaintProps::default(),
             text,
+            edit,
         })
     }
 

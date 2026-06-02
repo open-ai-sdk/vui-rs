@@ -4,6 +4,8 @@ export {
   Attr,
   BorderStyleCode,
   CELL_BYTES,
+  EditMotion,
+  type EditMotionCode,
   EXPECTED_ABI_VERSION,
   NodeKindCode,
   Status,
@@ -12,7 +14,23 @@ export {
   TitleAlignCode,
 } from "./native/load-native-lib.ts";
 export type { NativeLib } from "./native/load-native-lib.ts";
+export { EditApi } from "./edit.ts";
 export { Renderer, rgba, type TextStyle } from "./renderer.ts";
+export {
+  parseKeys,
+  createKeyDecoder,
+  matchesKey,
+  Key,
+  type KeyDecoder,
+  type KeyEvent,
+  type PasteEvent,
+  type InputEvent,
+} from "./keys.ts";
+export {
+  createTerminalSession,
+  type TerminalSession,
+  type TerminalSessionOptions,
+} from "./terminal-session.ts";
 export {
   hostTreeHash,
   VuiNode,

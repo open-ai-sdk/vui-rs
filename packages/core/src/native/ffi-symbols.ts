@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 3;
+export const EXPECTED_ABI_VERSION = 4;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -46,7 +46,18 @@ export const STYLE_FFI_BYTES = 236;
 export const TEXT_RUN_FFI_BYTES = 20;
 
 /** Node kinds for `vui_node_new` (mirrors `node::NodeKind::from_u8`). */
-export const NodeKindCode = { Box: 1, Text: 2 } as const;
+export const NodeKindCode = { Box: 1, Text: 2, Edit: 3 } as const;
+
+/** Cursor motions for `vui_edit_move` (mirrors `edit_buffer::Motion::from_u8`). */
+export const EditMotion = {
+  Left: 0,
+  Right: 1,
+  WordLeft: 2,
+  WordRight: 3,
+  Home: 4,
+  End: 5,
+} as const;
+export type EditMotionCode = (typeof EditMotion)[keyof typeof EditMotion];
 
 /** Border styles for `vui_node_set_border` (0 = none). */
 export const BorderStyleCode = { None: 0, Single: 1, Double: 2, Rounded: 3 } as const;
@@ -162,4 +173,49 @@ export const symbols = {
   },
   vui_style_ffi_size: { args: [], returns: "usize" },
   vui_debug_tree_hash: { args: [FFIType.ptr], returns: FFIType.u64 },
+
+  // Native edit buffer (the `<input>` surface). Node id is a u32 `Edit` handle.
+  vui_edit_insert: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
+    returns: FFIType.u32,
+  },
+  vui_edit_backspace: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+  vui_edit_delete: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+  vui_edit_move: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_edit_set_value: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
+    returns: FFIType.u32,
+  },
+  // out buffer + capacity; returns the value's full byte length (usize → bigint).
+  vui_edit_get_value: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
+    returns: "usize",
+  },
+  vui_edit_set_cursor: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
+    returns: FFIType.u32,
+  },
+  vui_edit_set_max_length: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
+    returns: FFIType.u32,
+  },
+  vui_edit_set_placeholder: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
+    returns: FFIType.u32,
+  },
+  vui_edit_set_focused: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_edit_set_cursor_color: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_edit_set_placeholder_color: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u8],
+    returns: FFIType.u32,
+  },
 } as const;

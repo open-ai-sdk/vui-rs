@@ -1,14 +1,22 @@
 // `createApp` ties Vue to the Rust core. Each app owns its own Vue renderer
 // (bound to a fresh `VuiContext`) so multiple apps never share mutable state. The
-// mount container is the renderer's implicit root node. `mount` enters the alt
-// screen + hides the cursor (with guaranteed teardown); `unmount` flushes node
-// frees, paints the cleared tree, and restores the terminal.
+// mount container is the renderer's implicit root node. In interactive mode it
+// owns a `TerminalSession` (raw mode, alt screen, guaranteed restore) and pumps
+// stdin → key parser → focus manager → focused node's handlers; terminal resizes
+// reflow + repaint. Offscreen mode (an injected renderer / `altScreen: false`)
+// skips all terminal I/O, so tests run without touching a tty.
 import {
   type Component,
   createRenderer as createVueRenderer,
 } from "@vue/runtime-core";
-import { Renderer } from "@vui-rs/core";
+import {
+  Renderer,
+  createKeyDecoder,
+  createTerminalSession,
+  matchesKey,
+} from "@vui-rs/core";
 import { type VuiContext, type VuiHostNode, createHostRoot } from "./host-node.ts";
+import { createFocusManager } from "./focus.ts";
 import { createRendererOptions } from "./renderer-options.ts";
 import { createScheduler } from "./scheduler.ts";
 
@@ -18,7 +26,11 @@ export interface MountOptions {
   /** Terminal size when creating a renderer; defaults to the live tty size. */
   width?: number;
   height?: number;
-  /** Enter the alt screen + hide cursor. Defaults to true unless a renderer is passed. */
+  /**
+   * Interactive mode: enter the alt screen, capture keyboard, handle resize, and
+   * guarantee terminal restore. Defaults to true unless a renderer is injected
+   * (so tests stay offscreen). When false, the app renders without terminal I/O.
+   */
   altScreen?: boolean;
 }
 
@@ -41,11 +53,13 @@ function newContext(): VuiContext {
     flushNow: () => {},
     dispose: () => {},
     renderCount: 0,
+    focusManager: null,
   };
   const scheduler = createScheduler(ctx);
   ctx.scheduleRender = scheduler.scheduleRender;
   ctx.flushNow = scheduler.flushNow;
   ctx.dispose = scheduler.dispose;
+  ctx.focusManager = createFocusManager(ctx);
   return ctx;
 }
 
@@ -58,7 +72,7 @@ export function createApp(rootComponent: Component, rootProps?: Record<string, u
 
   let mounted = false;
   let ownsRenderer = false;
-  let restore: (() => void) | null = null;
+  let teardownSession: (() => void) | null = null;
 
   const app: VuiApp = {
     get renderer() {
@@ -74,7 +88,7 @@ export function createApp(rootComponent: Component, rootProps?: Record<string, u
       ownsRenderer = options.renderer === undefined;
       ctx.renderer = renderer;
       ctx.root = createHostRoot(ctx, renderer.rootNode());
-      if (options.altScreen ?? ownsRenderer) restore = enterTerminal();
+      if (options.altScreen ?? ownsRenderer) startSession(renderer);
       const before = ctx.renderCount;
       vueApp.mount(ctx.root);
       // Mounting usually paints via the scheduled post-flush render; only force a
@@ -87,16 +101,47 @@ export function createApp(rootComponent: Component, rootProps?: Record<string, u
       mounted = false;
       vueApp.unmount();
       ctx.flushNow(); // final paint: frees removed nodes, clears the tree
-      // Stop the scheduler and detach the renderer BEFORE freeing it, so a
-      // callback queued during unmount can never render against freed memory.
+      // Stop the scheduler BEFORE restoring the terminal / freeing the renderer,
+      // so a callback queued during unmount can never render against freed memory.
       ctx.dispose();
+      teardownSession?.();
+      teardownSession = null;
       const owned = ownsRenderer ? ctx.renderer : null;
       ctx.renderer = null;
-      restore?.();
-      restore = null;
       owned?.free();
     },
   };
+
+  /** Wire the terminal session: keyboard pump (focus + Ctrl-C) and resize. */
+  function startSession(renderer: Renderer): void {
+    const session = createTerminalSession();
+    // One decoder per session so a sequence/paste split across stdin reads still
+    // parses correctly (it buffers the partial tail until the rest arrives).
+    const decoder = createKeyDecoder();
+    session.onData((data) => {
+      for (const ev of decoder.feed(data)) {
+        if (ev.type === "key" && matchesKey(ev, "ctrl+c")) {
+          app.unmount();
+          process.exit(0);
+        }
+        if (ev.type === "key" && ev.name === "tab") {
+          if (ev.shift) ctx.focusManager?.focusPrev();
+          else ctx.focusManager?.focusNext();
+          continue;
+        }
+        ctx.focusManager?.dispatch(ev);
+      }
+    });
+    session.onResize((cols, rows) => {
+      if (cols > 0 && rows > 0) {
+        renderer.resize(cols, rows);
+        ctx.flushNow();
+      }
+    });
+    session.start();
+    teardownSession = () => session.stop();
+  }
+
   return app;
 }
 
@@ -104,27 +149,4 @@ function createDefaultRenderer(options: MountOptions): Renderer {
   const width = options.width ?? process.stdout.columns ?? 80;
   const height = options.height ?? process.stdout.rows ?? 24;
   return new Renderer(width, height);
-}
-
-/**
- * Enter the alt screen + hide the cursor, returning an idempotent restore. Also
- * wires exit/signal handlers so the terminal is always restored, even on crash.
- */
-function enterTerminal(): () => void {
-  const out = process.stdout;
-  out.write("\x1b[?1049h\x1b[?25l");
-  let restored = false;
-  const restore = (): void => {
-    if (restored) return;
-    restored = true;
-    out.write("\x1b[?25h\x1b[?1049l");
-  };
-  const onSignal = (): void => {
-    restore();
-    process.exit(0);
-  };
-  process.once("exit", restore);
-  process.once("SIGINT", onSignal);
-  process.once("SIGTERM", onSignal);
-  return restore;
 }

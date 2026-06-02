@@ -174,6 +174,11 @@ impl Renderer {
 
                 if !frame_started {
                     ansi::sync_begin(&mut self.out);
+                    // Keep the hardware cursor hidden whenever vui paints: this is
+                    // a cell grid that draws its OWN cursor (e.g. an <input>'s block
+                    // cursor), so a visible terminal cursor would show up as a
+                    // second, stray cursor. The frame never re-shows it; visibility
+                    // is owned by the terminal session / app and restored on exit.
                     ansi::hide_cursor(&mut self.out);
                     frame_started = true;
                 }
@@ -215,7 +220,6 @@ impl Renderer {
 
         if frame_started {
             ansi::reset(&mut self.out);
-            ansi::show_cursor(&mut self.out);
             ansi::sync_end(&mut self.out);
         }
 
@@ -592,6 +596,76 @@ mod tree_tests {
         r.tree_mut().remove_child(root, a);
         r.render_for_test();
         assert_eq!(r.back.get_cell(0, 0).unwrap().bg, DEFAULT_BG);
+    }
+
+    #[test]
+    fn edit_paints_value_and_focused_cursor() {
+        let mut r = Renderer::new(10, 1);
+        let root = r.root();
+        let e = r.tree_mut().create(NodeKind::Edit);
+        let mut s = empty_style();
+        s.width = len(10.0);
+        s.height = len(1.0);
+        r.tree_mut().set_style(e, &s);
+        {
+            let edit = r.tree_mut().get_mut(e).unwrap().edit.as_mut().unwrap();
+            edit.insert("hi");
+            edit.focused = true; // cursor sits past "hi", at column 2
+        }
+        r.tree_mut().append_child(root, e);
+        r.compose_tree();
+
+        assert_eq!(ch_at(&r, 0, 0), 'h');
+        assert_eq!(ch_at(&r, 1, 0), 'i');
+        // The block cursor (inverse) is drawn at the cursor column (end of value).
+        let cursor = r.back.get_cell(2, 0).unwrap();
+        assert!(cursor.attrs & attr::INVERSE != 0, "focused cursor is inverse");
+    }
+
+    #[test]
+    fn unfocused_empty_edit_shows_placeholder_not_cursor() {
+        let mut r = Renderer::new(12, 1);
+        let root = r.root();
+        let e = r.tree_mut().create(NodeKind::Edit);
+        let mut s = empty_style();
+        s.width = len(12.0);
+        s.height = len(1.0);
+        r.tree_mut().set_style(e, &s);
+        r.tree_mut().get_mut(e).unwrap().edit.as_mut().unwrap().set_placeholder("name");
+        r.tree_mut().append_child(root, e);
+        r.compose_tree();
+
+        assert_eq!(ch_at(&r, 0, 0), 'n');
+        assert_eq!(ch_at(&r, 3, 0), 'e');
+        // No focus → no inverse cursor anywhere on the row.
+        let any_inverse = (0..12).any(|x| r.back.get_cell(x, 0).unwrap().attrs & attr::INVERSE != 0);
+        assert!(!any_inverse);
+    }
+
+    #[test]
+    fn edit_scrolls_to_keep_cursor_visible() {
+        // Content width 5, value 8 graphemes, cursor at end (col 8): the view
+        // scrolls so the tail "defgh" shows and the cursor sits at the right edge.
+        let mut r = Renderer::new(5, 1);
+        let root = r.root();
+        let e = r.tree_mut().create(NodeKind::Edit);
+        let mut s = empty_style();
+        s.width = len(5.0);
+        s.height = len(1.0);
+        r.tree_mut().set_style(e, &s);
+        {
+            let edit = r.tree_mut().get_mut(e).unwrap().edit.as_mut().unwrap();
+            edit.insert("abcdefgh");
+            edit.focused = true;
+        }
+        r.tree_mut().append_child(root, e);
+        r.compose_tree();
+
+        // scroll = 8 - 5 + 1 = 4, so column 0 shows the 5th grapheme 'e'.
+        assert_eq!(ch_at(&r, 0, 0), 'e');
+        assert_eq!(ch_at(&r, 3, 0), 'h');
+        // Cursor (past 'h') lands on the last visible column, inverse.
+        assert!(r.back.get_cell(4, 0).unwrap().attrs & attr::INVERSE != 0);
     }
 
     #[test]

@@ -6,9 +6,15 @@ export { createApp, type MountOptions, type VuiApp } from "./create-app.ts";
 export { extend, type CatalogueEntry, type HostKind } from "./catalogue.ts";
 export { parseColor } from "./color.ts";
 export type { VuiContext, VuiHostNode } from "./host-node.ts";
+export {
+  createFocusManager,
+  type FocusManager,
+  type DispatchableEvent,
+} from "./focus.ts";
+export { VuiInput } from "./components/input.ts";
 
-// Re-export the color/attr helpers so apps need not also import @vui-rs/core.
-export { Attr, rgba } from "@vui-rs/core";
+// Re-export the color/attr helpers + key utilities so apps depend on @vui-rs/vue alone.
+export { Attr, rgba, Key, matchesKey, type KeyEvent, type InputEvent } from "@vui-rs/core";
 
 // Vue reactivity + authoring API, re-exported so apps depend on @vui-rs/vue alone.
 export {

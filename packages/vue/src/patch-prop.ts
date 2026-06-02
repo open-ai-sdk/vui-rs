@@ -44,6 +44,19 @@ function applyProp(el: VuiHostNode, key: string, prev: unknown, next: unknown): 
     }
     return;
   }
+  if (key === "focusable") {
+    setFocusable(el, next !== false);
+    return;
+  }
+  if (key === "focused") {
+    setFocused(el, next !== false && next != null);
+    el.ctx.scheduleRender();
+    return;
+  }
+  if (el.kind === "edit" && applyEdit(el, key, next)) {
+    el.ctx.scheduleRender();
+    return;
+  }
   if (LAYOUT_KEYS.has(key) || INSET_SIDES.has(key)) {
     applyLayout(el, key, next);
     el.ctx.dirtyStyle.add(el);
@@ -53,6 +66,44 @@ function applyProp(el: VuiHostNode, key: string, prev: unknown, next: unknown): 
   el.ctx.scheduleRender();
 }
 
+
+/** Mark a node as Tab-focusable; releasing focus if it currently holds it. */
+function setFocusable(el: VuiHostNode, on: boolean): void {
+  el.focusable = on;
+  if (!on) el.ctx.focusManager?.release(el);
+}
+
+/** Controlled focus: `focused` true focuses the node, false blurs it if focused. */
+function setFocused(el: VuiHostNode, on: boolean): void {
+  const fm = el.ctx.focusManager;
+  if (!fm) return;
+  if (on) fm.focus(el);
+  else if (fm.current() === el) fm.blur();
+}
+
+/** Apply an `<input>`-specific prop straight to its native edit buffer. */
+function applyEdit(el: VuiHostNode, key: string, next: unknown): boolean {
+  const edit = el.core?.edit;
+  if (!edit) return false;
+  switch (key) {
+    case "value":
+      edit.setValue(next == null ? "" : String(next));
+      return true;
+    case "placeholder":
+      edit.setPlaceholder(next == null ? "" : String(next));
+      return true;
+    case "placeholderColor":
+      edit.setPlaceholderColor(parseColor(next));
+      return true;
+    case "cursorColor":
+      edit.setCursorColor(parseColor(next));
+      return true;
+    case "maxLength":
+      edit.setMaxLength(typeof next === "number" ? next : undefined);
+      return true;
+  }
+  return false;
+}
 
 function applyLayout(el: VuiHostNode, key: string, next: unknown): void {
   const style = el.styleCache as Record<string, unknown>;

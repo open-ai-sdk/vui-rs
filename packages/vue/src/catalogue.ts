@@ -5,7 +5,7 @@
 import { Attr } from "@vui-rs/core";
 
 /** Host kind an element tag resolves to. `span` kinds are virtual (no Rust node). */
-export type HostKind = "box" | "text" | "span";
+export type HostKind = "box" | "text" | "edit" | "span";
 
 export interface CatalogueEntry {
   kind: HostKind;
@@ -16,6 +16,8 @@ export interface CatalogueEntry {
 const DEFAULT_CATALOGUE: Record<string, CatalogueEntry> = {
   box: { kind: "box", spanAttrs: 0 },
   text: { kind: "text", spanAttrs: 0 },
+  // Single-line editable input, backed by the native edit buffer.
+  input: { kind: "edit", spanAttrs: 0 },
   // Inline run-style tags. `span` carries no implicit attrs (style comes from props).
   span: { kind: "span", spanAttrs: 0 },
   b: { kind: "span", spanAttrs: Attr.BOLD },

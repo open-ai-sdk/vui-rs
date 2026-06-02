@@ -8,6 +8,8 @@ export {
   Attr,
   BorderStyleCode,
   CELL_BYTES,
+  EditMotion,
+  type EditMotionCode,
   EXPECTED_ABI_VERSION,
   NodeKindCode,
   Status,

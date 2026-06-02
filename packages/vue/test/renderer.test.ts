@@ -25,6 +25,7 @@ function makeCtx(renderer: Renderer): VuiContext {
     flushNow: () => {},
     dispose: () => {},
     renderCount: 0,
+    focusManager: null,
   };
 }
 

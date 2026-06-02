@@ -7,6 +7,7 @@ pub mod ansi;
 pub mod border;
 pub mod buffer;
 pub mod color;
+pub mod edit_buffer;
 pub mod ffi;
 pub mod layout;
 pub mod node;
@@ -25,7 +26,8 @@ const VERSION: u32 = 0x00_01_00;
 /// `#[repr(C)]` struct layout so the JS loader can refuse a mismatched library.
 /// v2: the renderer/buffer exports and the `repr(C)` `Cell`.
 /// v3: the render-node tree exports, `StyleFfi`, and `TextRunFfi`.
-const ABI_VERSION: u32 = 3;
+/// v4: the native edit-buffer exports (`vui_edit_*`) and `NodeKind::Edit`.
+const ABI_VERSION: u32 = 4;
 
 /// Returns the packed semver of the native core.
 ///
