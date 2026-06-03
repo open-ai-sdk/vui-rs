@@ -137,4 +137,20 @@ describe("JS host node-ops", () => {
     expect(app.context.renderCount).toBe(1);
     cleanup();
   });
+
+  test("on-demand: an idle app emits zero renders between changes", async () => {
+    const count = ref(0);
+    const { app, cleanup } = mount(() => h("box", {}, [h("text", {}, String(count.value))]));
+    const after = app.context.renderCount; // one render on mount
+    // No state change across several ticks → no scheduled renders.
+    await nextTick();
+    await nextTick();
+    expect(app.context.renderCount).toBe(after);
+    // A change schedules exactly one more (coalesced) render.
+    count.value++;
+    await nextTick();
+    app.context.flushNow();
+    expect(app.context.renderCount).toBeGreaterThan(after);
+    cleanup();
+  });
 });

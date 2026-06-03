@@ -22,6 +22,7 @@
     "start:sfc": "bun run --filter @vui-rs/examples-sfc start",
     "dev:sfc": "bun run --filter @vui-rs/examples-sfc dev",
     "typecheck:sfc": "vue-tsc --noEmit",
+    "bench": "bun run examples/paint-bench.ts >/dev/null",
     "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test && bun run examples/smoke-version.ts"
   },
   "devDependencies": {

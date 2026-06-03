@@ -85,9 +85,22 @@ export function drawBorder(
   const bgAt = (x: number, y: number): number => nodeBg ?? buf.bgUnder(x, y);
   const right = x1 - 1;
   const bottom = y1 - 1;
-  for (let x = x0 + 1; x < right; x++) {
-    put(buf, clip, x, y0, cp(g.h), fg, bgAt(x, y0), 0);
-    put(buf, clip, x, bottom, cp(g.h), fg, bgAt(x, bottom), 0);
+  const innerW = right - (x0 + 1);
+  if (innerW > 0) {
+    if (nodeBg !== undefined) {
+      // Opaque bg → the whole horizontal run is one style: draw it in a single
+      // FFI op per row instead of one per cell (the dominant cost for wide boxes).
+      // Cell-for-cell identical to the per-cell loop (same ch/fg/bg/attrs).
+      const hrun = g.h.repeat(innerW);
+      buf.drawText(x0 + 1, y0, hrun, fg, nodeBg, 0, clip);
+      buf.drawText(x0 + 1, bottom, hrun, fg, nodeBg, 0, clip);
+    } else {
+      // Transparent: each cell keeps the (varying) bg under it — must go per-cell.
+      for (let x = x0 + 1; x < right; x++) {
+        put(buf, clip, x, y0, cp(g.h), fg, buf.bgUnder(x, y0), 0);
+        put(buf, clip, x, bottom, cp(g.h), fg, buf.bgUnder(x, bottom), 0);
+      }
+    }
   }
   for (let y = y0 + 1; y < bottom; y++) {
     put(buf, clip, x0, y, cp(g.v), fg, bgAt(x0, y), 0);
