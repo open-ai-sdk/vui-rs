@@ -110,6 +110,28 @@ describe("JS-host layout (taffy via FFI)", () => {
     cleanup();
   });
 
+  test("a terminal resize forces a relayout (root + children grow to fit)", () => {
+    const r = new Renderer(40, 10);
+    const App = defineComponent({
+      setup: () => () =>
+        h("box", { width: { pct: 1 }, height: { pct: 1 }, flexDirection: "row" }, [
+          h("box", { flexGrow: 1, flexBasis: 0, height: { pct: 1 } }),
+          h("box", { flexGrow: 1, flexBasis: 0, height: { pct: 1 } }),
+        ]),
+    });
+    const app = createHostApp(App).mount({ renderer: r });
+    const row = app.context.root!.children[0]!;
+    expect(Math.round(row.rect!.w)).toBe(40);
+    expect(Math.round(row.children[0]!.rect!.w)).toBe(20);
+
+    r.resize(80, 12); // SIGWINCH path: native resize, then flush
+    app.context.flushNow();
+    expect(Math.round(row.rect!.w)).toBe(80); // root grew
+    expect(Math.round(row.children[0]!.rect!.w)).toBe(40); // children reflowed
+    app.unmount();
+    r.free();
+  });
+
   test("layout is dirty-gated: an idle re-render clears no work and keeps rects", async () => {
     const { app, root, cleanup } = mount(40, 10, () =>
       h("box", { width: 40, height: 10 }, [h("text", {}, "hi")]),

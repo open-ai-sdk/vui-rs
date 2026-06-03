@@ -182,6 +182,9 @@ export interface HostContext {
   dirtyLayout: Set<Renderable>;
   /** Renderables whose text runs changed (re-flattened on paint). */
   dirtyText: Set<Renderable>;
+  /** Renderer size at the last layout pass; a change (resize) forces a relayout. */
+  layoutW: number;
+  layoutH: number;
   scheduleRender: () => void;
   flushNow: () => void;
   dispose: () => void;

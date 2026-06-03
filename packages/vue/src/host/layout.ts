@@ -26,10 +26,18 @@ export function runLayout(ctx: HostContext): void {
   }
   ctx.dirtyText.clear();
 
-  // Dirty-gate: skip the layout FFI when nothing changed and we already have rects.
-  if (!hadWork && ctx.root.rect) return;
+  // A terminal resize changes the root's available size without dirtying any
+  // node, so it must force a relayout (else the tree stays at the old size and
+  // the resized buffer shows unpainted area).
+  const sizeChanged = ctx.layoutW !== renderer.width || ctx.layoutH !== renderer.height;
+
+  // Dirty-gate: skip the layout FFI when nothing changed, the size is unchanged,
+  // and we already have rects.
+  if (!hadWork && !sizeChanged && ctx.root.rect) return;
 
   renderer.computeLayout();
+  ctx.layoutW = renderer.width;
+  ctx.layoutH = renderer.height;
   readRects(ctx.root);
 }
 

@@ -42,6 +42,8 @@ function newHostContext(): HostContext {
     theme: darkTheme,
     dirtyLayout: new Set(),
     dirtyText: new Set(),
+    layoutW: -1,
+    layoutH: -1,
     scheduleRender: () => {},
     flushNow: () => {},
     dispose: () => {},
