@@ -162,6 +162,15 @@ export class Renderer {
   }
 
   /**
+   * JS-host emit: diff + write the back buffer exactly as it was drawn, WITHOUT
+   * composing the native node tree. The JS paint walk clears + stamps the back
+   * buffer (via the clip-aware prims), then calls this to flush the frame.
+   */
+  flush(): void {
+    check(this.#lib.symbols.vui_renderer_flush(this.#ptr), "flush");
+  }
+
+  /**
    * The implicit root node, created with the renderer and sized to the terminal.
    * Build the UI as its descendants; `render()` lays out and paints the tree.
    */

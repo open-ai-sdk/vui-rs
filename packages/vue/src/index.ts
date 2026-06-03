@@ -21,6 +21,13 @@ export {
   extend as extendHost,
   type CatalogueEntry as HostCatalogueEntry,
 } from "./host/catalogue.ts";
+export {
+  CanvasRenderable,
+  type CanvasContext,
+  type CanvasDraw,
+  type CanvasRect,
+  type CanvasStyle,
+} from "./host/canvas-renderable.ts";
 // Re-export the element prop types AND pull `vui-elements` into the module graph
 // so its `GlobalComponents` augmentation (template type-support for <box>/<text>/
 // <input>) ships in the bundled dist .d.ts. Types-only: erased from the JS bundle.

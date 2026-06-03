@@ -53,20 +53,47 @@ export interface LayoutRect {
   border: Edges;
 }
 
-/** Paint surface a Renderable draws into — the native cell buffer (Phase 02/04). */
-export interface PaintBuffer {
-  drawText(x: number, y: number, text: string, fg: number, bg: number | undefined, attrs: number): void;
-  fillRect(x: number, y: number, w: number, h: number, bg: number): void;
-  setCell(x: number, y: number, ch: number, fg: number, bg: number | undefined, attrs: number): void;
-  bgUnder(x: number, y: number): number;
-}
-
 /** Half-open clip rect `[x0,x1) × [y0,y1)` — the JS twin of paint.rs `Clip`. */
 export interface Clip {
   x0: number;
   y0: number;
   x1: number;
   y1: number;
+}
+
+/**
+ * Paint surface a Renderable draws into — the native cell buffer, via the
+ * clip-aware prims. Every op takes the clip (already intersected with the
+ * buffer). `bgUnder` reads the current cell background so a transparent glyph
+ * keeps whatever it sits on (the JS twin of paint.rs `bg_under`).
+ */
+export interface PaintBuffer {
+  fillRect(x: number, y: number, w: number, h: number, bg: number, clip: Clip): void;
+  setCell(x: number, y: number, ch: number, fg: number, bg: number, attrs: number, clip: Clip): void;
+  /** Draw a whole string on a row, clipped (one FFI op). Used by the canvas ctx. */
+  drawText(x: number, y: number, text: string, fg: number, bg: number, attrs: number, clip: Clip): void;
+  /** Composite an offscreen buffer into the back buffer at `(dstX,dstY)`, clipped. */
+  blit(src: import("@vui-rs/core").OffscreenBuffer, dstX: number, dstY: number, clip: Clip): void;
+  bgUnder(x: number, y: number): number;
+}
+
+/**
+ * Geometry a Renderable paints with, computed by the paint walk: the rounded
+ * absolute border box (`x0..y1`) + its clip, and the content box (`cx0..cy1`,
+ * inset by border+padding) + its clip. The JS twin of paint.rs `paint_node`'s
+ * locals, handed to `renderSelf`.
+ */
+export interface PaintCtx {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  clip: Clip;
+  cx0: number;
+  cy0: number;
+  cx1: number;
+  cy1: number;
+  contentClip: Clip;
 }
 
 export function newPaint(): PaintProps {
@@ -125,8 +152,8 @@ export class Renderable {
     return markRaw(this);
   }
 
-  /** Draw this node into the buffer within `clip`. Overridden by subclasses (Phase 04). */
-  renderSelf(_buffer: PaintBuffer, _clip: Clip): void {
+  /** Draw this node into the buffer with the walk-computed geometry. Overridden by subclasses. */
+  renderSelf(_buffer: PaintBuffer, _ctx: PaintCtx): void {
     // base: span/raw-text/comment paint nothing on their own.
   }
 
@@ -134,6 +161,12 @@ export class Renderable {
   markDirty(): void {
     this.dirty = true;
   }
+
+  /**
+   * Release any native resources this node owns (e.g. a canvas's offscreen
+   * buffer). Called for every node in a removed subtree. Base: nothing to free.
+   */
+  dispose(): void {}
 }
 
 /**

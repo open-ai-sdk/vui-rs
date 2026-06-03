@@ -129,11 +129,11 @@ describe("JS host node-ops", () => {
     ).toThrow(/cannot nest/);
   });
 
-  test("a render pass runs layout but no paint (paint hook unwired pre-Phase 04)", () => {
+  test("a full render pass (layout + paint) runs once on mount", () => {
     const { app, cleanup } = mount(() => h("box", {}, [h("text", {}, "x")]));
-    expect(app.context.paint).toBeNull(); // no paint yet
-    expect(app.context.layout).not.toBeNull(); // layout (Phase 03) wired
-    expect(app.context.renderer).not.toBeNull(); // taffy backing for layout
+    expect(app.context.layout).not.toBeNull(); // layout (Phase 03)
+    expect(app.context.paint).not.toBeNull(); // paint (Phase 04)
+    expect(app.context.renderer).not.toBeNull();
     expect(app.context.renderCount).toBe(1);
     cleanup();
   });

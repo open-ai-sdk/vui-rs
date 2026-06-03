@@ -248,6 +248,21 @@ impl Renderer {
         let _ = lock.write_all(&self.out);
         let _ = lock.flush();
     }
+
+    /// Diff the back buffer as the caller drew it and write the frame — WITHOUT
+    /// composing the node tree. This is the JS-host emit path: the JS paint walk
+    /// owns the back buffer (clears it, then stamps via the clip-aware draw
+    /// prims), so the Rust tree compose/paint must be bypassed entirely.
+    pub fn flush_only(&mut self) {
+        self.paint();
+        if self.out.is_empty() {
+            return;
+        }
+        let stdout = std::io::stdout();
+        let mut lock = stdout.lock();
+        let _ = lock.write_all(&self.out);
+        let _ = lock.flush();
+    }
 }
 
 #[cfg(test)]

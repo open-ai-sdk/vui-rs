@@ -41,9 +41,14 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     return;
   }
   if (key === "focused") {
-    // Controlled focus is wired to the host focus manager in a later phase; store
-    // the intent so it is not misrouted to paint/unknown.
-    el.props.focused = next !== false && next != null;
+    const on = next !== false && next != null;
+    el.props.focused = on;
+    // Reflect focus into an edit's paint state so its block cursor renders.
+    // (Full keyboard focus-manager wiring is a later phase.)
+    if (el.kind === "edit") {
+      (el as EditRenderable).edit.focused = on;
+      el.markDirty();
+    }
     el.ctx.scheduleRender();
     return;
   }

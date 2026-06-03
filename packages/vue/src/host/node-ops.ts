@@ -120,6 +120,7 @@ export function createNodeOps(ctx: HostContext): RendererOptions<Renderable, Ren
     while (stack.length > 0) {
       const n = stack.pop()!;
       n.layoutNode = null;
+      n.dispose(); // release native resources (e.g. a canvas's offscreen buffer)
       ctx.dirtyLayout.delete(n);
       ctx.dirtyText.delete(n);
       for (const child of n.children) stack.push(child);

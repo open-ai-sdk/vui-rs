@@ -173,6 +173,16 @@ pub extern "C" fn vui_renderer_render(r: *mut Renderer) -> u32 {
     })
 }
 
+/// JS-host emit: diff + write the back buffer as the caller drew it, WITHOUT
+/// composing the node tree (the JS paint walk owns the back buffer).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_flush(r: *mut Renderer) -> u32 {
+    with_renderer(r, |rr| {
+        rr.flush_only();
+        status::OK
+    })
+}
+
 // --- Clip-aware back-buffer primitives (the JS paint walk's draw surface) ---
 //
 // Signed coords + an explicit clip rect let the JS host hand a node's content

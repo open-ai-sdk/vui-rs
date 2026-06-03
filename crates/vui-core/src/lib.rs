@@ -34,7 +34,9 @@ const VERSION: u32 = 0x00_01_00;
 /// v6: `vui_char_width` — the shared glyph-width source for the JS-host `wrap.ts`.
 /// v7: JS-host layout readback — `vui_layout_compute` + `vui_node_rect` (`RectFfi`)
 ///     drive taffy for the Renderable tree without painting.
-const ABI_VERSION: u32 = 7;
+/// v8: `vui_renderer_flush` — diff/emit the back buffer without composing the
+///     node tree, so the JS-host paint walk owns the buffer.
+const ABI_VERSION: u32 = 8;
 
 /// Returns the packed semver of the native core.
 ///

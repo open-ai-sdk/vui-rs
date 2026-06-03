@@ -14,6 +14,7 @@ import { BoxRenderable } from "./box-renderable.ts";
 import { createHostScheduler } from "./scheduler.ts";
 import { createNodeOps } from "./node-ops.ts";
 import { runLayout } from "./layout.ts";
+import { runPaint } from "./paint-walk.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
 import { type Theme, ThemeSymbol, darkTheme } from "../theme.ts";
 
@@ -44,7 +45,7 @@ function newHostContext(): HostContext {
     dispose: () => {},
     renderCount: 0,
     layout: runLayout,
-    paint: null,
+    paint: runPaint,
   };
   const scheduler = createHostScheduler(ctx);
   ctx.scheduleRender = scheduler.scheduleRender;
@@ -83,9 +84,13 @@ export function createHostApp(
       // layout nodes can attach under the root's.
       ctx.renderer = options.renderer ?? createDefaultRenderer(options);
       ownsRenderer = options.renderer === undefined;
-      // The root Renderable wraps the renderer's implicit root layout node.
+      // The root Renderable wraps the renderer's implicit root layout node and is
+      // the canvas: it paints the theme background + base foreground (mirrors the
+      // FFI host's `createHostRoot`, so both hosts produce the same base frame).
       ctx.root = new BoxRenderable(ctx, "#root");
       ctx.root.layoutNode = ctx.renderer.rootNode();
+      ctx.root.paint.bg = ctx.theme.bg;
+      ctx.root.paint.fg = ctx.theme.fg;
       const before = ctx.renderCount;
       vueApp.mount(ctx.root);
       if (ctx.renderCount === before) ctx.flushNow();

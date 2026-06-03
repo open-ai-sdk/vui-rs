@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 7;
+export const EXPECTED_ABI_VERSION = 8;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -115,6 +115,8 @@ export const symbols = {
   },
   vui_buffer_clear: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
   vui_renderer_render: { args: [FFIType.ptr], returns: FFIType.u32 },
+  // JS-host emit: diff/write the back buffer without composing the node tree.
+  vui_renderer_flush: { args: [FFIType.ptr], returns: FFIType.u32 },
 
   // Clip-aware back-buffer prims for the JS paint walk. Signed coords; the clip
   // rect crosses as a pointer to a 4-i32 buffer (one 8-byte slot — avoids the
