@@ -5,6 +5,8 @@
   <box flexDirection="row" :width="{ pct: 1 }" :height="{ pct: 1 }" :padding="1" :gap="2" :bg="BASE">
     <box
       :flexGrow="1"
+      :flexBasis="0"
+      :minWidth="0"
       :height="{ pct: 1 }"
       border="single"
       :borderColor="ACCENT"
@@ -18,6 +20,8 @@
 
     <box
       :flexGrow="1"
+      :flexBasis="0"
+      :minWidth="0"
       :height="{ pct: 1 }"
       border="rounded"
       :borderColor="GREEN"
