@@ -28,6 +28,13 @@ export {
   type CanvasRect,
   type CanvasStyle,
 } from "./host/canvas-renderable.ts";
+export { EditRenderable, type EditState } from "./host/edit-renderable.ts";
+export {
+  createHostFocusManager,
+  type HostFocusManager,
+  type DispatchableEvent as HostDispatchableEvent,
+} from "./host/focus.ts";
+export { VuiHostInput } from "./host/components/input.ts";
 // Re-export the element prop types AND pull `vui-elements` into the module graph
 // so its `GlobalComponents` augmentation (template type-support for <box>/<text>/
 // <input>) ships in the bundled dist .d.ts. Types-only: erased from the JS bundle.

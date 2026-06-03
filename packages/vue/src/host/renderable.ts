@@ -190,4 +190,6 @@ export interface HostContext {
   layout: ((ctx: HostContext) => void) | null;
   /** Paint walk (Phase 04); null until wired. */
   paint: ((ctx: HostContext) => void) | null;
+  /** Keyboard focus model; wired at mount (null in offscreen-only tests). */
+  focusManager: import("./focus.ts").HostFocusManager | null;
 }

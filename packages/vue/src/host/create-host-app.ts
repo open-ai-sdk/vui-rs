@@ -9,8 +9,10 @@ import {
   type Component,
   createRenderer as createVueRenderer,
 } from "@vue/runtime-core";
-import { Renderer } from "@vui-rs/core";
+import { Renderer, createKeyDecoder, createTerminalSession, matchesKey } from "@vui-rs/core";
 import { BoxRenderable } from "./box-renderable.ts";
+import { VuiHostInput } from "./components/input.ts";
+import { createHostFocusManager } from "./focus.ts";
 import { createHostScheduler } from "./scheduler.ts";
 import { createNodeOps } from "./node-ops.ts";
 import { runLayout } from "./layout.ts";
@@ -46,11 +48,13 @@ function newHostContext(): HostContext {
     renderCount: 0,
     layout: runLayout,
     paint: runPaint,
+    focusManager: null,
   };
   const scheduler = createHostScheduler(ctx);
   ctx.scheduleRender = scheduler.scheduleRender;
   ctx.flushNow = scheduler.flushNow;
   ctx.dispose = scheduler.dispose;
+  ctx.focusManager = createHostFocusManager(ctx);
   return ctx;
 }
 
@@ -63,9 +67,12 @@ export function createHostApp(
     createNodeOps(ctx),
   );
   const vueApp = createVueApp(rootComponent, rootProps ?? null);
+  // Built-in `<input>` widget (JS edit model), so templates use it without import.
+  vueApp.component("input", VuiHostInput);
 
   let mounted = false;
   let ownsRenderer = false;
+  let teardownSession: (() => void) | null = null;
 
   const app: VuiHostApp = {
     get renderer() {
@@ -91,6 +98,9 @@ export function createHostApp(
       ctx.root.layoutNode = ctx.renderer.rootNode();
       ctx.root.paint.bg = ctx.theme.bg;
       ctx.root.paint.fg = ctx.theme.fg;
+      // Interactive mode (alt-screen + keyboard); defaults on when we own the
+      // renderer, off for injected renderers so tests stay offscreen.
+      if (options.altScreen ?? ownsRenderer) startSession(ctx.renderer);
       const before = ctx.renderCount;
       vueApp.mount(ctx.root);
       if (ctx.renderCount === before) ctx.flushNow();
@@ -101,12 +111,44 @@ export function createHostApp(
       mounted = false;
       vueApp.unmount();
       ctx.flushNow();
+      // Stop the scheduler BEFORE restoring the terminal / freeing the renderer,
+      // so a callback queued during unmount can't render against freed memory.
       ctx.dispose();
+      teardownSession?.();
+      teardownSession = null;
       const owned = ownsRenderer ? ctx.renderer : null;
       ctx.renderer = null;
       owned?.free();
     },
   };
+
+  /** Wire the terminal session: keyboard pump (Tab focus + Ctrl-C) and resize. */
+  function startSession(renderer: Renderer): void {
+    const session = createTerminalSession();
+    const decoder = createKeyDecoder();
+    session.onData((data) => {
+      for (const ev of decoder.feed(data)) {
+        if (ev.type === "key" && matchesKey(ev, "ctrl+c")) {
+          app.unmount();
+          process.exit(0);
+        }
+        if (ev.type === "key" && ev.name === "tab") {
+          if (ev.shift) ctx.focusManager?.focusPrev();
+          else ctx.focusManager?.focusNext();
+          continue;
+        }
+        ctx.focusManager?.dispatch(ev);
+      }
+    });
+    session.onResize((cols, rows) => {
+      if (cols > 0 && rows > 0) {
+        renderer.resize(cols, rows);
+        ctx.flushNow();
+      }
+    });
+    session.start();
+    teardownSession = () => session.stop();
+  }
 
   return app;
 }

@@ -54,6 +54,7 @@ export function createNodeOps(ctx: HostContext): RendererOptions<Renderable, Ren
 
   function remove(el: Renderable): void {
     const parent = el.parent;
+    if (el.focusable) ctx.focusManager?.release(el);
     detachFromParent(el);
     if (isLayoutNode(el)) {
       // Detach + free the layout subtree. Vue unmounts descendants with

@@ -36,16 +36,22 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     return;
   }
   if (key === "focusable") {
-    el.focusable = next !== false;
+    const on = next !== false;
+    el.focusable = on;
+    if (!on) el.ctx.focusManager?.release(el);
     el.ctx.scheduleRender();
     return;
   }
   if (key === "focused") {
     const on = next !== false && next != null;
-    el.props.focused = on;
-    // Reflect focus into an edit's paint state so its block cursor renders.
-    // (Full keyboard focus-manager wiring is a later phase.)
-    if (el.kind === "edit") {
+    const fm = el.ctx.focusManager;
+    if (fm) {
+      // Controlled focus via the focus manager (it sets the edit's paint state +
+      // fires focus/blur handlers). In offscreen-only tests with no manager, fall
+      // back to setting the edit's paint flag directly so the cursor still renders.
+      if (on) fm.focus(el);
+      else if (fm.current() === el) fm.blur();
+    } else if (el.kind === "edit") {
       (el as EditRenderable).edit.focused = on;
       el.markDirty();
     }
@@ -135,7 +141,9 @@ function combineAttrs(p: PaintProps): number {
 function applyEdit(el: EditRenderable, key: string, next: unknown): boolean {
   switch (key) {
     case "value":
-      el.edit.value = next == null ? "" : String(next);
+      // Route through setValue so the cursor stays valid (clamped to end) — a raw
+      // assignment would leave the cursor past the end if the value shrinks.
+      el.setValue(next == null ? "" : String(next));
       return true;
     case "placeholder":
       el.edit.placeholder = next == null ? "" : String(next);
