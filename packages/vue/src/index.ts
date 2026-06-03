@@ -4,6 +4,23 @@
 // `mount()` paints it; reactive state changes coalesce into one repaint per frame.
 export { createApp, type MountOptions, type VuiApp } from "./create-app.ts";
 export { extend, isVuiTag, type CatalogueEntry, type HostKind } from "./catalogue.ts";
+
+// JS host (OpenTUI-style) — opt-in via `VUI_HOST=js` or `createHostApp` directly.
+// Strangler: runs alongside the FFI host until the Phase 04 parity cutover.
+export {
+  createHostApp,
+  type VuiHostApp,
+  type HostMountOptions,
+} from "./host/create-host-app.ts";
+export {
+  Renderable,
+  type HostContext,
+  type RenderableKind,
+} from "./host/renderable.ts";
+export {
+  extend as extendHost,
+  type CatalogueEntry as HostCatalogueEntry,
+} from "./host/catalogue.ts";
 // Re-export the element prop types AND pull `vui-elements` into the module graph
 // so its `GlobalComponents` augmentation (template type-support for <box>/<text>/
 // <input>) ships in the bundled dist .d.ts. Types-only: erased from the JS bundle.

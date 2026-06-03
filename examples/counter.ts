@@ -45,14 +45,11 @@ const Counter = defineComponent({
           titleAlign: "center",
         },
         [
-          // Text nodes have no intrinsic size yet — give each a width + one line
-          // of height so taffy reserves space for it (otherwise it collapses to 0).
-          h(
-            "text",
-            { width: { pct: 1 }, height: 1, fg: TEXT },
-            ["count: ", h("b", { fg: GREEN }, String(count.value))],
-          ),
-          h("text", { width: { pct: 1 }, height: 1, fg: SUBTLE }, "press Ctrl-C to exit"),
+          // Text auto-sizes to its content (taffy measures the runs), so no
+          // explicit width/height is needed — each line reports height 1 and, in
+          // this column, stretches to the box's content width.
+          h("text", { fg: TEXT }, ["count: ", h("b", { fg: GREEN }, String(count.value))]),
+          h("text", { fg: SUBTLE }, "press Ctrl-C to exit"),
         ],
       );
   },

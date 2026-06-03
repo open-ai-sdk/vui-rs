@@ -7,7 +7,7 @@
 // boundary is sound without an `unsafe fn` signature.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::buffer::Cell;
+use crate::buffer::{Cell, CellBuffer, ClipRect};
 use crate::color::Rgba;
 use crate::ffi::status;
 use crate::renderer::Renderer;
@@ -169,6 +169,138 @@ pub extern "C" fn vui_buffer_clear(r: *mut Renderer, bg: u32) -> u32 {
 pub extern "C" fn vui_renderer_render(r: *mut Renderer) -> u32 {
     with_renderer(r, |rr| {
         rr.render();
+        status::OK
+    })
+}
+
+// --- Clip-aware back-buffer primitives (the JS paint walk's draw surface) ---
+//
+// Signed coords + an explicit clip rect let the JS host hand a node's content
+// box and let the Rust loop drop out-of-bounds cells (one FFI per op, not per
+// cell). The clip crosses as a `*const ClipRect` (4 i32 = 16 bytes): a pointer
+// is one 8-byte register/slot, sidestepping the platform ABI's mis-marshalling
+// of 4-byte stack-passed args once a call spills past the register count.
+
+/// Read a `ClipRect` from a caller pointer (a JS `Int32Array(4)`), or `None` if null.
+#[inline]
+fn read_clip(clip: *const ClipRect) -> Option<ClipRect> {
+    // Safety: `clip` points to 4 i32 (`ClipRect`, repr(C)); null-checked here.
+    unsafe { clip.as_ref() }.copied()
+}
+
+/// `draw_text` into the back buffer, clipped to `*clip`.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_buffer_draw_text_clipped(
+    r: *mut Renderer,
+    x: i32,
+    y: i32,
+    ptr: *const u8,
+    len: usize,
+    fg: u32,
+    bg: u32,
+    attrs: u16,
+    clip: *const ClipRect,
+) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(clip) = read_clip(clip) else {
+            return status::NULL_PTR;
+        };
+        if len > 0 && ptr.is_null() {
+            return status::NULL_PTR;
+        }
+        // Safety: caller guarantees `ptr` points to `len` valid bytes.
+        let bytes = if len == 0 {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(ptr, len) }
+        };
+        match std::str::from_utf8(bytes) {
+            Ok(text) => {
+                rr.back_mut().draw_text_clipped(
+                    x,
+                    y,
+                    text,
+                    Rgba::from_packed(fg),
+                    Rgba::from_packed(bg),
+                    attrs,
+                    clip,
+                );
+                status::OK
+            }
+            Err(_) => status::BAD_ARG,
+        }
+    })
+}
+
+/// `fill_rect` into the back buffer, clipped to `*clip`.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_buffer_fill_rect_clipped(
+    r: *mut Renderer,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    bg: u32,
+    clip: *const ClipRect,
+) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(clip) = read_clip(clip) else {
+            return status::NULL_PTR;
+        };
+        rr.back_mut()
+            .fill_rect_clipped(x, y, w, h, Rgba::from_packed(bg), clip);
+        status::OK
+    })
+}
+
+/// `set_cell` into the back buffer, clipped to `*clip`.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_buffer_set_cell_clipped(
+    r: *mut Renderer,
+    x: i32,
+    y: i32,
+    ch: u32,
+    fg: u32,
+    bg: u32,
+    attrs: u16,
+    clip: *const ClipRect,
+) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(clip) = read_clip(clip) else {
+            return status::NULL_PTR;
+        };
+        rr.back_mut().set_cell_clipped(
+            x,
+            y,
+            ch,
+            Rgba::from_packed(fg),
+            Rgba::from_packed(bg),
+            attrs,
+            clip,
+        );
+        status::OK
+    })
+}
+
+/// Composite an offscreen `CellBuffer` (`src`, from `vui_cbuf_new`) into the back
+/// buffer with its top-left at `(dst_x, dst_y)`, clipped to `*clip`.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_buffer_blit(
+    r: *mut Renderer,
+    src: *const CellBuffer,
+    dst_x: i32,
+    dst_y: i32,
+    clip: *const ClipRect,
+) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(clip) = read_clip(clip) else {
+            return status::NULL_PTR;
+        };
+        // Safety: `src` is a pointer from `vui_cbuf_new`; null-checked here.
+        let Some(src) = (unsafe { src.as_ref() }) else {
+            return status::NULL_PTR;
+        };
+        rr.back_mut().blit(src, dst_x, dst_y, clip);
         status::OK
     })
 }

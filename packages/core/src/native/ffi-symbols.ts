@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 4;
+export const EXPECTED_ABI_VERSION = 7;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -45,6 +45,9 @@ export const STYLE_FFI_BYTES = 236;
 /** Size of one packed `TextRunFfi` (off/len/fg/bg u32 + attrs u16 + 2×u8 flags). */
 export const TEXT_RUN_FFI_BYTES = 20;
 
+/** Size of one `RectFfi` (12 f32: x/y/w/h + padding + border insets). */
+export const RECT_FFI_BYTES = 48;
+
 /** Node kinds for `vui_node_new` (mirrors `node::NodeKind::from_u8`). */
 export const NodeKindCode = { Box: 1, Text: 2, Edit: 3 } as const;
 
@@ -65,10 +68,15 @@ export const BorderStyleCode = { None: 0, Single: 1, Double: 2, Rounded: 3 } as 
 /** Title alignment for `vui_node_set_title`. */
 export const TitleAlignCode = { Left: 0, Center: 1, Right: 2 } as const;
 
+/** Text wrap mode for `vui_node_set_text_wrap` (0 = wrap, the default). */
+export const TextWrapCode = { Wrap: 0, NoWrap: 1 } as const;
+
 export const symbols = {
   // Version / ABI probes.
   vui_version: { args: [], returns: FFIType.u32 },
   vui_abi_version: { args: [], returns: FFIType.u32 },
+  // Glyph column width (0/1/2). The shared width source for the JS-host wrap.ts.
+  vui_char_width: { args: [FFIType.u32], returns: FFIType.u32 },
 
   // Lifecycle.
   vui_renderer_new: { args: [FFIType.u32, FFIType.u32], returns: FFIType.ptr },
@@ -107,6 +115,65 @@ export const symbols = {
   },
   vui_buffer_clear: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
   vui_renderer_render: { args: [FFIType.ptr], returns: FFIType.u32 },
+
+  // Clip-aware back-buffer prims for the JS paint walk. Signed coords; the clip
+  // rect crosses as a pointer to a 4-i32 buffer (one 8-byte slot — avoids the
+  // platform ABI mis-marshalling 4-byte args spilled onto the stack).
+  vui_buffer_draw_text_clipped: {
+    args: [
+      FFIType.ptr, // renderer
+      FFIType.i32, // x
+      FFIType.i32, // y
+      FFIType.ptr, // utf-8 bytes
+      "usize", // byte length
+      FFIType.u32, // fg
+      FFIType.u32, // bg
+      FFIType.u16, // attrs
+      FFIType.ptr, // *const ClipRect (Int32Array(4))
+    ],
+    returns: FFIType.u32,
+  },
+  vui_buffer_fill_rect_clipped: {
+    args: [FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.ptr],
+    returns: FFIType.u32,
+  },
+  vui_buffer_set_cell_clipped: {
+    args: [
+      FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u16, FFIType.ptr,
+    ],
+    returns: FFIType.u32,
+  },
+  // Composite an offscreen buffer (`vui_cbuf_new`) into the back buffer, clipped.
+  vui_buffer_blit: {
+    args: [
+      FFIType.ptr, // renderer
+      FFIType.ptr, // *const CellBuffer (offscreen src)
+      FFIType.i32, // dst x
+      FFIType.i32, // dst y
+      FFIType.ptr, // *const ClipRect (Int32Array(4))
+    ],
+    returns: FFIType.u32,
+  },
+
+  // Offscreen cell buffer (canvas / buffered nodes). Pointer is *mut CellBuffer.
+  vui_cbuf_new: { args: [FFIType.u32, FFIType.u32], returns: FFIType.ptr },
+  vui_cbuf_free: { args: [FFIType.ptr], returns: FFIType.void },
+  vui_cbuf_resize: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
+  vui_cbuf_ptr: { args: [FFIType.ptr], returns: FFIType.ptr },
+  vui_cbuf_len: { args: [FFIType.ptr], returns: "usize" },
+  vui_cbuf_clear: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+  vui_cbuf_draw_text: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr, "usize", FFIType.u32, FFIType.u32, FFIType.u16],
+    returns: FFIType.u32,
+  },
+  vui_cbuf_fill_rect: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32],
+    returns: FFIType.u32,
+  },
+  vui_cbuf_set_cell: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u16],
+    returns: FFIType.u32,
+  },
 
   // Render-node tree. Node handles are u32 (0 = null/error).
   vui_renderer_set_root: { args: [FFIType.ptr], returns: FFIType.u32 },
@@ -159,6 +226,10 @@ export const symbols = {
     args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize", FFIType.u8],
     returns: FFIType.u32,
   },
+  vui_node_set_text_wrap: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u8],
+    returns: FFIType.u32,
+  },
   vui_node_set_visible: {
     args: [FFIType.ptr, FFIType.u32, FFIType.u8],
     returns: FFIType.u32,
@@ -173,6 +244,10 @@ export const symbols = {
   },
   vui_style_ffi_size: { args: [], returns: "usize" },
   vui_debug_tree_hash: { args: [FFIType.ptr], returns: FFIType.u64 },
+
+  // JS-host layout: run taffy without painting, then read each node's box.
+  vui_layout_compute: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
+  vui_node_rect: { args: [FFIType.ptr, FFIType.u32, FFIType.ptr], returns: FFIType.u32 },
 
   // Native edit buffer (the `<input>` surface). Node id is a u32 `Edit` handle.
   vui_edit_insert: {

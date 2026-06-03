@@ -6,14 +6,7 @@
 import { parseColor } from "./color.ts";
 import { type RunStyle, type VuiHostNode, enclosingText } from "./host-node.ts";
 import { ATTR_FLAGS, applyPaint } from "./paint-prop.ts";
-
-const LAYOUT_KEYS = new Set([
-  "display", "position", "flexDirection", "flexWrap", "alignItems", "alignSelf",
-  "justifyContent", "flexGrow", "flexShrink", "flexBasis", "width", "height",
-  "minWidth", "minHeight", "maxWidth", "maxHeight", "padding", "margin", "inset",
-  "gap", "borderWidth",
-]);
-const INSET_SIDES = new Set(["top", "right", "bottom", "left"]);
+import { INSET_SIDES, LAYOUT_KEYS, isEvent } from "./prop-buckets.ts";
 
 let warnedKeys: Set<string> | null = null;
 
@@ -152,10 +145,6 @@ function spreadStyle(
 ): void {
   const keys = new Set([...Object.keys(prev ?? {}), ...Object.keys(next ?? {})]);
   for (const k of keys) applyProp(el, k, prev?.[k], next?.[k]);
-}
-
-function isEvent(key: string): boolean {
-  return key.length > 2 && key[0] === "o" && key[1] === "n" && key[2]! >= "A" && key[2]! <= "Z";
 }
 
 function setEvent(el: VuiHostNode, key: string, next: unknown): void {

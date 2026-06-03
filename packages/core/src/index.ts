@@ -17,7 +17,9 @@ export type { NativeLib } from "./native/load-native-lib.ts";
 export { EditApi } from "./edit.ts";
 export { parseColor } from "./color.ts";
 export { NAMED_COLORS, parseHex } from "./named-colors.ts";
-export { Renderer, rgba, type TextStyle } from "./renderer.ts";
+export { Renderer, rgba, type TextStyle, type ClipRect } from "./renderer.ts";
+export { OffscreenBuffer } from "./offscreen-buffer.ts";
+export { charWidth, strWidth } from "./char-width.ts";
 export {
   parseKeys,
   createKeyDecoder,
@@ -37,7 +39,10 @@ export {
   hostTreeHash,
   VuiNode,
   type BorderName,
+  type LayoutRect,
+  type RectEdges,
   type TextRun,
+  type TextWrapName,
   type TitleAlignName,
 } from "./node.ts";
 export {

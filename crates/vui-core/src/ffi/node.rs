@@ -13,7 +13,7 @@
 
 use crate::color::Rgba;
 use crate::ffi::status;
-use crate::node::{BorderStyle, NodeId, NodeKind, TextContent, TextRun, TitleAlign};
+use crate::node::{BorderStyle, NodeId, NodeKind, TextContent, TextRun, TitleAlign, WrapMode};
 use crate::renderer::Renderer;
 use crate::style::StyleFfi;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -130,13 +130,14 @@ pub extern "C" fn vui_node_set_text(r: *mut Renderer, id: u32, ptr: *const u8, l
             bg: None,
             attrs: 0,
         };
-        match rr.tree_mut().get_mut(NodeId(id)) {
-            Some(node) => {
-                node.text = Some(TextContent { runs: vec![run] });
-                status::OK
-            }
-            None => status::BAD_ARG,
+        if let Some(node) = rr.tree_mut().get_mut(NodeId(id)) {
+            node.text = Some(TextContent { runs: vec![run] });
+        } else {
+            return status::BAD_ARG;
         }
+        // Content drives the node's auto-size, so it must re-measure next layout.
+        rr.tree_mut().mark_text_dirty(NodeId(id));
+        status::OK
     })
 }
 
@@ -182,13 +183,29 @@ pub extern "C" fn vui_node_set_text_runs(
                 attrs: rf.attrs,
             });
         }
-        match rr.tree_mut().get_mut(NodeId(id)) {
-            Some(node) => {
-                node.text = Some(TextContent { runs });
-                status::OK
-            }
-            None => status::BAD_ARG,
+        if let Some(node) = rr.tree_mut().get_mut(NodeId(id)) {
+            node.text = Some(TextContent { runs });
+        } else {
+            return status::BAD_ARG;
         }
+        // Content drives the node's auto-size, so it must re-measure next layout.
+        rr.tree_mut().mark_text_dirty(NodeId(id));
+        status::OK
+    })
+}
+
+/// Set a text node's wrap mode: 0 = wrap (default), 1 = nowrap. Affects both the
+/// auto-size measure pass and paint, so the node is marked dirty to re-measure.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_set_text_wrap(r: *mut Renderer, id: u32, mode: u8) -> u32 {
+    with_renderer(r, |rr| {
+        if let Some(node) = rr.tree_mut().get_mut(NodeId(id)) {
+            node.paint.wrap = WrapMode::from_u8(mode);
+        } else {
+            return status::BAD_ARG;
+        }
+        rr.tree_mut().mark_text_dirty(NodeId(id));
+        status::OK
     })
 }
 
@@ -295,6 +312,76 @@ pub extern "C" fn vui_debug_tree_hash(r: *mut Renderer) -> u64 {
         None => 0,
     }))
     .unwrap_or(0)
+}
+
+/// A node's computed layout box (cells, fractional) for the JS-host paint walk.
+/// 12 f32 = 48 bytes. `x`/`y` are parent-relative; `pad_*`/`border_*` are the
+/// taffy insets the paint walk subtracts to reach the content box.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RectFfi {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub pad_left: f32,
+    pub pad_right: f32,
+    pub pad_top: f32,
+    pub pad_bottom: f32,
+    pub border_left: f32,
+    pub border_right: f32,
+    pub border_top: f32,
+    pub border_bottom: f32,
+}
+
+// The TS reader (`node.ts`) strides this as a 12-float view; fail the build if it drifts.
+const _: () = assert!(std::mem::size_of::<RectFfi>() == 48);
+
+/// Run taffy layout over the tree sized to `w`×`h` cells (auto-sizing `<text>`),
+/// for the JS host. It then reads each node's box with `vui_node_rect`. This does
+/// NOT paint: on the JS-host path the renderer's tree is used for layout only —
+/// the JS walk owns the back buffer via the clip-aware draw prims — so the
+/// renderer's compose/paint is bypassed entirely. Dirty-gate on the JS side.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_layout_compute(r: *mut Renderer, w: u32, h: u32) -> u32 {
+    with_renderer(r, |rr| {
+        crate::layout::compute(rr.tree_mut(), w, h);
+        status::OK
+    })
+}
+
+/// Write node `id`'s computed box into `*out`. `NULL_PTR` if `out` is null;
+/// `BAD_ARG` if the handle is stale or has no layout yet (compute not run).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_node_rect(r: *mut Renderer, id: u32, out: *mut RectFfi) -> u32 {
+    with_renderer(r, |rr| {
+        if out.is_null() {
+            return status::NULL_PTR;
+        }
+        match crate::layout::node_box(rr.tree(), NodeId(id)) {
+            Some(b) => {
+                let rect = RectFfi {
+                    x: b.x,
+                    y: b.y,
+                    w: b.w,
+                    h: b.h,
+                    pad_left: b.padding.left,
+                    pad_right: b.padding.right,
+                    pad_top: b.padding.top,
+                    pad_bottom: b.padding.bottom,
+                    border_left: b.border.left,
+                    border_right: b.border.right,
+                    border_top: b.border.top,
+                    border_bottom: b.border.bottom,
+                };
+                // Safety: `out` is non-null (checked) and the caller guarantees it
+                // points to a writable `RectFfi`.
+                unsafe { *out = rect };
+                status::OK
+            }
+            None => status::BAD_ARG,
+        }
+    })
 }
 
 /// Borrow `len` bytes from `ptr`, or an empty slice when `len == 0` (so a

@@ -239,6 +239,11 @@ fn draw_title(
 /// Multi-run text flow with character/grapheme wrapping at the content width.
 /// Each run uses its own fg/bg/attrs, falling back to the node's paint defaults;
 /// attrs compose (node base OR run) so a `<b>` run adds bold over the node's.
+///
+/// Line breaks come from the shared `wrap::walk_runs`, the SAME function the
+/// layout measure pass uses, so the painted glyphs land exactly where the box was
+/// sized to hold them. Rows past the content box are clipped here (walk doesn't
+/// know the height).
 fn draw_runs(
     buf: &mut CellBuffer,
     clip: Clip,
@@ -252,50 +257,31 @@ fn draw_runs(
     if cx1 <= cx0 || cy1 <= cy0 {
         return;
     }
-    let mut col = cx0;
-    let mut row = cy0;
-    for run in &text.runs {
+    let budget = cx1 - cx0;
+    crate::wrap::walk_runs(&text.runs, budget, node.paint.wrap, |cell| {
+        let row = cy0 + cell.row;
+        if row >= cy1 {
+            return; // below the content box: skip (the clip would drop it anyway).
+        }
+        let col = cx0 + cell.col;
+        let run = &text.runs[cell.run];
         let fg = run.fg.or(node.paint.fg).unwrap_or(DEFAULT_FG);
         let attrs = node.paint.attrs | run.attrs;
-        for g in run.text.graphemes(true) {
-            if g == "\n" {
-                col = cx0;
-                row += 1;
-                if row >= cy1 {
-                    return;
-                }
-                continue;
-            }
-            let Some(ch) = g.chars().next() else { continue };
-            let w = char_width(ch).max(1) as i64;
-            // Wrap when the glyph (or its wide pair) would exceed the content box.
-            if col + w > cx1 {
-                col = cx0;
-                row += 1;
-                if row >= cy1 {
-                    return;
-                }
-            }
-            if col + w > cx1 {
-                continue; // glyph wider than the whole content box: skip it.
-            }
-            let bg = run.bg.or(node.paint.bg).unwrap_or_else(|| bg_under(buf, col, row));
-            put(buf, clip, col, row, ch as u32, fg, bg, attrs);
-            if w == 2 {
-                put(
-                    buf,
-                    clip,
-                    col + 1,
-                    row,
-                    0,
-                    fg,
-                    bg,
-                    attrs | crate::buffer::attr::WIDE_CONTINUATION,
-                );
-            }
-            col += w;
+        let bg = run.bg.or(node.paint.bg).unwrap_or_else(|| bg_under(buf, col, row));
+        put(buf, clip, col, row, cell.ch as u32, fg, bg, attrs);
+        if cell.width == 2 {
+            put(
+                buf,
+                clip,
+                col + 1,
+                row,
+                0,
+                fg,
+                bg,
+                attrs | crate::buffer::attr::WIDE_CONTINUATION,
+            );
         }
-    }
+    });
 }
 
 /// Paint a single-line `<input>`: the value (or placeholder when empty) on the

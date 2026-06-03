@@ -12,7 +12,7 @@ use crate::color::Rgba;
 use crate::edit_buffer::EditBuffer;
 use crate::style::StyleFfi;
 use taffy::geometry::Size;
-use taffy::style::{Dimension, Style};
+use taffy::style::{AvailableSpace, Dimension, Style};
 use taffy::{NodeId as TaffyId, TaffyTree};
 
 /// Stable handle into the slab. Packs an index (low 24 bits) and a generation
@@ -103,6 +103,26 @@ impl TitleAlign {
     }
 }
 
+/// How a `<text>` flows when its content is wider than the content box. `Wrap`
+/// (the default) breaks to the next row at the box edge; `NoWrap` keeps each line
+/// on one row and lets paint clip the overflow. Read by both the measure pass and
+/// the paint pass, so the two always agree on line breaks.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WrapMode {
+    Wrap,
+    NoWrap,
+}
+
+impl WrapMode {
+    /// FFI code: 0 = wrap (default), 1 = nowrap. Unknown codes clamp to `Wrap`.
+    pub fn from_u8(v: u8) -> Self {
+        match v {
+            1 => WrapMode::NoWrap,
+            _ => WrapMode::Wrap,
+        }
+    }
+}
+
 /// One styled span of text. A plain `<text>Hello</text>` is a single run; a rich
 /// `<text>plain <b>bold</b></text>` is several. `fg`/`bg` `None` fall back to the
 /// owning node's paint defaults at draw time.
@@ -133,6 +153,8 @@ pub struct PaintProps {
     /// node (like `!visible`); any positive value paints fully opaque.
     pub opacity: f32,
     pub visible: bool,
+    /// Text flow mode (`<text>` only); ignored by non-text nodes.
+    pub wrap: WrapMode,
 }
 
 impl Default for PaintProps {
@@ -147,6 +169,7 @@ impl Default for PaintProps {
             title_align: TitleAlign::Left,
             opacity: 1.0,
             visible: true,
+            wrap: WrapMode::Wrap,
         }
     }
 }
@@ -400,6 +423,44 @@ impl NodeTree {
         true
     }
 
+    /// Mark a node's content as changed so its size is recomputed. A `<text>`
+    /// node is auto-sized from its runs by the measure pass, but taffy caches each
+    /// node's layout — so a text/wrap change that doesn't also change the style
+    /// must dirty the taffy node explicitly, or the cached (stale) size survives.
+    pub fn mark_text_dirty(&mut self, id: NodeId) {
+        if let Some(taffy) = self.taffy_of(id) {
+            let _ = self.taffy.mark_dirty(taffy);
+        }
+        self.dirty = true;
+    }
+
+    /// Run taffy over the tree sized to `width`×`height` cells, auto-sizing
+    /// `<text>` nodes from their content via a measure callback, and clear the
+    /// dirty flag. The measure closure needs to read render nodes while taffy
+    /// borrows itself mutably; that disjoint borrow of `self.taffy` + `self.slots`
+    /// is why this lives on `NodeTree` rather than in `layout.rs`.
+    pub fn compute_layout(&mut self, width: u32, height: u32) {
+        self.set_root_size(width, height);
+        let Some(root_taffy) = self.get(self.root).map(|n| n.taffy) else {
+            return;
+        };
+        // Disjoint field borrows: taffy mutably for the compute, slots immutably
+        // for the measure lookup. The closure only touches `slots`.
+        let taffy = &mut self.taffy;
+        let slots = &self.slots;
+        let _ = taffy.compute_layout_with_measure(
+            root_taffy,
+            Size {
+                width: AvailableSpace::Definite(width as f32),
+                height: AvailableSpace::Definite(height as f32),
+            },
+            |_known, available_space, node_id, _ctx, _style| {
+                measure_node(slots, node_id, available_space)
+            },
+        );
+        self.dirty = false;
+    }
+
     /// Resize the root to the terminal, preserving any other root style fields.
     /// A no-op when the size is unchanged, so re-composing an unchanged frame
     /// doesn't dirty the tree and force a needless re-layout.
@@ -451,6 +512,56 @@ impl NodeTree {
 fn mix(h: &mut u64, v: u64) {
     *h ^= v;
     *h = h.wrapping_mul(0x0000_0100_0000_01b3);
+}
+
+/// taffy measure callback: report the content size of a leaf node. Only `<text>`
+/// is measured (its wrapped runs); every other leaf returns zero so taffy falls
+/// back to its style size — exactly the pre-measure behaviour, so explicitly
+/// sized nodes are untouched.
+///
+/// The wrap budget comes from `available_space.width`, NOT `known_dimensions`:
+/// taffy passes `Size::NONE` for known dims during the layout pass but folds an
+/// explicit/percentage width into `available_space`, and it applies "explicit
+/// dims win" itself (`known.or(style_size).unwrap_or(measured)`), so this only
+/// needs to return the content size.
+///
+/// The `TaffyId → RenderNode` lookup is a linear scan of the slab: measure runs
+/// per leaf per layout pass (not per frame), and TUI trees are small, so this is
+/// fine. If trees ever grow large, swap in a `TaffyId → NodeId` side-index.
+fn measure_node(slots: &[Slot], taffy_id: TaffyId, available_space: Size<AvailableSpace>) -> Size<f32> {
+    let zero = Size {
+        width: 0.0,
+        height: 0.0,
+    };
+    let Some(node) = slots
+        .iter()
+        .filter_map(|s| s.node.as_ref())
+        .find(|n| n.taffy == taffy_id)
+    else {
+        return zero;
+    };
+    if node.kind != NodeKind::Text {
+        return zero;
+    }
+    let Some(text) = node.text.as_ref() else {
+        // A text node should always carry content; treat a missing one as a blank
+        // line so it still reserves a row.
+        return Size {
+            width: 0.0,
+            height: 1.0,
+        };
+    };
+    // Definite width constrains wrapping; an intrinsic-sizing probe (Min/Max
+    // content) flows single-line so the node reports its natural width.
+    let budget = match available_space.width {
+        AvailableSpace::Definite(w) => w.max(0.0) as i64,
+        AvailableSpace::MinContent | AvailableSpace::MaxContent => crate::wrap::UNBOUNDED,
+    };
+    let measured = crate::wrap::walk_runs(&text.runs, budget, node.paint.wrap, |_| {});
+    Size {
+        width: measured.width,
+        height: measured.height,
+    }
 }
 
 /// Default root style: a flex container sized exactly to the terminal in cells.

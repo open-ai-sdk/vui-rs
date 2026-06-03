@@ -15,6 +15,7 @@ pub mod paint;
 pub mod renderer;
 pub mod style;
 pub mod width;
+pub mod wrap;
 
 use std::panic::catch_unwind;
 
@@ -27,7 +28,13 @@ const VERSION: u32 = 0x00_01_00;
 /// v2: the renderer/buffer exports and the `repr(C)` `Cell`.
 /// v3: the render-node tree exports, `StyleFfi`, and `TextRunFfi`.
 /// v4: the native edit-buffer exports (`vui_edit_*`) and `NodeKind::Edit`.
-const ABI_VERSION: u32 = 4;
+/// v5: clip-aware back-buffer prims + blit (`vui_buffer_*_clipped`,
+///     `vui_buffer_blit`) and the offscreen cell-buffer surface (`vui_cbuf_*`)
+///     for the JS-host paint walk and canvas/buffered nodes.
+/// v6: `vui_char_width` — the shared glyph-width source for the JS-host `wrap.ts`.
+/// v7: JS-host layout readback — `vui_layout_compute` + `vui_node_rect` (`RectFfi`)
+///     drive taffy for the Renderable tree without painting.
+const ABI_VERSION: u32 = 7;
 
 /// Returns the packed semver of the native core.
 ///
@@ -43,6 +50,17 @@ pub extern "C" fn vui_version() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn vui_abi_version() -> u32 {
     catch_unwind(|| ABI_VERSION).unwrap_or(0)
+}
+
+/// Terminal column width of a codepoint: 0 (combining/control), 1, or 2. Exposed
+/// so the JS-host `wrap.ts` measures glyph widths with the EXACT same source as
+/// the Rust measure/paint — the single-source-of-truth that keeps JS measure and
+/// JS paint (and the retained Rust paint, during the parity window) in lockstep.
+/// A non-codepoint `cp` reports 0. The JS side memoizes per codepoint, so each
+/// distinct glyph crosses the boundary at most once.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_char_width(cp: u32) -> u32 {
+    catch_unwind(|| char::from_u32(cp).map(width::char_width).unwrap_or(0) as u32).unwrap_or(0)
 }
 
 #[cfg(test)]

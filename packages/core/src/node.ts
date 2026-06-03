@@ -7,8 +7,10 @@
 import type { Pointer } from "bun:ffi";
 import {
   BorderStyleCode,
+  RECT_FFI_BYTES,
   Status,
   TEXT_RUN_FFI_BYTES,
+  TextWrapCode,
   TitleAlignCode,
 } from "./native/ffi-symbols.ts";
 import type { NativeLib } from "./native/load-native-lib.ts";
@@ -26,6 +28,30 @@ export interface TextRun {
 
 export type BorderName = "none" | "single" | "double" | "rounded";
 export type TitleAlignName = "left" | "center" | "right";
+export type TextWrapName = "wrap" | "nowrap";
+
+/** Per-side insets (cells, fractional) reported by layout. */
+export interface RectEdges {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** A node's computed taffy box: parent-relative origin + size + padding/border insets. */
+export interface LayoutRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  padding: RectEdges;
+  border: RectEdges;
+}
+
+// Reused scratch for `layoutRect` readback — one float per RectFfi byte-quartet
+// (derived from the ABI constant so a field add can't leave it short). Read
+// synchronously after the FFI call on a single thread, so one shared buffer is safe.
+const rectScratch = new Float32Array(RECT_FFI_BYTES / 4);
 
 function check(status: number, op: string): void {
   if (status !== Status.OK) {
@@ -64,6 +90,24 @@ export class VuiNode {
     const bytes = packStyle(style);
     check(this.#lib.symbols.vui_node_set_style(this.#ptr, this.id, bytes), "set_style");
     return this;
+  }
+
+  /**
+   * This node's computed layout box after `Renderer.computeLayout`, or `null` if
+   * layout hasn't run yet (or the handle is stale). The JS-host paint walk reads
+   * these to place each Renderable.
+   */
+  layoutRect(): LayoutRect | null {
+    const status = this.#lib.symbols.vui_node_rect(this.#ptr, this.id, rectScratch);
+    if (status !== Status.OK) return null;
+    return {
+      x: rectScratch[0]!,
+      y: rectScratch[1]!,
+      w: rectScratch[2]!,
+      h: rectScratch[3]!,
+      padding: { left: rectScratch[4]!, right: rectScratch[5]!, top: rectScratch[6]!, bottom: rectScratch[7]! },
+      border: { left: rectScratch[8]!, right: rectScratch[9]!, top: rectScratch[10]!, bottom: rectScratch[11]! },
+    };
   }
 
   setText(text: string): this {
@@ -105,6 +149,23 @@ export class VuiNode {
         bytes.byteLength,
       ),
       "set_text_runs",
+    );
+    return this;
+  }
+
+  /**
+   * Text flow for a `<text>` node: `"wrap"` (default) breaks long lines at the
+   * content edge; `"nowrap"` keeps each line on one row and clips the overflow.
+   * Drives both auto-size measurement and paint.
+   */
+  setTextWrap(mode: TextWrapName): this {
+    check(
+      this.#lib.symbols.vui_node_set_text_wrap(
+        this.#ptr,
+        this.id,
+        mode === "nowrap" ? TextWrapCode.NoWrap : TextWrapCode.Wrap,
+      ),
+      "set_text_wrap",
     );
     return this;
   }

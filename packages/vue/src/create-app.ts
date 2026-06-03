@@ -21,6 +21,16 @@ import { createRendererOptions } from "./renderer-options.ts";
 import { createScheduler } from "./scheduler.ts";
 import { type Theme, ThemeSymbol, darkTheme } from "./theme.ts";
 import { VuiInput } from "./components/input.ts";
+import { createHostApp } from "./host/create-host-app.ts";
+
+/**
+ * Strangler flag: when `VUI_HOST=js`, `createApp` builds the OpenTUI-style JS
+ * host (Renderable tree painted in JS) instead of the FFI host (Rust node tree).
+ * Default stays the FFI path until the Phase 04 parity cutover flips it.
+ */
+function useJsHost(): boolean {
+  return process.env.VUI_HOST === "js";
+}
 
 export interface MountOptions {
   /** Reuse an existing renderer (tests / embedding); otherwise one is created. */
@@ -73,6 +83,12 @@ function newContext(): VuiContext {
 }
 
 export function createApp(rootComponent: Component, rootProps?: Record<string, unknown>): VuiApp {
+  // Strangler: route to the JS host when flagged. The two apps share the mount/
+  // unmount/renderer/context surface; the host's context shape differs (it has no
+  // Rust-mirror bookkeeping), so the cast is intentional for the migration window.
+  if (useJsHost()) {
+    return createHostApp(rootComponent, rootProps) as unknown as VuiApp;
+  }
   const ctx = newContext();
   const { createApp: createVueApp } = createVueRenderer<VuiHostNode, VuiHostNode>(
     createRendererOptions(ctx),

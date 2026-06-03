@@ -6,13 +6,10 @@
       "name": "vui-rs",
       "devDependencies": {
         "@types/bun": "^1.3.0",
-        "@vitejs/plugin-vue": "catalog:",
-        "@vue/compiler-core": "catalog:",
         "@vue/compiler-sfc": "catalog:",
         "@vue/runtime-core": "catalog:",
         "tsdown": "^0.22.1",
         "typescript": "^5.9.0",
-        "vite": "catalog:",
         "vue-tsc": "^2.2.0",
       },
     },
@@ -31,6 +28,10 @@
         "@vue/runtime-core": "catalog:",
         "@vui-rs/core": "workspace:*",
         "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
       },
     },
     "packages/core": {

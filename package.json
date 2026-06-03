@@ -16,23 +16,20 @@
   },
   "scripts": {
     "build:native": "bun run scripts/build-native.ts",
-    "build:packages": "bun run --filter '@vui-rs/*' build",
+    "build:packages": "bun run --filter './packages/*' build",
     "dev": "bun run examples/smoke-version.ts",
-    "build:sfc": "vite build",
-    "start:sfc": "bun examples-sfc/dist/app.js",
-    "dev:sfc": "vite build && bun examples-sfc/dist/app.js",
+    "build:sfc": "bun run --filter @vui-rs/examples-sfc build",
+    "start:sfc": "bun run --filter @vui-rs/examples-sfc start",
+    "dev:sfc": "bun run --filter @vui-rs/examples-sfc dev",
     "typecheck:sfc": "vue-tsc --noEmit",
     "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test && bun run examples/smoke-version.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",
-    "@vitejs/plugin-vue": "catalog:",
-    "@vue/compiler-core": "catalog:",
     "@vue/compiler-sfc": "catalog:",
     "@vue/runtime-core": "catalog:",
     "tsdown": "^0.22.1",
     "typescript": "^5.9.0",
-    "vite": "catalog:",
     "vue-tsc": "^2.2.0"
   }
 }

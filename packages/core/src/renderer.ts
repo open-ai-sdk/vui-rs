@@ -2,6 +2,7 @@ import { type Pointer, toArrayBuffer } from "bun:ffi";
 import { loadNativeLib } from "./native/load-native-lib.ts";
 import { CELL_BYTES, NodeKindCode, Status } from "./native/ffi-symbols.ts";
 import { VuiNode } from "./node.ts";
+import { type OffscreenBuffer } from "./offscreen-buffer.ts";
 
 /** Pack 8-bit channels into the `0xRRGGBBAA` u32 the FFI expects. */
 export function rgba(r: number, g: number, b: number, a = 255): number {
@@ -12,6 +13,14 @@ export interface TextStyle {
   fg?: number;
   bg?: number;
   attrs?: number;
+}
+
+/** Half-open clip rect `[x0,x1) × [y0,y1)`; the JS twin of the native `ClipRect`. */
+export interface ClipRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 const DEFAULT_FG = rgba(229, 229, 229);
@@ -36,6 +45,8 @@ export class Renderer {
   #ptr: Pointer;
   #width: number;
   #height: number;
+  /** Reused scratch for clip rects passed to the native clipped prims (no per-op alloc). */
+  #clip = new Int32Array(4);
 
   constructor(width: number, height: number) {
     const ptr = this.#lib.symbols.vui_renderer_new(width, height);
@@ -95,6 +106,56 @@ export class Renderer {
     check(this.#lib.symbols.vui_buffer_clear(this.#ptr, bg), "clear");
   }
 
+  // --- Clip-aware primitives: the JS paint walk's draw surface (Phase 04). ---
+  // Signed coords + a clip rect (passed as a 4-i32 buffer); the in-Rust loop
+  // drops out-of-bounds cells, so one FFI call paints a whole text run/rect.
+
+  #packClip(clip: ClipRect): Int32Array {
+    this.#clip[0] = clip.x0;
+    this.#clip[1] = clip.y0;
+    this.#clip[2] = clip.x1;
+    this.#clip[3] = clip.y1;
+    return this.#clip;
+  }
+
+  drawTextClipped(x: number, y: number, text: string, style: TextStyle, clip: ClipRect): void {
+    const bytes = encoder.encode(text);
+    check(
+      this.#lib.symbols.vui_buffer_draw_text_clipped(
+        this.#ptr, x, y, bytes, bytes.byteLength,
+        style.fg ?? DEFAULT_FG, style.bg ?? DEFAULT_BG, style.attrs ?? 0,
+        this.#packClip(clip),
+      ),
+      "draw_text_clipped",
+    );
+  }
+
+  fillRectClipped(x: number, y: number, w: number, h: number, bg: number, clip: ClipRect): void {
+    check(
+      this.#lib.symbols.vui_buffer_fill_rect_clipped(this.#ptr, x, y, w, h, bg, this.#packClip(clip)),
+      "fill_rect_clipped",
+    );
+  }
+
+  setCellClipped(x: number, y: number, ch: number, style: TextStyle, clip: ClipRect): void {
+    check(
+      this.#lib.symbols.vui_buffer_set_cell_clipped(
+        this.#ptr, x, y, ch,
+        style.fg ?? DEFAULT_FG, style.bg ?? DEFAULT_BG, style.attrs ?? 0,
+        this.#packClip(clip),
+      ),
+      "set_cell_clipped",
+    );
+  }
+
+  /** Composite an offscreen buffer into the back buffer at `(dstX, dstY)`, clipped. */
+  blit(src: OffscreenBuffer, dstX: number, dstY: number, clip: ClipRect): void {
+    check(
+      this.#lib.symbols.vui_buffer_blit(this.#ptr, src.nativePtr, dstX, dstY, this.#packClip(clip)),
+      "blit",
+    );
+  }
+
   /** Diff the back buffer and write the frame to stdout. */
   render(): void {
     check(this.#lib.symbols.vui_renderer_render(this.#ptr), "render");
@@ -123,6 +184,15 @@ export class Renderer {
   /** Native structural hash of the tree; compare to `hostTreeHash` for desync. */
   treeHash(): bigint {
     return this.#lib.symbols.vui_debug_tree_hash(this.#ptr);
+  }
+
+  /**
+   * Run taffy layout over the node tree (JS-host path) WITHOUT painting, sizing
+   * to the terminal by default. Read each node's box with `VuiNode.layoutRect`.
+   * Dirty-gate on the caller side (skip when no style/text changed).
+   */
+  computeLayout(width: number = this.#width, height: number = this.#height): void {
+    check(this.#lib.symbols.vui_layout_compute(this.#ptr, width, height), "layout_compute");
   }
 
   /** Reallocate to a new size; forces a full repaint on the next `render()`. */

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "paths": { "vue": ["./node_modules/@vue/runtime-core"] }
   },
-  "include": ["packages/*/src", "examples", "examples-sfc", "scripts", "vite.config.ts"],
+  "include": ["packages/*/src", "examples", "examples-sfc", "scripts"],
   "//": "compilerOptions.paths aliases `vue` → @vue/runtime-core for Volar/vue-tsc, whose generated virtual code imports from `vue` (vui-rs has no `vue` meta-package). Inert for plain tsc. vueCompilerOptions (read by Volar/vue-tsc only) enables strict template checking against the GlobalComponents augmentation in packages/vue/src/vui-elements.d.ts.",
   "vueCompilerOptions": {
     "target": 3.5,

@@ -58,6 +58,10 @@ export function applyPaint(el: VuiHostNode, key: string, next: unknown): boolean
     case "opacity":
       core.setOpacity(typeof next === "number" ? next : 1);
       return true;
+    case "wrap":
+      // `<text>` flow: nowrap on `"nowrap"` or `false`; wrap otherwise (default).
+      core.setTextWrap(next === "nowrap" || next === false ? "nowrap" : "wrap");
+      return true;
   }
   if (key in ATTR_FLAGS) {
     if (next) el.paint.attrFlags[key] = ATTR_FLAGS[key]!;

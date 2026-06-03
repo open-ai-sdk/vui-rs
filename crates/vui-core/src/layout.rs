@@ -1,6 +1,7 @@
-//! Layout pass: hand the render-node tree to taffy, compute flexbox positions,
-//! and read each node's box back. This is the only file besides `style.rs` that
-//! touches taffy's compute/readback API, so a taffy upgrade is contained here.
+//! Layout pass: hand the render-node tree to taffy and read each node's box back.
+//! The compute itself lives on `NodeTree::compute_layout` (it needs a disjoint
+//! borrow of taffy + the node slab for the text measure callback); this file owns
+//! the `NodeBox` readback and, with `style.rs`, taffy's geometry types.
 //!
 //! taffy reports each node's `location` relative to its parent's top-left and in
 //! fractional points (== cells here). Paint accumulates those offsets into an
@@ -9,8 +10,6 @@
 //! overlap).
 
 use crate::node::{NodeId, NodeTree};
-use taffy::geometry::Size;
-use taffy::style::AvailableSpace;
 
 /// Per-side lengths (cells, fractional) — padding or border insets.
 #[derive(Clone, Copy, Debug, Default)]
@@ -33,22 +32,12 @@ pub struct NodeBox {
     pub border: Edges,
 }
 
-/// Run taffy over the tree sized to `width`×`height` cells and clear the dirty
-/// flag. Cheap to call every frame, but callers should gate it on
-/// `NodeTree::is_dirty` so an unchanged tree skips the work.
+/// Run taffy over the tree sized to `width`×`height` cells (auto-sizing `<text>`
+/// from its content) and clear the dirty flag. Cheap to call every frame, but
+/// callers should gate it on `NodeTree::is_dirty` so an unchanged tree skips the
+/// work.
 pub fn compute(tree: &mut NodeTree, width: u32, height: u32) {
-    tree.set_root_size(width, height);
-    let Some(root_taffy) = tree.get(tree.root()).map(|n| n.taffy) else {
-        return;
-    };
-    let _ = tree.taffy.compute_layout(
-        root_taffy,
-        Size {
-            width: AvailableSpace::Definite(width as f32),
-            height: AvailableSpace::Definite(height as f32),
-        },
-    );
-    tree.clear_dirty();
+    tree.compute_layout(width, height);
 }
 
 /// Read a node's computed box. `None` if the handle is stale or taffy has no
@@ -142,6 +131,107 @@ mod tests {
         assert!(t.is_dirty());
         compute(&mut t, 30, 5);
         assert_eq!(node_box(&t, a).unwrap().w.round() as i32, 20);
+    }
+
+    use crate::node::{TextContent, TextRun};
+
+    /// Attach a single plain run of `text` to a node.
+    fn set_text(t: &mut NodeTree, id: NodeId, text: &str) {
+        t.get_mut(id).unwrap().text = Some(TextContent {
+            runs: vec![TextRun {
+                text: text.into(),
+                fg: None,
+                bg: None,
+                attrs: 0,
+            }],
+        });
+    }
+
+    /// A child of an `align-items: start` row container, so the measured size is
+    /// visible on BOTH axes — the default `stretch` would otherwise fill the
+    /// child's cross (height) to the container and mask the measured height.
+    fn child_in_unstretched_row(t: &mut NodeTree, kind: NodeKind) -> NodeId {
+        let root = t.root();
+        let mut cont = style();
+        cont.width = len(80.0);
+        cont.height = len(24.0);
+        cont.align_items = 1; // align_code::START
+        t.set_style(root, &cont);
+        let child = t.create(kind);
+        t.append_child(root, child);
+        child
+    }
+
+    #[test]
+    fn unsized_text_is_content_sized() {
+        // A bare <text> with no width/height measures to its content (5×1), where
+        // before the measure pass it would have collapsed to 0×0.
+        let mut t = NodeTree::new(80, 24);
+        let txt = child_in_unstretched_row(&mut t, NodeKind::Text);
+        set_text(&mut t, txt, "hello");
+        compute(&mut t, 80, 24);
+        let b = node_box(&t, txt).unwrap();
+        assert_eq!(b.w.round() as i32, 5);
+        assert_eq!(b.h.round() as i32, 1);
+    }
+
+    #[test]
+    fn wrapping_text_in_fixed_width_reports_height() {
+        // Explicit width 10, auto height, 25 chars => ceil(25/10) = 3 rows.
+        let mut t = NodeTree::new(80, 24);
+        let txt = child_in_unstretched_row(&mut t, NodeKind::Text);
+        let mut s = style();
+        s.width = len(10.0);
+        t.set_style(txt, &s);
+        set_text(&mut t, txt, "abcdefghijklmnopqrstuvwxy"); // 25 chars
+        compute(&mut t, 80, 24);
+        let b = node_box(&t, txt).unwrap();
+        assert_eq!(b.w.round() as i32, 10, "explicit width wins");
+        assert_eq!(b.h.round() as i32, 3, "height measured from wrapped lines");
+    }
+
+    #[test]
+    fn explicit_dims_override_measurement() {
+        // Both width and height fixed: content never overrides the author's box.
+        let mut t = NodeTree::new(80, 24);
+        let txt = child_in_unstretched_row(&mut t, NodeKind::Text);
+        let mut s = style();
+        s.width = len(4.0);
+        s.height = len(2.0);
+        t.set_style(txt, &s);
+        set_text(&mut t, txt, "this is a long string that would wrap to many rows");
+        compute(&mut t, 80, 24);
+        let b = node_box(&t, txt).unwrap();
+        assert_eq!(b.w.round() as i32, 4);
+        assert_eq!(b.h.round() as i32, 2);
+    }
+
+    #[test]
+    fn text_change_re_measures_after_dirty() {
+        let mut t = NodeTree::new(80, 24);
+        let txt = child_in_unstretched_row(&mut t, NodeKind::Text);
+        set_text(&mut t, txt, "hi");
+        compute(&mut t, 80, 24);
+        assert_eq!(node_box(&t, txt).unwrap().w.round() as i32, 2);
+        // Grow the content; mark dirty so taffy re-measures (the FFI text setters
+        // call this — here we drive it directly).
+        set_text(&mut t, txt, "hello world");
+        t.mark_text_dirty(txt);
+        compute(&mut t, 80, 24);
+        assert_eq!(node_box(&t, txt).unwrap().w.round() as i32, 11);
+    }
+
+    #[test]
+    fn non_text_leaf_is_not_content_sized() {
+        // Regression: only <text> is measured. A styleless box leaf reports zero
+        // content size, so (with stretch off) it stays 0×0 — sized only by its
+        // own style/flex, exactly as before the measure pass existed.
+        let mut t = NodeTree::new(80, 24);
+        let bx = child_in_unstretched_row(&mut t, NodeKind::Box);
+        compute(&mut t, 80, 24);
+        let b = node_box(&t, bx).unwrap();
+        assert_eq!(b.w.round() as i32, 0);
+        assert_eq!(b.h.round() as i32, 0);
     }
 
     #[test]

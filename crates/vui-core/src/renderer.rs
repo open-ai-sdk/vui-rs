@@ -520,6 +520,71 @@ mod tree_tests {
     }
 
     #[test]
+    fn unsized_text_paints_content_sized() {
+        // No width/height on the text: it auto-sizes to its content and paints,
+        // where before the measure pass it collapsed to 0×0 (invisible).
+        let mut r = Renderer::new(20, 3);
+        let root = r.root();
+        // align-items: start so the text's measured height isn't stretched.
+        let mut rs = empty_style();
+        rs.align_items = 1;
+        r.tree_mut().set_style(root, &rs);
+        let t = r.tree_mut().create(NodeKind::Text);
+        r.tree_mut().get_mut(t).unwrap().text = Some(TextContent {
+            runs: vec![TextRun {
+                text: "hi".into(),
+                fg: None,
+                bg: None,
+                attrs: 0,
+            }],
+        });
+        r.tree_mut().append_child(root, t);
+        r.compose_tree();
+
+        assert_eq!(ch_at(&r, 0, 0), 'h');
+        assert_eq!(ch_at(&r, 1, 0), 'i');
+        let b = crate::layout::node_box(r.tree(), t).unwrap();
+        assert_eq!(b.w.round() as i32, 2);
+        assert_eq!(b.h.round() as i32, 1);
+    }
+
+    #[test]
+    fn measured_height_matches_painted_rows() {
+        // Parity: the auto-measured height equals the rows paint actually fills.
+        // Explicit width 4, auto height, "abcdef" => "abcd" / "ef": 2 rows.
+        let mut r = Renderer::new(10, 5);
+        let root = r.root();
+        let mut rs = empty_style();
+        rs.align_items = 1; // start: don't stretch the measured height
+        r.tree_mut().set_style(root, &rs);
+        let t = r.tree_mut().create(NodeKind::Text);
+        let mut s = empty_style();
+        s.width = len(4.0);
+        r.tree_mut().set_style(t, &s);
+        r.tree_mut().get_mut(t).unwrap().text = Some(TextContent {
+            runs: vec![TextRun {
+                text: "abcdef".into(),
+                fg: None,
+                bg: None,
+                attrs: 0,
+            }],
+        });
+        r.tree_mut().append_child(root, t);
+        r.compose_tree();
+
+        // Measured box is 4×2.
+        let b = crate::layout::node_box(r.tree(), t).unwrap();
+        assert_eq!(b.w.round() as i32, 4);
+        assert_eq!(b.h.round() as i32, 2);
+        // Paint placed the wrap exactly where measure said the second row begins.
+        assert_eq!(ch_at(&r, 3, 0), 'd');
+        assert_eq!(ch_at(&r, 0, 1), 'e');
+        assert_eq!(ch_at(&r, 1, 1), 'f');
+        // Nothing painted on row 2 (only 2 rows of content).
+        assert_eq!(ch_at(&r, 0, 2), ' ');
+    }
+
+    #[test]
     fn child_is_clipped_to_parent_content_box() {
         let mut r = Renderer::new(10, 2);
         let root = r.root();
