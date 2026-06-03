@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsdown"
   },
-  "files": ["dist", "native"],
+  "files": ["dist"],
   "publishConfig": {
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",

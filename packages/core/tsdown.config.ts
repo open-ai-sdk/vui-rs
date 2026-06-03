@@ -15,4 +15,10 @@ export default defineConfig({
   dts: true,
   platform: "neutral",
   external: [/^node:/, "bun:ffi"],
+  // Copy the prebuilt native lib(s) from `native/<arch>/` (populated by
+  // scripts/build-native.ts) into `dist/native/<arch>/`, so `dist/` is
+  // self-contained. tsdown copies a `from` dir as `to/<basename>`, so `to: dist`
+  // yields `dist/native/<arch>/`. The loader's first candidate (`here/<arch>/lib`,
+  // here = `dist/native`) resolves it at runtime.
+  copy: [{ from: "native", to: "dist" }],
 });

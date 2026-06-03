@@ -30,15 +30,24 @@ function libFileName(): string {
 }
 
 /**
- * Library lookup order:
- *  1. Stable copy produced by `scripts/build-native.ts` (what releases use).
- *  2. Dev fallbacks: the cargo workspace build directory (release, then debug).
+ * Library lookup order (the newest existing candidate actually wins — see
+ * `loadNativeLib`):
+ *  1. Published layout: dylib copied next to the loader inside `dist/` by the
+ *     tsdown `copy` step (`dist/native/<arch>/`). The only candidate that exists
+ *     in a published package.
+ *  2. Dev: stable copy produced by `scripts/build-native.ts` at the package's
+ *     `native/<arch>/` dir.
+ *  3. Dev fallbacks: the cargo workspace build directory (release, then debug).
+ *
+ * `here` is `<pkg>/src/native` in dev and `<pkg>/dist/native` in a build — both
+ * sit at the same depth, so the relative joins resolve correctly either way.
  */
 function candidatePaths(): string[] {
   const file = libFileName();
   const platformArch = `${process.platform}-${process.arch}`;
   const buildDir = join(repoRoot, "target");
   return [
+    join(here, platformArch, file),
     join(here, "..", "..", "native", platformArch, file),
     join(buildDir, "release", file),
     join(buildDir, "debug", file),
