@@ -51,6 +51,19 @@ export function lookup(tag: string): CatalogueEntry {
   return entry;
 }
 
+/**
+ * Is `tag` a vui *element* (vs. a Vue component) for the SFC compiler's
+ * `isCustomElement`? `box`/`text`/`canvas` and the inline `span`-kind tags are
+ * elements; `edit`-kind tags (`<input>`) are NOT — they resolve to the
+ * `VuiHostInput` component (registered at app create) so v-model round-trips
+ * through its editing logic. Only knows built-in + `extend()`-ed tags in THIS
+ * process; the Vite build lists runtime tags in the plugin separately.
+ */
+export function isVuiTag(tag: string): boolean {
+  const entry = catalogue[tag];
+  return entry !== undefined && entry.kind !== "edit";
+}
+
 /** Construct the Renderable for `tag` (custom `make` wins; else the built-in for `kind`). */
 export function createRenderable(ctx: HostContext, tag: string): Renderable {
   const entry = lookup(tag);

@@ -1,26 +1,28 @@
-// @vui-rs/vue — Vue custom renderer binding for the vui-rs Rust core. Drive a
-// terminal UI with Vue's reactivity + components; `<box>`/`<text>` render through
-// the native cell buffer. Build a tree with `h()`, feed it to `createApp`, and
-// `mount()` paints it; reactive state changes coalesce into one repaint per frame.
+// @vui-rs/vue — Vue custom renderer binding for the vui-rs terminal engine. Drive
+// a terminal UI with Vue's reactivity + components; the retained Renderable tree,
+// taffy-via-FFI layout, and the JS paint walk render through a native cell buffer.
+// Build a tree with `h()` (or a `.vue` SFC), feed it to `createApp`, and `mount()`
+// paints it; reactive changes coalesce into one repaint per frame.
 export { createApp, type MountOptions, type VuiApp } from "./create-app.ts";
-export { extend, isVuiTag, type CatalogueEntry, type HostKind } from "./catalogue.ts";
 
-// JS host (OpenTUI-style) — opt-in via `VUI_HOST=js` or `createHostApp` directly.
-// Strangler: runs alongside the FFI host until the Phase 04 parity cutover.
+// The host app + element registry.
 export {
   createHostApp,
   type VuiHostApp,
   type HostMountOptions,
 } from "./host/create-host-app.ts";
 export {
+  extend,
+  isVuiTag,
+  type CatalogueEntry,
+} from "./host/catalogue.ts";
+export {
   Renderable,
   type HostContext,
   type RenderableKind,
 } from "./host/renderable.ts";
-export {
-  extend as extendHost,
-  type CatalogueEntry as HostCatalogueEntry,
-} from "./host/catalogue.ts";
+
+// Custom drawing + custom Renderables.
 export {
   CanvasRenderable,
   type CanvasContext,
@@ -28,16 +30,22 @@ export {
   type CanvasRect,
   type CanvasStyle,
 } from "./host/canvas-renderable.ts";
+
+// Editable input + keyboard/focus.
 export { EditRenderable, type EditState } from "./host/edit-renderable.ts";
+export { VuiHostInput, VuiHostInput as VuiInput } from "./host/components/input.ts";
 export {
   createHostFocusManager,
+  createHostFocusManager as createFocusManager,
   type HostFocusManager,
-  type DispatchableEvent as HostDispatchableEvent,
+  type HostFocusManager as FocusManager,
+  type DispatchableEvent,
 } from "./host/focus.ts";
-export { VuiHostInput } from "./host/components/input.ts";
+export { VuiSpinner } from "./components/spinner.ts";
+
 // Re-export the element prop types AND pull `vui-elements` into the module graph
 // so its `GlobalComponents` augmentation (template type-support for <box>/<text>/
-// <input>) ships in the bundled dist .d.ts. Types-only: erased from the JS bundle.
+// <input>/<canvas>) ships in the bundled dist .d.ts. Types-only: erased from JS.
 export type {
   BoxProps,
   CanvasProps,
@@ -47,14 +55,6 @@ export type {
   TextProps,
 } from "./vui-elements.ts";
 export { parseColor } from "./color.ts";
-export type { VuiContext, VuiHostNode } from "./host-node.ts";
-export {
-  createFocusManager,
-  type FocusManager,
-  type DispatchableEvent,
-} from "./focus.ts";
-export { VuiInput } from "./components/input.ts";
-export { VuiSpinner } from "./components/spinner.ts";
 
 // Theming: tokens + composables. Pass a `theme` to `mount()`; read it in
 // components with `useTheme()`, or restyle a subtree with `provideTheme()`.

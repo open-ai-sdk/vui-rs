@@ -8,7 +8,6 @@
 import { Renderer } from "@vui-rs/core";
 import {
   computed,
-  createApp,
   createHostApp,
   defineComponent,
   h,
@@ -59,16 +58,7 @@ function timeRenders(flush: () => void, mutate: () => void, iters: number): numb
   return samples[Math.floor(samples.length / 2)]!;
 }
 
-function benchFfi(App: ReturnType<typeof defineComponent>, tick: { value: number }, iters: number): number {
-  const r = new Renderer(W, H);
-  const app = createApp(App).mount({ renderer: r, altScreen: false });
-  const ms = timeRenders(() => app.context.flushNow(), () => tick.value++, iters);
-  app.unmount();
-  r.free();
-  return ms;
-}
-
-function benchJs(App: ReturnType<typeof defineComponent>, tick: { value: number }, iters: number): number {
+function benchHost(App: ReturnType<typeof defineComponent>, tick: { value: number }, iters: number): number {
   const r = new Renderer(W, H);
   const app = createHostApp(App).mount({ renderer: r });
   const ms = timeRenders(() => app.context.flushNow(), () => tick.value++, iters);
@@ -77,27 +67,18 @@ function benchJs(App: ReturnType<typeof defineComponent>, tick: { value: number 
   return ms;
 }
 
-function row(label: string, ffi: number, js: number): void {
-  const ratio = js / ffi;
-  console.error(
-    `${label.padEnd(22)} ffi=${ffi.toFixed(3)}ms  js=${js.toFixed(3)}ms  js/ffi=${ratio.toFixed(2)}x`,
-  );
-}
-
 async function main(): Promise<void> {
-  console.error(`paint benchmark — ${W}x${H}, median of ${ITERS} forced renders\n`);
+  console.error(`paint benchmark (JS host) — ${W}x${H}, median of ${ITERS} forced renders\n`);
   const cases: Array<[string, number, number]> = [
     ["small (2x2 grid)", 2, 2],
     ["medium (6x6 grid)", 6, 6],
     ["large (10x8 grid)", 10, 8],
   ];
   for (const [label, cols, rows] of cases) {
-    const tickFfi = ref(0);
-    const tickJs = ref(0);
-    const ffi = benchFfi(gridApp(cols, rows, tickFfi), tickFfi, ITERS);
-    const js = benchJs(gridApp(cols, rows, tickJs), tickJs, ITERS);
+    const tick = ref(0);
+    const ms = benchHost(gridApp(cols, rows, tick), tick, ITERS);
     const n = cols * rows;
-    row(`${label} ~${n * 2}n`, ffi, js);
+    console.error(`${`${label} ~${n * 2}n`.padEnd(24)} ${ms.toFixed(3)} ms/frame`);
   }
   // Idle check: after one render, no mutation → the on-demand scheduler is quiet.
   const idleTick = ref(0);

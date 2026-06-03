@@ -4,7 +4,6 @@
 //! `u32` status code (`status` module) is returned where applicable.
 
 pub mod canvas;
-pub mod edit;
 pub mod node;
 pub mod render;
 

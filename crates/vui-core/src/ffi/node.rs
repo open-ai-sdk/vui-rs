@@ -13,7 +13,7 @@
 
 use crate::color::Rgba;
 use crate::ffi::status;
-use crate::node::{BorderStyle, NodeId, NodeKind, TextContent, TextRun, TitleAlign, WrapMode};
+use crate::node::{NodeId, NodeKind, TextContent, TextRun, WrapMode};
 use crate::renderer::Renderer;
 use crate::style::StyleFfi;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -200,89 +200,13 @@ pub extern "C" fn vui_node_set_text_runs(
 pub extern "C" fn vui_node_set_text_wrap(r: *mut Renderer, id: u32, mode: u8) -> u32 {
     with_renderer(r, |rr| {
         if let Some(node) = rr.tree_mut().get_mut(NodeId(id)) {
-            node.paint.wrap = WrapMode::from_u8(mode);
+            node.wrap = WrapMode::from_u8(mode);
         } else {
             return status::BAD_ARG;
         }
         rr.tree_mut().mark_text_dirty(NodeId(id));
         status::OK
     })
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_bg(r: *mut Renderer, id: u32, rgba: u32, has: u8) -> u32 {
-    paint_set(r, id, |p| p.bg = opt_color(rgba, has))
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_fg(r: *mut Renderer, id: u32, rgba: u32, has: u8) -> u32 {
-    paint_set(r, id, |p| p.fg = opt_color(rgba, has))
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_attrs(r: *mut Renderer, id: u32, attrs: u16) -> u32 {
-    paint_set(r, id, |p| p.attrs = attrs)
-}
-
-/// Set the visual border. `style`: 0 = none, 1 = single, 2 = double, 3 = rounded.
-/// `has_color == 0` leaves the border color unset (falls back to fg at paint).
-/// NOTE: this is paint only — to reserve a layout cell for the frame, also set
-/// the matching `border` in the node's `StyleFfi`.
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_border(
-    r: *mut Renderer,
-    id: u32,
-    style: u8,
-    rgba: u32,
-    has_color: u8,
-) -> u32 {
-    paint_set(r, id, |p| {
-        p.border = BorderStyle::from_u8(style);
-        p.border_color = opt_color(rgba, has_color);
-    })
-}
-
-/// Set the border title (drawn on the top edge). `align`: 0 = left, 1 = center,
-/// 2 = right. Empty text clears the title.
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_title(
-    r: *mut Renderer,
-    id: u32,
-    ptr: *const u8,
-    len: usize,
-    align: u8,
-) -> u32 {
-    with_renderer(r, |rr| {
-        if len > 0 && ptr.is_null() {
-            return status::NULL_PTR;
-        }
-        let Ok(text) = std::str::from_utf8(byte_slice(ptr, len)) else {
-            return status::BAD_ARG;
-        };
-        let title = if text.is_empty() {
-            None
-        } else {
-            Some(text.to_owned())
-        };
-        match rr.tree_mut().get_mut(NodeId(id)) {
-            Some(node) => {
-                node.paint.title = title;
-                node.paint.title_align = TitleAlign::from_u8(align);
-                status::OK
-            }
-            None => status::BAD_ARG,
-        }
-    })
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_visible(r: *mut Renderer, id: u32, visible: u8) -> u32 {
-    paint_set(r, id, |p| p.visible = visible != 0)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn vui_node_set_opacity(r: *mut Renderer, id: u32, opacity: f32) -> u32 {
-    paint_set(r, id, |p| p.opacity = opacity)
 }
 
 /// Apply a packed layout style (`StyleFfi`) to a node in one call.
@@ -395,22 +319,6 @@ fn byte_slice<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
     }
 }
 
-/// Shared body for paint-prop setters: resolve the node, mutate its paint props,
-/// return `OK`/`BAD_ARG`.
-fn paint_set(
-    r: *mut Renderer,
-    id: u32,
-    f: impl FnOnce(&mut crate::node::PaintProps),
-) -> u32 {
-    with_renderer(r, |rr| match rr.tree_mut().get_mut(NodeId(id)) {
-        Some(node) => {
-            f(&mut node.paint);
-            status::OK
-        }
-        None => status::BAD_ARG,
-    })
-}
-
 fn bool_status(ok: bool) -> u32 {
     if ok {
         status::OK
@@ -458,7 +366,7 @@ mod tests {
         let a = vui_node_new(r, 1);
         assert_eq!(vui_node_free(r, a), status::OK);
         // Operating on the freed handle is rejected, never a panic across FFI.
-        assert_eq!(vui_node_set_attrs(r, a, 1), status::BAD_ARG);
+        assert_eq!(vui_node_set_text_wrap(r, a, 1), status::BAD_ARG);
         assert_eq!(vui_node_free(r, a), status::BAD_ARG);
         free_renderer(r);
     }

@@ -1,17 +1,15 @@
 //! vui-core: native core for vui-rs. Owns the rendering heart — a
 //! double-buffered cell grid, a minimal-ANSI frame differ, unicode-aware cell
-//! width, a taffy flexbox layout + paint pass over a render-node tree, and a C
-//! ABI to drive it all from Bun.
+//! width, clip-aware draw primitives + an offscreen buffer, and a taffy flexbox
+//! **layout** node tree (style + text-for-measure, read back as rects). Painting
+//! lives in the JS host; this exposes a C ABI to drive it all from Bun.
 
 pub mod ansi;
-pub mod border;
 pub mod buffer;
 pub mod color;
-pub mod edit_buffer;
 pub mod ffi;
 pub mod layout;
 pub mod node;
-pub mod paint;
 pub mod renderer;
 pub mod style;
 pub mod width;
@@ -36,7 +34,10 @@ const VERSION: u32 = 0x00_01_00;
 ///     drive taffy for the Renderable tree without painting.
 /// v8: `vui_renderer_flush` — diff/emit the back buffer without composing the
 ///     node tree, so the JS-host paint walk owns the buffer.
-const ABI_VERSION: u32 = 8;
+/// v9: removed the now-dead Rust paint surface — the node-tree paint walk, the
+///     node paint setters (`vui_node_set_bg/fg/attrs/border/title/visible/opacity`),
+///     and the native edit-buffer (`vui_edit_*`). The node tree is layout-only.
+const ABI_VERSION: u32 = 9;
 
 /// Returns the packed semver of the native core.
 ///

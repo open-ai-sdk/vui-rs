@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 8;
+export const EXPECTED_ABI_VERSION = 9;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -51,7 +51,7 @@ export const RECT_FFI_BYTES = 48;
 /** Node kinds for `vui_node_new` (mirrors `node::NodeKind::from_u8`). */
 export const NodeKindCode = { Box: 1, Text: 2, Edit: 3 } as const;
 
-/** Cursor motions for `vui_edit_move` (mirrors `edit_buffer::Motion::from_u8`). */
+/** Cursor motion codes for the JS-host edit model (`EditRenderable.move`). */
 export const EditMotion = {
   Left: 0,
   Right: 1,
@@ -61,12 +61,6 @@ export const EditMotion = {
   End: 5,
 } as const;
 export type EditMotionCode = (typeof EditMotion)[keyof typeof EditMotion];
-
-/** Border styles for `vui_node_set_border` (0 = none). */
-export const BorderStyleCode = { None: 0, Single: 1, Double: 2, Rounded: 3 } as const;
-
-/** Title alignment for `vui_node_set_title`. */
-export const TitleAlignCode = { Left: 0, Center: 1, Right: 2 } as const;
 
 /** Text wrap mode for `vui_node_set_text_wrap` (0 = wrap, the default). */
 export const TextWrapCode = { Wrap: 0, NoWrap: 1 } as const;
@@ -208,36 +202,8 @@ export const symbols = {
     ],
     returns: FFIType.u32,
   },
-  vui_node_set_bg: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_node_set_fg: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_node_set_attrs: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u16],
-    returns: FFIType.u32,
-  },
-  vui_node_set_border: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u8, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_node_set_title: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize", FFIType.u8],
-    returns: FFIType.u32,
-  },
   vui_node_set_text_wrap: {
     args: [FFIType.ptr, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_node_set_visible: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_node_set_opacity: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.f32],
     returns: FFIType.u32,
   },
   vui_node_set_style: {
@@ -250,49 +216,4 @@ export const symbols = {
   // JS-host layout: run taffy without painting, then read each node's box.
   vui_layout_compute: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
   vui_node_rect: { args: [FFIType.ptr, FFIType.u32, FFIType.ptr], returns: FFIType.u32 },
-
-  // Native edit buffer (the `<input>` surface). Node id is a u32 `Edit` handle.
-  vui_edit_insert: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
-    returns: FFIType.u32,
-  },
-  vui_edit_backspace: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
-  vui_edit_delete: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
-  vui_edit_move: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_edit_set_value: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
-    returns: FFIType.u32,
-  },
-  // out buffer + capacity; returns the value's full byte length (usize → bigint).
-  vui_edit_get_value: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
-    returns: "usize",
-  },
-  vui_edit_set_cursor: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
-    returns: FFIType.u32,
-  },
-  vui_edit_set_max_length: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
-    returns: FFIType.u32,
-  },
-  vui_edit_set_placeholder: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, "usize"],
-    returns: FFIType.u32,
-  },
-  vui_edit_set_focused: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_edit_set_cursor_color: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
-  vui_edit_set_placeholder_color: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u8],
-    returns: FFIType.u32,
-  },
 } as const;

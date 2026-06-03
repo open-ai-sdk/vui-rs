@@ -2,7 +2,6 @@ import { loadNativeLib } from "./native/load-native-lib.ts";
 
 export {
   Attr,
-  BorderStyleCode,
   CELL_BYTES,
   EditMotion,
   type EditMotionCode,
@@ -11,10 +10,8 @@ export {
   Status,
   STYLE_FFI_BYTES,
   symbols,
-  TitleAlignCode,
 } from "./native/load-native-lib.ts";
 export type { NativeLib } from "./native/load-native-lib.ts";
-export { EditApi } from "./edit.ts";
 export { parseColor } from "./color.ts";
 export { NAMED_COLORS, parseHex } from "./named-colors.ts";
 export { Renderer, rgba, type TextStyle, type ClipRect } from "./renderer.ts";
@@ -38,12 +35,10 @@ export {
 export {
   hostTreeHash,
   VuiNode,
-  type BorderName,
   type LayoutRect,
   type RectEdges,
   type TextRun,
   type TextWrapName,
-  type TitleAlignName,
 } from "./node.ts";
 export {
   packStyle,

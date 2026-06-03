@@ -6,15 +6,12 @@
 
 import type { Pointer } from "bun:ffi";
 import {
-  BorderStyleCode,
   RECT_FFI_BYTES,
   Status,
   TEXT_RUN_FFI_BYTES,
   TextWrapCode,
-  TitleAlignCode,
 } from "./native/ffi-symbols.ts";
 import type { NativeLib } from "./native/load-native-lib.ts";
-import { EditApi } from "./edit.ts";
 import { packStyle, type VuiStyle } from "./style.ts";
 
 const encoder = new TextEncoder();
@@ -26,8 +23,6 @@ export interface TextRun {
   attrs?: number;
 }
 
-export type BorderName = "none" | "single" | "double" | "rounded";
-export type TitleAlignName = "left" | "center" | "right";
 export type TextWrapName = "wrap" | "nowrap";
 
 /** Per-side insets (cells, fractional) reported by layout. */
@@ -68,22 +63,12 @@ export class VuiNode {
   #parent: VuiNode | undefined;
   #lib: NativeLib;
   #ptr: Pointer;
-  #edit: EditApi | undefined;
 
   constructor(lib: NativeLib, ptr: Pointer, id: number, kindCode: number) {
     this.#lib = lib;
     this.#ptr = ptr;
     this.id = id;
     this.kindCode = kindCode;
-  }
-
-  /**
-   * The native edit buffer for an `Edit` node (`kindCode === 3`). Lazily bound
-   * and memoized. Calling edit ops on a non-edit node returns `BAD_ARG` natively,
-   * which surfaces as a thrown error — only use this on `<input>`-backed nodes.
-   */
-  get edit(): EditApi {
-    return (this.#edit ??= new EditApi(this.#lib, this.#ptr, this.id));
   }
 
   setStyle(style: VuiStyle): this {
@@ -170,60 +155,6 @@ export class VuiNode {
     return this;
   }
 
-  setBg(rgba?: number): this {
-    check(this.#lib.symbols.vui_node_set_bg(this.#ptr, this.id, rgba ?? 0, rgba === undefined ? 0 : 1), "set_bg");
-    return this;
-  }
-
-  setFg(rgba?: number): this {
-    check(this.#lib.symbols.vui_node_set_fg(this.#ptr, this.id, rgba ?? 0, rgba === undefined ? 0 : 1), "set_fg");
-    return this;
-  }
-
-  setAttrs(attrs: number): this {
-    check(this.#lib.symbols.vui_node_set_attrs(this.#ptr, this.id, attrs & 0xffff), "set_attrs");
-    return this;
-  }
-
-  setBorder(style: BorderName, color?: number): this {
-    check(
-      this.#lib.symbols.vui_node_set_border(
-        this.#ptr,
-        this.id,
-        BorderStyleCode[style === "none" ? "None" : capitalize(style)],
-        color ?? 0,
-        color === undefined ? 0 : 1,
-      ),
-      "set_border",
-    );
-    return this;
-  }
-
-  setTitle(text: string, align: TitleAlignName = "left"): this {
-    const bytes = encoder.encode(text);
-    check(
-      this.#lib.symbols.vui_node_set_title(
-        this.#ptr,
-        this.id,
-        bytes,
-        bytes.byteLength,
-        TitleAlignCode[capitalize(align)],
-      ),
-      "set_title",
-    );
-    return this;
-  }
-
-  setVisible(visible: boolean): this {
-    check(this.#lib.symbols.vui_node_set_visible(this.#ptr, this.id, visible ? 1 : 0), "set_visible");
-    return this;
-  }
-
-  setOpacity(opacity: number): this {
-    check(this.#lib.symbols.vui_node_set_opacity(this.#ptr, this.id, opacity), "set_opacity");
-    return this;
-  }
-
   appendChild(child: VuiNode): this {
     check(this.#lib.symbols.vui_node_append_child(this.#ptr, this.id, child.id), "append_child");
     child.#detachFromParent();
@@ -264,10 +195,6 @@ export class VuiNode {
     if (at >= 0) siblings.splice(at, 1);
     this.#parent = undefined;
   }
-}
-
-function capitalize<T extends string>(s: T): Capitalize<T> {
-  return (s.charAt(0).toUpperCase() + s.slice(1)) as Capitalize<T>;
 }
 
 // FNV-1a 64-bit, mirroring `node::NodeTree::debug_tree_hash` exactly so the host

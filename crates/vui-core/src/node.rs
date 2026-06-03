@@ -1,15 +1,14 @@
-//! The render-node tree: the Rust mirror of the (future) Vue element tree. Each
-//! `RenderNode` owns a taffy layout node and a bundle of paint properties. The
-//! tree is a generational slab so a `NodeId` handed across FFI is stable and a
-//! stale id (freed-then-reused slot) is detected by a generation mismatch rather
-//! than silently aliasing a different node.
+//! The render-node tree: a layout-only mirror the JS host drives over FFI. Each
+//! `RenderNode` owns a taffy layout node + (for `<text>`) the runs used to
+//! measure it; painting lives entirely in the JS host. The tree is a generational
+//! slab so a `NodeId` handed across FFI is stable and a stale id (freed-then-reused
+//! slot) is detected by a generation mismatch rather than silently aliasing.
 //!
 //! Tree ops keep the taffy parent/child graph in lockstep with our own
 //! `children` vectors, and any structural or layout-style change marks the tree
 //! dirty so `layout::compute` only re-runs when something actually moved.
 
 use crate::color::Rgba;
-use crate::edit_buffer::EditBuffer;
 use crate::style::StyleFfi;
 use taffy::geometry::Size;
 use taffy::style::{AvailableSpace, Dimension, Style};
@@ -66,43 +65,6 @@ impl NodeKind {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BorderStyle {
-    Single,
-    Double,
-    Rounded,
-}
-
-impl BorderStyle {
-    /// FFI border-style code, where 0 means "no border" (`None` at the call
-    /// site). Unknown non-zero codes clamp to `Single`.
-    pub fn from_u8(v: u8) -> Option<Self> {
-        match v {
-            0 => None,
-            2 => Some(BorderStyle::Double),
-            3 => Some(BorderStyle::Rounded),
-            _ => Some(BorderStyle::Single),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum TitleAlign {
-    Left,
-    Center,
-    Right,
-}
-
-impl TitleAlign {
-    pub fn from_u8(v: u8) -> Self {
-        match v {
-            1 => TitleAlign::Center,
-            2 => TitleAlign::Right,
-            _ => TitleAlign::Left,
-        }
-    }
-}
-
 /// How a `<text>` flows when its content is wider than the content box. `Wrap`
 /// (the default) breaks to the next row at the box edge; `NoWrap` keeps each line
 /// on one row and lets paint clip the overflow. Read by both the measure pass and
@@ -139,57 +101,14 @@ pub struct TextContent {
     pub runs: Vec<TextRun>,
 }
 
-/// Visual (non-layout) properties painted into the cell buffer.
-#[derive(Clone, Debug)]
-pub struct PaintProps {
-    pub bg: Option<Rgba>,
-    pub fg: Option<Rgba>,
-    pub attrs: u16,
-    pub border: Option<BorderStyle>,
-    pub border_color: Option<Rgba>,
-    pub title: Option<String>,
-    pub title_align: TitleAlign,
-    /// v0 has no real alpha compositing in a cell grid: `opacity <= 0` hides the
-    /// node (like `!visible`); any positive value paints fully opaque.
-    pub opacity: f32,
-    pub visible: bool,
-    /// Text flow mode (`<text>` only); ignored by non-text nodes.
-    pub wrap: WrapMode,
-}
-
-impl Default for PaintProps {
-    fn default() -> Self {
-        Self {
-            bg: None,
-            fg: None,
-            attrs: 0,
-            border: None,
-            border_color: None,
-            title: None,
-            title_align: TitleAlign::Left,
-            opacity: 1.0,
-            visible: true,
-            wrap: WrapMode::Wrap,
-        }
-    }
-}
-
-impl PaintProps {
-    /// Whether the node should paint at all this frame.
-    pub fn is_drawable(&self) -> bool {
-        self.visible && self.opacity > 0.0
-    }
-}
-
 pub struct RenderNode {
     pub kind: NodeKind,
     pub taffy: TaffyId,
     pub parent: Option<NodeId>,
     pub children: Vec<NodeId>,
-    pub paint: PaintProps,
     pub text: Option<TextContent>,
-    /// Present only for `NodeKind::Edit` — the input's editable text + cursor.
-    pub edit: Option<EditBuffer>,
+    /// Text flow mode (`<text>` only) — drives the measure wrap budget.
+    pub wrap: WrapMode,
 }
 
 struct Slot {
@@ -223,9 +142,8 @@ impl NodeTree {
             taffy: taffy_root,
             parent: None,
             children: Vec::new(),
-            paint: PaintProps::default(),
             text: None,
-            edit: None,
+            wrap: WrapMode::Wrap,
         });
         tree
     }
@@ -291,20 +209,14 @@ impl NodeTree {
         } else {
             None
         };
-        let edit = if kind == NodeKind::Edit {
-            Some(EditBuffer::default())
-        } else {
-            None
-        };
         self.dirty = true;
         self.alloc(RenderNode {
             kind,
             taffy,
             parent: None,
             children: Vec::new(),
-            paint: PaintProps::default(),
             text,
-            edit,
+            wrap: WrapMode::Wrap,
         })
     }
 
@@ -557,7 +469,7 @@ fn measure_node(slots: &[Slot], taffy_id: TaffyId, available_space: Size<Availab
         AvailableSpace::Definite(w) => w.max(0.0) as i64,
         AvailableSpace::MinContent | AvailableSpace::MaxContent => crate::wrap::UNBOUNDED,
     };
-    let measured = crate::wrap::walk_runs(&text.runs, budget, node.paint.wrap, |_| {});
+    let measured = crate::wrap::walk_runs(&text.runs, budget, node.wrap, |_| {});
     Size {
         width: measured.width,
         height: measured.height,

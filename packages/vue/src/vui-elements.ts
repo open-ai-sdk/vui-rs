@@ -13,7 +13,7 @@
 import type { DefineComponent } from "@vue/runtime-core";
 import type { AlignValue, Dim, JustifyValue, Sides, VuiStyle } from "@vui-rs/core";
 import type { CanvasContext, CanvasRect } from "./host/canvas-renderable.ts";
-import type { DispatchableEvent } from "./focus.ts";
+import type { DispatchableEvent } from "./host/focus.ts";
 
 /** A color: a CSS/hex/name string or a packed `0xRRGGBBAA` number (see `rgba`). */
 export type Color = string | number;

@@ -4,8 +4,7 @@
 // mark the node in `dirtyLayout`; span/text changes mark the enclosing `<text>`
 // in `dirtyText`. The bucket classification is shared via `prop-buckets.ts`.
 import { parseColor } from "../color.ts";
-import { ATTR_FLAGS } from "../paint-prop.ts";
-import { INSET_SIDES, LAYOUT_KEYS, isEvent } from "../prop-buckets.ts";
+import { ATTR_FLAGS, INSET_SIDES, LAYOUT_KEYS, isEvent } from "../prop-buckets.ts";
 import { type EditRenderable } from "./edit-renderable.ts";
 import { type Renderable, type RunStyle } from "./renderable.ts";
 import { enclosingText } from "./tree.ts";

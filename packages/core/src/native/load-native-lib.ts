@@ -6,7 +6,6 @@ import { CELL_BYTES, EXPECTED_ABI_VERSION, STYLE_FFI_BYTES, symbols } from "./ff
 
 export {
   Attr,
-  BorderStyleCode,
   CELL_BYTES,
   EditMotion,
   type EditMotionCode,
@@ -16,7 +15,6 @@ export {
   STYLE_FFI_BYTES,
   symbols,
   TEXT_RUN_FFI_BYTES,
-  TitleAlignCode,
 } from "./ffi-symbols.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));

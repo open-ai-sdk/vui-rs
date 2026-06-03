@@ -1,7 +1,18 @@
-// Shared prop-routing buckets, used by BOTH the FFI patch-prop and the JS-host
-// patch-prop so the two paths classify props identically (the Phase 01 drift
-// guard: port, don't fork). Layout keys fold into a node's taffy style; inset
-// sides fold into `style.inset`; `on*` keys are events. Everything else is paint.
+// Shared prop-routing buckets for the host patch-prop. Layout keys fold into a
+// node's taffy style; inset sides fold into `style.inset`; `on*` keys are events;
+// the boolean attr flags map to attribute bits. Everything else is paint.
+import { Attr } from "@vui-rs/core";
+
+/** Boolean attr props → bit. Numeric `attrs` is handled separately as a base. */
+export const ATTR_FLAGS: Record<string, number> = {
+  bold: Attr.BOLD,
+  dim: Attr.DIM,
+  italic: Attr.ITALIC,
+  underline: Attr.UNDERLINE,
+  strikethrough: Attr.STRIKETHROUGH,
+  inverse: Attr.INVERSE,
+};
+
 export const LAYOUT_KEYS = new Set([
   "display", "position", "flexDirection", "flexWrap", "alignItems", "alignSelf",
   "justifyContent", "flexGrow", "flexShrink", "flexBasis", "width", "height",

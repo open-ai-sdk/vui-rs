@@ -15,10 +15,9 @@
 //! handed to Bun for the zero-copy typed-array view stays valid across frames.
 
 use crate::ansi;
-use crate::buffer::{Cell, CellBuffer, DEFAULT_BG};
+use crate::buffer::{Cell, CellBuffer};
 use crate::color::Rgba;
 use crate::node::{NodeId, NodeTree};
-use crate::{layout, paint};
 use std::io::Write;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -52,13 +51,10 @@ pub struct Renderer {
     out: Vec<u8>,
     /// Forces a full repaint next frame (set on construction and resize).
     force: bool,
-    /// The render-node tree. When it has content, `render` composes the back
-    /// buffer from it (layout + paint); when empty, the back buffer is left as
-    /// the caller drew it (so immediate-mode drawing keeps working).
+    /// The layout node tree. The JS host pushes styles + text-for-measure onto it,
+    /// runs `layout::compute`, and reads each node's box back — it does not paint
+    /// the tree (painting lives in the JS host, emitted via `flush_only`).
     tree: NodeTree,
-    /// Whether the previous compose painted tree content. Lets an emptied tree
-    /// clear its last frame once, instead of leaving it stale on screen.
-    tree_painted: bool,
 }
 
 impl Renderer {
@@ -71,7 +67,6 @@ impl Renderer {
             out: Vec::with_capacity(64 * 1024),
             force: true,
             tree: NodeTree::new(width, height),
-            tree_painted: false,
         }
     }
 
@@ -83,34 +78,6 @@ impl Renderer {
     }
     pub fn root(&self) -> NodeId {
         self.tree.root()
-    }
-
-    /// Compose the back buffer from the node tree, if it has any content. Layout
-    /// is recomputed only when the tree is dirty (incremental); the paint walk
-    /// runs every frame but is O(nodes) and the diff keeps emitted bytes minimal.
-    /// An empty tree leaves the back buffer untouched so immediate-mode drawing
-    /// (the immediate-mode FFI draw primitives) keeps working unchanged.
-    fn compose_tree(&mut self) {
-        let has_content = self
-            .tree
-            .get(self.tree.root())
-            .map(|r| !r.children.is_empty())
-            .unwrap_or(false);
-        if !has_content {
-            // A tree that just lost all its content clears its last frame once;
-            // an always-empty tree leaves the back buffer to immediate-mode draws.
-            if self.tree_painted {
-                self.back.clear(DEFAULT_BG);
-                self.tree_painted = false;
-            }
-            return;
-        }
-        if self.tree.is_dirty() {
-            layout::compute(&mut self.tree, self.width, self.height);
-        }
-        self.back.clear(DEFAULT_BG);
-        paint::paint(&self.tree, &mut self.back);
-        self.tree_painted = true;
     }
 
     pub fn back_mut(&mut self) -> &mut CellBuffer {
@@ -228,31 +195,10 @@ impl Renderer {
         self.force = false;
     }
 
-    /// Compose the tree and diff into `out` without touching stdout. Test-only
-    /// path mirroring `render` so assertions can inspect the emitted bytes.
-    #[cfg(test)]
-    fn render_for_test(&mut self) {
-        self.compose_tree();
-        self.paint();
-    }
-
-    /// Diff and write the frame to stdout under a synchronized-output wrapper.
-    pub fn render(&mut self) {
-        self.compose_tree();
-        self.paint();
-        if self.out.is_empty() {
-            return;
-        }
-        let stdout = std::io::stdout();
-        let mut lock = stdout.lock();
-        let _ = lock.write_all(&self.out);
-        let _ = lock.flush();
-    }
-
-    /// Diff the back buffer as the caller drew it and write the frame — WITHOUT
-    /// composing the node tree. This is the JS-host emit path: the JS paint walk
-    /// owns the back buffer (clears it, then stamps via the clip-aware draw
-    /// prims), so the Rust tree compose/paint must be bypassed entirely.
+    /// Diff the back buffer (as the JS host drew it) against the screen and write
+    /// the minimal frame to stdout under a synchronized-output wrapper. The host
+    /// clears + stamps the back buffer via the clip-aware draw prims, then calls
+    /// this to emit. (`render` is kept as an alias of `flush_only` for the FFI.)
     pub fn flush_only(&mut self) {
         self.paint();
         if self.out.is_empty() {
@@ -262,6 +208,12 @@ impl Renderer {
         let mut lock = stdout.lock();
         let _ = lock.write_all(&self.out);
         let _ = lock.flush();
+    }
+
+    /// Alias of `flush_only` (kept so the existing `vui_renderer_render` export and
+    /// the immediate-mode draw path keep emitting). There is no tree compose now.
+    pub fn render(&mut self) {
+        self.flush_only();
     }
 }
 
@@ -416,361 +368,3 @@ mod tests {
     }
 }
 
-/// Integration tests for the node-tree → layout → paint → back-buffer pipeline.
-/// They build a tree through the renderer, compose it (no stdout), and read the
-/// resulting cells back.
-#[cfg(test)]
-mod tree_tests {
-    use super::*;
-    use crate::buffer::{attr, DEFAULT_FG};
-    use crate::node::{BorderStyle, NodeKind, TextContent, TextRun, TitleAlign};
-    use crate::style::{DimFfi, StyleFfi};
-
-    fn empty_style() -> StyleFfi {
-        StyleFfi::default()
-    }
-    fn len(v: f32) -> DimFfi {
-        DimFfi { kind: 1, value: v }
-    }
-    fn red() -> Rgba {
-        Rgba::new(255, 0, 0, 255)
-    }
-    fn green() -> Rgba {
-        Rgba::new(0, 255, 0, 255)
-    }
-    fn blue() -> Rgba {
-        Rgba::new(0, 0, 255, 255)
-    }
-    fn ch_at(r: &Renderer, x: u32, y: u32) -> char {
-        char::from_u32(r.back.get_cell(x, y).unwrap().ch).unwrap()
-    }
-
-    #[test]
-    fn empty_tree_leaves_immediate_draws_intact() {
-        // No tree content: render() must not clear the caller's immediate draws.
-        let mut r = Renderer::new(6, 1);
-        r.back_mut().draw_text(0, 0, "hey", DEFAULT_FG, DEFAULT_BG, 0);
-        r.compose_tree();
-        assert_eq!(ch_at(&r, 0, 0), 'h');
-    }
-
-    #[test]
-    fn bordered_titled_box_paints_frame_and_title() {
-        let mut r = Renderer::new(20, 5);
-        let root = r.root();
-        let b = r.tree_mut().create(NodeKind::Box);
-        let mut s = empty_style();
-        s.width = len(20.0);
-        s.height = len(5.0);
-        s.border_left = len(1.0);
-        s.border_right = len(1.0);
-        s.border_top = len(1.0);
-        s.border_bottom = len(1.0);
-        r.tree_mut().set_style(b, &s);
-        {
-            let node = r.tree_mut().get_mut(b).unwrap();
-            node.paint.bg = Some(blue());
-            node.paint.border = Some(BorderStyle::Single);
-            node.paint.border_color = Some(Rgba::new(255, 255, 255, 255));
-            node.paint.title = Some("Hi".into());
-            node.paint.title_align = TitleAlign::Left;
-        }
-        r.tree_mut().append_child(root, b);
-        r.compose_tree();
-
-        // Corners + a horizontal run glyph.
-        assert_eq!(ch_at(&r, 0, 0), '┌');
-        assert_eq!(ch_at(&r, 19, 0), '┐');
-        assert_eq!(ch_at(&r, 0, 4), '└');
-        assert_eq!(ch_at(&r, 19, 4), '┘');
-        assert_eq!(ch_at(&r, 0, 2), '│');
-        // Title sits just inside the top-left corner, over the top border.
-        assert_eq!(ch_at(&r, 1, 0), 'H');
-        assert_eq!(ch_at(&r, 2, 0), 'i');
-        // Box background filled an interior cell.
-        assert_eq!(r.back.get_cell(5, 2).unwrap().bg, blue());
-    }
-
-    #[test]
-    fn multi_run_text_wraps_and_keeps_per_run_attrs() {
-        // Content box is 4 wide, 3 tall; "ab"+"cdef" => "abcd" / "ef".
-        let mut r = Renderer::new(4, 3);
-        let root = r.root();
-        let t = r.tree_mut().create(NodeKind::Text);
-        let mut s = empty_style();
-        s.width = len(4.0);
-        s.height = len(3.0);
-        r.tree_mut().set_style(t, &s);
-        {
-            let node = r.tree_mut().get_mut(t).unwrap();
-            node.text = Some(TextContent {
-                runs: vec![
-                    TextRun {
-                        text: "ab".into(),
-                        fg: None,
-                        bg: None,
-                        attrs: 0,
-                    },
-                    TextRun {
-                        text: "cdef".into(),
-                        fg: Some(red()),
-                        bg: None,
-                        attrs: attr::BOLD,
-                    },
-                ],
-            });
-        }
-        r.tree_mut().append_child(root, t);
-        r.compose_tree();
-
-        assert_eq!(ch_at(&r, 0, 0), 'a');
-        assert_eq!(ch_at(&r, 3, 0), 'd');
-        assert_eq!(ch_at(&r, 0, 1), 'e'); // wrapped onto the next row
-        assert_eq!(ch_at(&r, 1, 1), 'f');
-        // 'c' belongs to the bold/red run; 'a' to the plain run.
-        let c = r.back.get_cell(2, 0).unwrap();
-        assert_eq!(c.fg, red());
-        assert!(c.attrs & attr::BOLD != 0);
-        assert!(r.back.get_cell(0, 0).unwrap().attrs & attr::BOLD == 0);
-    }
-
-    #[test]
-    fn unsized_text_paints_content_sized() {
-        // No width/height on the text: it auto-sizes to its content and paints,
-        // where before the measure pass it collapsed to 0×0 (invisible).
-        let mut r = Renderer::new(20, 3);
-        let root = r.root();
-        // align-items: start so the text's measured height isn't stretched.
-        let mut rs = empty_style();
-        rs.align_items = 1;
-        r.tree_mut().set_style(root, &rs);
-        let t = r.tree_mut().create(NodeKind::Text);
-        r.tree_mut().get_mut(t).unwrap().text = Some(TextContent {
-            runs: vec![TextRun {
-                text: "hi".into(),
-                fg: None,
-                bg: None,
-                attrs: 0,
-            }],
-        });
-        r.tree_mut().append_child(root, t);
-        r.compose_tree();
-
-        assert_eq!(ch_at(&r, 0, 0), 'h');
-        assert_eq!(ch_at(&r, 1, 0), 'i');
-        let b = crate::layout::node_box(r.tree(), t).unwrap();
-        assert_eq!(b.w.round() as i32, 2);
-        assert_eq!(b.h.round() as i32, 1);
-    }
-
-    #[test]
-    fn measured_height_matches_painted_rows() {
-        // Parity: the auto-measured height equals the rows paint actually fills.
-        // Explicit width 4, auto height, "abcdef" => "abcd" / "ef": 2 rows.
-        let mut r = Renderer::new(10, 5);
-        let root = r.root();
-        let mut rs = empty_style();
-        rs.align_items = 1; // start: don't stretch the measured height
-        r.tree_mut().set_style(root, &rs);
-        let t = r.tree_mut().create(NodeKind::Text);
-        let mut s = empty_style();
-        s.width = len(4.0);
-        r.tree_mut().set_style(t, &s);
-        r.tree_mut().get_mut(t).unwrap().text = Some(TextContent {
-            runs: vec![TextRun {
-                text: "abcdef".into(),
-                fg: None,
-                bg: None,
-                attrs: 0,
-            }],
-        });
-        r.tree_mut().append_child(root, t);
-        r.compose_tree();
-
-        // Measured box is 4×2.
-        let b = crate::layout::node_box(r.tree(), t).unwrap();
-        assert_eq!(b.w.round() as i32, 4);
-        assert_eq!(b.h.round() as i32, 2);
-        // Paint placed the wrap exactly where measure said the second row begins.
-        assert_eq!(ch_at(&r, 3, 0), 'd');
-        assert_eq!(ch_at(&r, 0, 1), 'e');
-        assert_eq!(ch_at(&r, 1, 1), 'f');
-        // Nothing painted on row 2 (only 2 rows of content).
-        assert_eq!(ch_at(&r, 0, 2), ' ');
-    }
-
-    #[test]
-    fn child_is_clipped_to_parent_content_box() {
-        let mut r = Renderer::new(10, 2);
-        let root = r.root();
-        // Parent: 4 wide, full height, blue.
-        let parent = r.tree_mut().create(NodeKind::Box);
-        let mut ps = empty_style();
-        ps.width = len(4.0);
-        ps.height = len(2.0);
-        r.tree_mut().set_style(parent, &ps);
-        r.tree_mut().get_mut(parent).unwrap().paint.bg = Some(blue());
-        // Child: 8 wide (overflows parent), red.
-        let child = r.tree_mut().create(NodeKind::Box);
-        let mut cs = empty_style();
-        cs.width = len(8.0);
-        cs.height = len(1.0);
-        cs.flex_shrink = 0.0; // keep its 8-cell width so it overflows the parent
-        r.tree_mut().set_style(child, &cs);
-        r.tree_mut().get_mut(child).unwrap().paint.bg = Some(red());
-        r.tree_mut().append_child(parent, child);
-        r.tree_mut().append_child(root, parent);
-        r.compose_tree();
-
-        // Inside the parent: red shows. Past the parent's right edge: clipped.
-        assert_eq!(r.back.get_cell(3, 0).unwrap().bg, red());
-        assert_ne!(r.back.get_cell(4, 0).unwrap().bg, red());
-        assert_eq!(r.back.get_cell(4, 0).unwrap().bg, DEFAULT_BG);
-    }
-
-    #[test]
-    fn flush_siblings_share_an_edge_without_gap_or_overlap() {
-        // Two grow:1 children of a width-5 row land at 2.5 cells each; rounding
-        // both edges keeps them flush — no uncovered seam, no double-painted cell.
-        let mut r = Renderer::new(5, 1);
-        let root = r.root();
-        let a = r.tree_mut().create(NodeKind::Box);
-        let b = r.tree_mut().create(NodeKind::Box);
-        let mut grow = empty_style();
-        grow.flex_grow = 1.0;
-        r.tree_mut().set_style(a, &grow);
-        r.tree_mut().set_style(b, &grow);
-        r.tree_mut().get_mut(a).unwrap().paint.bg = Some(red());
-        r.tree_mut().get_mut(b).unwrap().paint.bg = Some(green());
-        r.tree_mut().append_child(root, a);
-        r.tree_mut().append_child(root, b);
-        r.compose_tree();
-
-        // Every column is covered by exactly one sibling (red then green), with
-        // a single shared boundary and no DEFAULT_BG gap in between.
-        let bgs: Vec<Rgba> = (0..5).map(|x| r.back.get_cell(x, 0).unwrap().bg).collect();
-        assert!(bgs.iter().all(|&c| c == red() || c == green()));
-        assert_eq!(bgs[0], red());
-        assert_eq!(bgs[4], green());
-        // exactly one red→green transition
-        let transitions = bgs.windows(2).filter(|w| w[0] != w[1]).count();
-        assert_eq!(transitions, 1);
-    }
-
-    #[test]
-    fn emptying_the_tree_clears_its_last_frame() {
-        let mut r = Renderer::new(4, 1);
-        let root = r.root();
-        let a = r.tree_mut().create(NodeKind::Box);
-        let mut s = empty_style();
-        s.width = len(4.0);
-        s.height = len(1.0);
-        r.tree_mut().set_style(a, &s);
-        r.tree_mut().get_mut(a).unwrap().paint.bg = Some(red());
-        r.tree_mut().append_child(root, a);
-        r.render_for_test();
-        assert_eq!(r.back.get_cell(0, 0).unwrap().bg, red());
-
-        // Remove all content: the next compose must clear the painted frame
-        // rather than leave it stale on screen.
-        r.tree_mut().remove_child(root, a);
-        r.render_for_test();
-        assert_eq!(r.back.get_cell(0, 0).unwrap().bg, DEFAULT_BG);
-    }
-
-    #[test]
-    fn edit_paints_value_and_focused_cursor() {
-        let mut r = Renderer::new(10, 1);
-        let root = r.root();
-        let e = r.tree_mut().create(NodeKind::Edit);
-        let mut s = empty_style();
-        s.width = len(10.0);
-        s.height = len(1.0);
-        r.tree_mut().set_style(e, &s);
-        {
-            let edit = r.tree_mut().get_mut(e).unwrap().edit.as_mut().unwrap();
-            edit.insert("hi");
-            edit.focused = true; // cursor sits past "hi", at column 2
-        }
-        r.tree_mut().append_child(root, e);
-        r.compose_tree();
-
-        assert_eq!(ch_at(&r, 0, 0), 'h');
-        assert_eq!(ch_at(&r, 1, 0), 'i');
-        // The block cursor (inverse) is drawn at the cursor column (end of value).
-        let cursor = r.back.get_cell(2, 0).unwrap();
-        assert!(cursor.attrs & attr::INVERSE != 0, "focused cursor is inverse");
-    }
-
-    #[test]
-    fn unfocused_empty_edit_shows_placeholder_not_cursor() {
-        let mut r = Renderer::new(12, 1);
-        let root = r.root();
-        let e = r.tree_mut().create(NodeKind::Edit);
-        let mut s = empty_style();
-        s.width = len(12.0);
-        s.height = len(1.0);
-        r.tree_mut().set_style(e, &s);
-        r.tree_mut().get_mut(e).unwrap().edit.as_mut().unwrap().set_placeholder("name");
-        r.tree_mut().append_child(root, e);
-        r.compose_tree();
-
-        assert_eq!(ch_at(&r, 0, 0), 'n');
-        assert_eq!(ch_at(&r, 3, 0), 'e');
-        // No focus → no inverse cursor anywhere on the row.
-        let any_inverse = (0..12).any(|x| r.back.get_cell(x, 0).unwrap().attrs & attr::INVERSE != 0);
-        assert!(!any_inverse);
-    }
-
-    #[test]
-    fn edit_scrolls_to_keep_cursor_visible() {
-        // Content width 5, value 8 graphemes, cursor at end (col 8): the view
-        // scrolls so the tail "defgh" shows and the cursor sits at the right edge.
-        let mut r = Renderer::new(5, 1);
-        let root = r.root();
-        let e = r.tree_mut().create(NodeKind::Edit);
-        let mut s = empty_style();
-        s.width = len(5.0);
-        s.height = len(1.0);
-        r.tree_mut().set_style(e, &s);
-        {
-            let edit = r.tree_mut().get_mut(e).unwrap().edit.as_mut().unwrap();
-            edit.insert("abcdefgh");
-            edit.focused = true;
-        }
-        r.tree_mut().append_child(root, e);
-        r.compose_tree();
-
-        // scroll = 8 - 5 + 1 = 4, so column 0 shows the 5th grapheme 'e'.
-        assert_eq!(ch_at(&r, 0, 0), 'e');
-        assert_eq!(ch_at(&r, 3, 0), 'h');
-        // Cursor (past 'h') lands on the last visible column, inverse.
-        assert!(r.back.get_cell(4, 0).unwrap().attrs & attr::INVERSE != 0);
-    }
-
-    #[test]
-    fn changing_flex_grow_emits_minimal_diff() {
-        let mut r = Renderer::new(6, 1);
-        let root = r.root();
-        let a = r.tree_mut().create(NodeKind::Box);
-        let b = r.tree_mut().create(NodeKind::Box);
-        let mut g1 = empty_style();
-        g1.flex_grow = 1.0;
-        r.tree_mut().set_style(a, &g1);
-        r.tree_mut().set_style(b, &g1);
-        r.tree_mut().get_mut(a).unwrap().paint.bg = Some(red());
-        r.tree_mut().get_mut(b).unwrap().paint.bg = Some(green());
-        r.tree_mut().append_child(root, a);
-        r.tree_mut().append_child(root, b);
-        r.render_for_test();
-        r.render_for_test();
-        assert!(r.out.is_empty(), "stable tree emits nothing on re-render");
-
-        // Shift the split: only the cells that change color should be emitted.
-        let mut g2 = empty_style();
-        g2.flex_grow = 2.0;
-        r.tree_mut().set_style(a, &g2);
-        r.render_for_test();
-        assert!(!r.out.is_empty(), "a re-layout must emit the changed cells");
-    }
-}
