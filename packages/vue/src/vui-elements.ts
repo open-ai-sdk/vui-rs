@@ -12,6 +12,7 @@
 // consumers (a triple-slash `.d.ts` reference would be dropped by the bundler).
 import type { DefineComponent } from "@vue/runtime-core";
 import type { AlignValue, Dim, JustifyValue, Sides, VuiStyle } from "@vui-rs/core";
+import type { CanvasContext, CanvasRect } from "./host/canvas-renderable.ts";
 import type { DispatchableEvent } from "./focus.ts";
 
 /** A color: a CSS/hex/name string or a packed `0xRRGGBBAA` number (see `rgba`). */
@@ -130,6 +131,16 @@ export interface InputProps extends LayoutProps, PaintProps, FocusProps {
   onEnter?: (value: string) => void;
 }
 
+/**
+ * `<canvas>` — first-class custom drawing (JS host). `@draw` receives a clamped,
+ * clipped `CanvasContext` (local 0-based coords) + the laid-out rect; `buffered`
+ * switches to an offscreen framebuffer that re-runs `@draw` only on change.
+ */
+export interface CanvasProps extends LayoutProps, PaintProps, FocusProps {
+  buffered?: boolean;
+  onDraw?: (ctx: CanvasContext, rect: CanvasRect) => void;
+}
+
 declare module "@vue/runtime-core" {
   interface GlobalComponents {
     box: DefineComponent<BoxProps>;
@@ -141,5 +152,6 @@ declare module "@vue/runtime-core" {
     em: DefineComponent<SpanProps>;
     strong: DefineComponent<SpanProps>;
     input: DefineComponent<InputProps>;
+    canvas: DefineComponent<CanvasProps>;
   }
 }

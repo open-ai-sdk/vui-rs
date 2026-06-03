@@ -1,5 +1,5 @@
-<!-- SFC port of examples/counter.ts: a ref ticking once a second, repainting a
-     bordered box. Demonstrates reactive state + interpolation + an inline <b>. -->
+<!-- Reactive counter: a ref ticking once a second repaints a bordered box.
+     <text> auto-sizes (taffy measures the runs), so no explicit width/height. -->
 <template>
   <box
     :width="34"
@@ -13,8 +13,8 @@
     title=" vui counter "
     titleAlign="center"
   >
-    <text :width="{ pct: 1 }" :height="1" :fg="TEXT">count: <b :fg="GREEN">{{ count }}</b></text>
-    <text :width="{ pct: 1 }" :height="1" :fg="SUBTLE">a ref ticking once a second</text>
+    <text :fg="TEXT">count: <b :fg="GREEN">{{ count }}</b></text>
+    <text :fg="SUBTLE">a ref ticking once a second · Ctrl-C to quit</text>
   </box>
 </template>
 

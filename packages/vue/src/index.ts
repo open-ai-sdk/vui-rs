@@ -40,6 +40,7 @@ export { VuiHostInput } from "./host/components/input.ts";
 // <input>) ships in the bundled dist .d.ts. Types-only: erased from the JS bundle.
 export type {
   BoxProps,
+  CanvasProps,
   Color,
   InputProps,
   SpanProps,

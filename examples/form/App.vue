@@ -1,7 +1,6 @@
-<!-- SFC port of examples/form.ts: two native inputs with v-model, Tab to move
-     focus. Demonstrates the v-model contract (`<input v-model>` → VuiInput),
-     v-for over a field config, and a v-if greeting. (The .ts version exits the
-     process on Enter; this UI-only demo just reflects the typed values.) -->
+<!-- Two inputs with v-model + Tab focus. Demonstrates the v-model contract
+     (<input v-model> → VuiHostInput/VuiInput), v-for over a field config, and a
+     v-if greeting. UI-only: it just reflects the typed values. -->
 <template>
   <box
     :width="48"
@@ -14,7 +13,7 @@
     titleAlign="center"
   >
     <template v-for="(field, i) in fields" :key="field.key">
-      <text :width="{ pct: 1 }" :height="1" :fg="SUBTLE">{{ field.label }}</text>
+      <text :fg="SUBTLE">{{ field.label }}</text>
       <input
         :width="{ pct: 1 }"
         :height="3"
@@ -29,10 +28,8 @@
         v-model="values[field.key]"
       />
     </template>
-    <text v-if="values.name" :width="{ pct: 1 }" :height="1" :fg="TEXT">
-      Hi <b :fg="GREEN">{{ values.name }}</b>!
-    </text>
-    <text :width="{ pct: 1 }" :height="1" :fg="SUBTLE">Tab to switch · Ctrl-C to quit</text>
+    <text v-if="values.name" :fg="TEXT">Hi <b :fg="GREEN">{{ values.name }}</b>!</text>
+    <text :fg="SUBTLE">Tab to switch · Ctrl-C to quit</text>
   </box>
 </template>
 

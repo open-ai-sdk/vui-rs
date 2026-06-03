@@ -25,7 +25,7 @@ export { vuiModelTransform } from "./vui-model-transform.ts";
  * `VuiInput` component (registered at app create) so v-model round-trips through
  * its editing logic. Keep this in sync with the catalogue's element tags.
  */
-const VUI_ELEMENT_TAGS = new Set(["box", "text", "span", "b", "strong", "i", "em", "u"]);
+const VUI_ELEMENT_TAGS = new Set(["box", "text", "span", "b", "strong", "i", "em", "u", "canvas"]);
 
 export interface VuiVitePluginOptions {
   /**

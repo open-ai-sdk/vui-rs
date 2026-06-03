@@ -8,21 +8,68 @@
         "@types/bun": "^1.3.0",
         "@vue/compiler-sfc": "catalog:",
         "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
         "tsdown": "^0.22.1",
         "typescript": "^5.9.0",
+        "vite": "catalog:",
         "vue-tsc": "^2.2.0",
       },
     },
-    "examples": {
-      "name": "@vui-rs/examples",
+    "examples/autosize": {
+      "name": "@vui-rs/example-autosize",
       "version": "0.1.0",
       "dependencies": {
+        "@vue/runtime-core": "catalog:",
         "@vui-rs/core": "workspace:*",
         "@vui-rs/vue": "workspace:*",
       },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
     },
-    "examples-sfc": {
-      "name": "@vui-rs/examples-sfc",
+    "examples/counter": {
+      "name": "@vui-rs/example-counter",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/draw": {
+      "name": "@vui-rs/example-draw",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/form": {
+      "name": "@vui-rs/example-form",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/layout": {
+      "name": "@vui-rs/example-layout",
       "version": "0.1.0",
       "dependencies": {
         "@vue/runtime-core": "catalog:",
@@ -173,9 +220,15 @@
 
     "@vui-rs/core": ["@vui-rs/core@workspace:packages/core"],
 
-    "@vui-rs/examples": ["@vui-rs/examples@workspace:examples"],
+    "@vui-rs/example-autosize": ["@vui-rs/example-autosize@workspace:examples/autosize"],
 
-    "@vui-rs/examples-sfc": ["@vui-rs/examples-sfc@workspace:examples-sfc"],
+    "@vui-rs/example-counter": ["@vui-rs/example-counter@workspace:examples/counter"],
+
+    "@vui-rs/example-draw": ["@vui-rs/example-draw@workspace:examples/draw"],
+
+    "@vui-rs/example-form": ["@vui-rs/example-form@workspace:examples/form"],
+
+    "@vui-rs/example-layout": ["@vui-rs/example-layout@workspace:examples/layout"],
 
     "@vui-rs/vite-plugin": ["@vui-rs/vite-plugin@workspace:packages/vite-plugin"],
 

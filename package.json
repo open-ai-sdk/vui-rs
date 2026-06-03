@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "workspaces": {
-    "packages": ["packages/*", "examples", "examples-sfc"],
+    "packages": ["packages/*", "examples/*"],
     "catalog": {
       "@vitejs/plugin-vue": "^6.0.0",
       "@vue/compiler-core": "3.5.35",
@@ -17,20 +17,21 @@
   "scripts": {
     "build:native": "bun run scripts/build-native.ts",
     "build:packages": "bun run --filter './packages/*' build",
-    "dev": "bun run examples/smoke-version.ts",
-    "build:sfc": "bun run --filter @vui-rs/examples-sfc build",
-    "start:sfc": "bun run --filter @vui-rs/examples-sfc start",
-    "dev:sfc": "bun run --filter @vui-rs/examples-sfc dev",
+    "build:examples": "bun run --filter '@vui-rs/example-*' build",
+    "dev": "bun run scripts/abi-probe.ts",
     "typecheck:sfc": "vue-tsc --noEmit",
     "bench": "bun run examples/paint-bench.ts >/dev/null",
-    "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test && bun run examples/smoke-version.ts"
+    "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test && bun run scripts/abi-probe.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",
     "@vue/compiler-sfc": "catalog:",
     "@vue/runtime-core": "catalog:",
+    "@vui-rs/core": "workspace:*",
+    "@vui-rs/vue": "workspace:*",
     "tsdown": "^0.22.1",
     "typescript": "^5.9.0",
+    "vite": "catalog:",
     "vue-tsc": "^2.2.0"
   }
 }
