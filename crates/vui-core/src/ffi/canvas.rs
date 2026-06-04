@@ -10,7 +10,7 @@
 use crate::buffer::{Cell, CellBuffer};
 use crate::color::Rgba;
 use crate::ffi::status;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 /// Run `f` against a non-null offscreen buffer, returning a status code.
 fn with_buffer(b: *mut CellBuffer, f: impl FnOnce(&mut CellBuffer) -> u32) -> u32 {
@@ -106,7 +106,14 @@ pub extern "C" fn vui_cbuf_draw_text(
         };
         match std::str::from_utf8(bytes) {
             Ok(text) => {
-                bb.draw_text(x, y, text, Rgba::from_packed(fg), Rgba::from_packed(bg), attrs);
+                bb.draw_text(
+                    x,
+                    y,
+                    text,
+                    Rgba::from_packed(fg),
+                    Rgba::from_packed(bg),
+                    attrs,
+                );
                 status::OK
             }
             Err(_) => status::BAD_ARG,
@@ -142,7 +149,14 @@ pub extern "C" fn vui_cbuf_set_cell(
     attrs: u16,
 ) -> u32 {
     with_buffer(b, |bb| {
-        bb.set_cell(x, y, ch, Rgba::from_packed(fg), Rgba::from_packed(bg), attrs);
+        bb.set_cell(
+            x,
+            y,
+            ch,
+            Rgba::from_packed(fg),
+            Rgba::from_packed(bg),
+            attrs,
+        );
         status::OK
     })
 }

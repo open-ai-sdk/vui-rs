@@ -77,6 +77,15 @@ describe("key parser", () => {
     expect(evs[0]).toMatchObject({ name: "right" });
   });
 
+  test("decoder buffers a CSI sequence split after ESC", () => {
+    const d = createKeyDecoder();
+    // Some terminals deliver ESC as its own read before the rest of the CSI.
+    expect(d.feed("\x1b")).toEqual([]);
+    const evs = d.feed("[C") as KeyEvent[];
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({ name: "right" });
+  });
+
   test("decoder buffers a bracketed paste split across chunks", () => {
     const d = createKeyDecoder();
     expect(d.feed("\x1b[200~hel")).toEqual([]);

@@ -12,8 +12,8 @@ pub mod layout;
 pub mod node;
 pub mod renderer;
 pub mod style;
+pub mod text;
 pub mod width;
-pub mod wrap;
 
 use std::panic::catch_unwind;
 
@@ -29,7 +29,7 @@ const VERSION: u32 = 0x00_01_00;
 /// v5: clip-aware back-buffer prims + blit (`vui_buffer_*_clipped`,
 ///     `vui_buffer_blit`) and the offscreen cell-buffer surface (`vui_cbuf_*`)
 ///     for the JS-host paint walk and canvas/buffered nodes.
-/// v6: `vui_char_width` — the shared glyph-width source for the JS-host `wrap.ts`.
+/// v6: `vui_char_width` — exposed glyph-width source for JS helpers.
 /// v7: JS-host layout readback — `vui_layout_compute` + `vui_node_rect` (`RectFfi`)
 ///     drive taffy for the Renderable tree without painting.
 /// v8: `vui_renderer_flush` — diff/emit the back buffer without composing the
@@ -37,7 +37,11 @@ const VERSION: u32 = 0x00_01_00;
 /// v9: removed the now-dead Rust paint surface — the node-tree paint walk, the
 ///     node paint setters (`vui_node_set_bg/fg/attrs/border/title/visible/opacity`),
 ///     and the native edit-buffer (`vui_edit_*`). The node tree is layout-only.
-const ABI_VERSION: u32 = 9;
+/// v10: native text subsystem handles (`vui_textbuf_*`, `vui_textview_*`,
+///      `vui_editbuf_*`, `vui_editor_*`) plus text-buffer/editor draw exports.
+/// v11: native text-buffer styled runs + transparent-bg draw, and `<text>` wrap
+///      modes unified on the native TextBufferView.
+const ABI_VERSION: u32 = 11;
 
 /// Returns the packed semver of the native core.
 ///
@@ -56,9 +60,7 @@ pub extern "C" fn vui_abi_version() -> u32 {
 }
 
 /// Terminal column width of a codepoint: 0 (combining/control), 1, or 2. Exposed
-/// so the JS-host `wrap.ts` measures glyph widths with the EXACT same source as
-/// the Rust measure/paint — the single-source-of-truth that keeps JS measure and
-/// JS paint (and the retained Rust paint, during the parity window) in lockstep.
+/// so JS utilities can use the same glyph-width source as native text layout.
 /// A non-codepoint `cp` reports 0. The JS side memoizes per codepoint, so each
 /// distinct glyph crosses the boundary at most once.
 #[unsafe(no_mangle)]

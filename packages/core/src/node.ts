@@ -6,10 +6,10 @@
 
 import type { Pointer } from "bun:ffi";
 import {
+  NativeTextWrap,
   RECT_FFI_BYTES,
   Status,
   TEXT_RUN_FFI_BYTES,
-  TextWrapCode,
 } from "./native/ffi-symbols.ts";
 import type { NativeLib } from "./native/load-native-lib.ts";
 import { packStyle, type VuiStyle } from "./style.ts";
@@ -23,7 +23,7 @@ export interface TextRun {
   attrs?: number;
 }
 
-export type TextWrapName = "wrap" | "nowrap";
+export type TextWrapName = "word" | "char" | "nowrap";
 
 /** Per-side insets (cells, fractional) reported by layout. */
 export interface RectEdges {
@@ -73,7 +73,10 @@ export class VuiNode {
 
   setStyle(style: VuiStyle): this {
     const bytes = packStyle(style);
-    check(this.#lib.symbols.vui_node_set_style(this.#ptr, this.id, bytes), "set_style");
+    check(
+      this.#lib.symbols.vui_node_set_style(this.#ptr, this.id, bytes),
+      "set_style",
+    );
     return this;
   }
 
@@ -83,52 +86,53 @@ export class VuiNode {
    * these to place each Renderable.
    */
   layoutRect(): LayoutRect | null {
-    const status = this.#lib.symbols.vui_node_rect(this.#ptr, this.id, rectScratch);
+    const status = this.#lib.symbols.vui_node_rect(
+      this.#ptr,
+      this.id,
+      rectScratch,
+    );
     if (status !== Status.OK) return null;
     return {
       x: rectScratch[0]!,
       y: rectScratch[1]!,
       w: rectScratch[2]!,
       h: rectScratch[3]!,
-      padding: { left: rectScratch[4]!, right: rectScratch[5]!, top: rectScratch[6]!, bottom: rectScratch[7]! },
-      border: { left: rectScratch[8]!, right: rectScratch[9]!, top: rectScratch[10]!, bottom: rectScratch[11]! },
+      padding: {
+        left: rectScratch[4]!,
+        right: rectScratch[5]!,
+        top: rectScratch[6]!,
+        bottom: rectScratch[7]!,
+      },
+      border: {
+        left: rectScratch[8]!,
+        right: rectScratch[9]!,
+        top: rectScratch[10]!,
+        bottom: rectScratch[11]!,
+      },
     };
   }
 
   setText(text: string): this {
     const bytes = encoder.encode(text);
     check(
-      this.#lib.symbols.vui_node_set_text(this.#ptr, this.id, bytes, bytes.byteLength),
+      this.#lib.symbols.vui_node_set_text(
+        this.#ptr,
+        this.id,
+        bytes,
+        bytes.byteLength,
+      ),
       "set_text",
     );
     return this;
   }
 
   setTextRuns(runs: TextRun[]): this {
-    const chunks = runs.map((r) => encoder.encode(r.text));
-    const total = chunks.reduce((n, c) => n + c.byteLength, 0);
-    const bytes = new Uint8Array(total);
-    const runBuf = new ArrayBuffer(runs.length * TEXT_RUN_FFI_BYTES);
-    const dv = new DataView(runBuf);
-    let off = 0;
-    runs.forEach((run, i) => {
-      const chunk = chunks[i]!;
-      bytes.set(chunk, off);
-      const base = i * TEXT_RUN_FFI_BYTES;
-      dv.setUint32(base + 0, off, true);
-      dv.setUint32(base + 4, chunk.byteLength, true);
-      dv.setUint32(base + 8, (run.fg ?? 0) >>> 0, true);
-      dv.setUint32(base + 12, (run.bg ?? 0) >>> 0, true);
-      dv.setUint16(base + 16, (run.attrs ?? 0) & 0xffff, true);
-      dv.setUint8(base + 18, run.fg !== undefined ? 1 : 0);
-      dv.setUint8(base + 19, run.bg !== undefined ? 1 : 0);
-      off += chunk.byteLength;
-    });
+    const { bytes, runBytes } = packTextRuns(runs);
     check(
       this.#lib.symbols.vui_node_set_text_runs(
         this.#ptr,
         this.id,
-        new Uint8Array(runBuf),
+        runBytes,
         runs.length,
         bytes,
         bytes.byteLength,
@@ -139,16 +143,16 @@ export class VuiNode {
   }
 
   /**
-   * Text flow for a `<text>` node: `"wrap"` (default) breaks long lines at the
-   * content edge; `"nowrap"` keeps each line on one row and clips the overflow.
-   * Drives both auto-size measurement and paint.
+   * Text flow for a `<text>` node: `"word"` (default) breaks at word
+   * boundaries with char fallback, `"char"` wraps by grapheme, and `"nowrap"`
+   * keeps each physical line on one row and clips overflow.
    */
   setTextWrap(mode: TextWrapName): this {
     check(
       this.#lib.symbols.vui_node_set_text_wrap(
         this.#ptr,
         this.id,
-        mode === "nowrap" ? TextWrapCode.NoWrap : TextWrapCode.Wrap,
+        wrapCode(mode),
       ),
       "set_text_wrap",
     );
@@ -156,7 +160,10 @@ export class VuiNode {
   }
 
   appendChild(child: VuiNode): this {
-    check(this.#lib.symbols.vui_node_append_child(this.#ptr, this.id, child.id), "append_child");
+    check(
+      this.#lib.symbols.vui_node_append_child(this.#ptr, this.id, child.id),
+      "append_child",
+    );
     child.#detachFromParent();
     child.#parent = this;
     this.children.push(child);
@@ -165,7 +172,12 @@ export class VuiNode {
 
   insertBefore(child: VuiNode, anchor: VuiNode): this {
     check(
-      this.#lib.symbols.vui_node_insert_before(this.#ptr, this.id, child.id, anchor.id),
+      this.#lib.symbols.vui_node_insert_before(
+        this.#ptr,
+        this.id,
+        child.id,
+        anchor.id,
+      ),
       "insert_before",
     );
     child.#detachFromParent();
@@ -177,7 +189,10 @@ export class VuiNode {
   }
 
   removeChild(child: VuiNode): this {
-    check(this.#lib.symbols.vui_node_remove_child(this.#ptr, this.id, child.id), "remove_child");
+    check(
+      this.#lib.symbols.vui_node_remove_child(this.#ptr, this.id, child.id),
+      "remove_child",
+    );
     child.#detachFromParent();
     return this;
   }
@@ -195,6 +210,38 @@ export class VuiNode {
     if (at >= 0) siblings.splice(at, 1);
     this.#parent = undefined;
   }
+}
+
+export function packTextRuns(runs: TextRun[]): {
+  bytes: Uint8Array;
+  runBytes: Uint8Array;
+} {
+  const chunks = runs.map((r) => encoder.encode(r.text));
+  const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+  const bytes = new Uint8Array(total);
+  const runBuf = new ArrayBuffer(runs.length * TEXT_RUN_FFI_BYTES);
+  const dv = new DataView(runBuf);
+  let off = 0;
+  runs.forEach((run, i) => {
+    const chunk = chunks[i]!;
+    bytes.set(chunk, off);
+    const base = i * TEXT_RUN_FFI_BYTES;
+    dv.setUint32(base + 0, off, true);
+    dv.setUint32(base + 4, chunk.byteLength, true);
+    dv.setUint32(base + 8, (run.fg ?? 0) >>> 0, true);
+    dv.setUint32(base + 12, (run.bg ?? 0) >>> 0, true);
+    dv.setUint16(base + 16, (run.attrs ?? 0) & 0xffff, true);
+    dv.setUint8(base + 18, run.fg !== undefined ? 1 : 0);
+    dv.setUint8(base + 19, run.bg !== undefined ? 1 : 0);
+    off += chunk.byteLength;
+  });
+  return { bytes, runBytes: new Uint8Array(runBuf) };
+}
+
+function wrapCode(mode: TextWrapName): number {
+  if (mode === "nowrap") return NativeTextWrap.None;
+  if (mode === "char") return NativeTextWrap.Char;
+  return NativeTextWrap.Word;
 }
 
 // FNV-1a 64-bit, mirroring `node::NodeTree::debug_tree_hash` exactly so the host

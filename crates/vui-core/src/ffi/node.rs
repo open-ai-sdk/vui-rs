@@ -13,10 +13,11 @@
 
 use crate::color::Rgba;
 use crate::ffi::status;
-use crate::node::{NodeId, NodeKind, TextContent, TextRun, WrapMode};
+use crate::node::{NodeId, NodeKind, TextContent, TextRun};
 use crate::renderer::Renderer;
 use crate::style::StyleFfi;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use crate::text::WrapMode;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 /// Run `f` with the renderer, returning a status code. Null renderer →
 /// `NULL_PTR`; panic → `PANIC`.
@@ -320,11 +321,7 @@ fn byte_slice<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
 }
 
 fn bool_status(ok: bool) -> u32 {
-    if ok {
-        status::OK
-    } else {
-        status::BAD_ARG
-    }
+    if ok { status::OK } else { status::BAD_ARG }
 }
 
 #[cfg(test)]

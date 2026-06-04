@@ -164,7 +164,7 @@ export function createKeyDecoder(): KeyDecoder {
  */
 function parseEscape(s: string, i: number, out: InputEvent[]): number {
   const next = s[i + 1];
-  if (next === undefined) return 0; // bare ESC (responsive; not buffered)
+  if (next === undefined) return -1; // live decoder buffers; stateless parser flushes as Escape
   if (next === "[") return parseCSI(s, i, out);
   if (next === "O") return parseSS3(s, i, out);
   // ESC + key → Alt-modified.

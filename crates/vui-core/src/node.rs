@@ -10,6 +10,7 @@
 
 use crate::color::Rgba;
 use crate::style::StyleFfi;
+use crate::text::{StyledRun, TextBuffer, TextBufferView, WrapMode};
 use taffy::geometry::Size;
 use taffy::style::{AvailableSpace, Dimension, Style};
 use taffy::{NodeId as TaffyId, TaffyTree};
@@ -61,26 +62,6 @@ impl NodeKind {
             NodeKind::Box => 1,
             NodeKind::Text => 2,
             NodeKind::Edit => 3,
-        }
-    }
-}
-
-/// How a `<text>` flows when its content is wider than the content box. `Wrap`
-/// (the default) breaks to the next row at the box edge; `NoWrap` keeps each line
-/// on one row and lets paint clip the overflow. Read by both the measure pass and
-/// the paint pass, so the two always agree on line breaks.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum WrapMode {
-    Wrap,
-    NoWrap,
-}
-
-impl WrapMode {
-    /// FFI code: 0 = wrap (default), 1 = nowrap. Unknown codes clamp to `Wrap`.
-    pub fn from_u8(v: u8) -> Self {
-        match v {
-            1 => WrapMode::NoWrap,
-            _ => WrapMode::Wrap,
         }
     }
 }
@@ -143,7 +124,7 @@ impl NodeTree {
             parent: None,
             children: Vec::new(),
             text: None,
-            wrap: WrapMode::Wrap,
+            wrap: WrapMode::Word,
         });
         tree
     }
@@ -216,7 +197,7 @@ impl NodeTree {
             parent: None,
             children: Vec::new(),
             text,
-            wrap: WrapMode::Wrap,
+            wrap: WrapMode::Word,
         })
     }
 
@@ -244,7 +225,10 @@ impl NodeTree {
             return false;
         }
         self.detach(child);
-        let (pt, ct) = (self.taffy_of(parent).unwrap(), self.taffy_of(child).unwrap());
+        let (pt, ct) = (
+            self.taffy_of(parent).unwrap(),
+            self.taffy_of(child).unwrap(),
+        );
         if self.taffy.add_child(pt, ct).is_err() {
             return false;
         }
@@ -267,7 +251,10 @@ impl NodeTree {
             return self.append_child(parent, child);
         };
         self.detach(child);
-        let (pt, ct) = (self.taffy_of(parent).unwrap(), self.taffy_of(child).unwrap());
+        let (pt, ct) = (
+            self.taffy_of(parent).unwrap(),
+            self.taffy_of(child).unwrap(),
+        );
         if self.taffy.insert_child_at_index(pt, pos, ct).is_err() {
             return false;
         }
@@ -440,7 +427,11 @@ fn mix(h: &mut u64, v: u64) {
 /// The `TaffyId → RenderNode` lookup is a linear scan of the slab: measure runs
 /// per leaf per layout pass (not per frame), and TUI trees are small, so this is
 /// fine. If trees ever grow large, swap in a `TaffyId → NodeId` side-index.
-fn measure_node(slots: &[Slot], taffy_id: TaffyId, available_space: Size<AvailableSpace>) -> Size<f32> {
+fn measure_node(
+    slots: &[Slot],
+    taffy_id: TaffyId,
+    available_space: Size<AvailableSpace>,
+) -> Size<f32> {
     let zero = Size {
         width: 0.0,
         height: 0.0,
@@ -463,16 +454,24 @@ fn measure_node(slots: &[Slot], taffy_id: TaffyId, available_space: Size<Availab
             height: 1.0,
         };
     };
-    // Definite width constrains wrapping; an intrinsic-sizing probe (Min/Max
-    // content) flows single-line so the node reports its natural width.
+    // Definite width constrains wrapping; an intrinsic-sizing probe flows with a
+    // very large budget so the node reports its natural width.
     let budget = match available_space.width {
-        AvailableSpace::Definite(w) => w.max(0.0) as i64,
-        AvailableSpace::MinContent | AvailableSpace::MaxContent => crate::wrap::UNBOUNDED,
+        AvailableSpace::Definite(w) => w.max(1.0) as u32,
+        AvailableSpace::MinContent | AvailableSpace::MaxContent => 1_000_000,
     };
-    let measured = crate::wrap::walk_runs(&text.runs, budget, node.wrap, |_| {});
+    let mut buf = TextBuffer::new();
+    buf.set_styled_runs(text.runs.iter().map(|run| StyledRun {
+        text: &run.text,
+        fg: run.fg,
+        bg: run.bg,
+        attrs: run.attrs,
+    }));
+    let mut view = TextBufferView::new(&buf);
+    let measured = view.measure(budget, node.wrap);
     Size {
-        width: measured.width,
-        height: measured.height,
+        width: measured.max_width as f32,
+        height: measured.line_count as f32,
     }
 }
 

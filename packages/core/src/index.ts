@@ -6,6 +6,8 @@ export {
   EditMotion,
   type EditMotionCode,
   EXPECTED_ABI_VERSION,
+  NativeTextWrap,
+  type NativeTextWrapCode,
   NodeKindCode,
   Status,
   STYLE_FFI_BYTES,
@@ -16,6 +18,15 @@ export { parseColor } from "./color.ts";
 export { NAMED_COLORS, parseHex } from "./named-colors.ts";
 export { Renderer, rgba, type TextStyle, type ClipRect } from "./renderer.ts";
 export { OffscreenBuffer } from "./offscreen-buffer.ts";
+export {
+  TextBuffer,
+  TextBufferView,
+  EditBuffer,
+  EditorView,
+  wrapCode,
+  type TextMeasure,
+  type TextWrapMode,
+} from "./text/index.ts";
 export { charWidth, strWidth } from "./char-width.ts";
 export {
   parseKeys,

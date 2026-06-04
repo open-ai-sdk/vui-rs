@@ -11,7 +11,13 @@
 // its prop types, so the augmentation survives dts bundling for published
 // consumers (a triple-slash `.d.ts` reference would be dropped by the bundler).
 import type { DefineComponent } from "@vue/runtime-core";
-import type { AlignValue, Dim, JustifyValue, Sides, VuiStyle } from "@vui-rs/core";
+import type {
+  AlignValue,
+  Dim,
+  JustifyValue,
+  Sides,
+  VuiStyle,
+} from "@vui-rs/core";
 import type { CanvasContext, CanvasRect } from "./host/canvas-renderable.ts";
 import type { DispatchableEvent } from "./host/focus.ts";
 
@@ -71,6 +77,7 @@ interface PaintProps {
   titleAlign?: "left" | "center" | "right";
   visible?: boolean;
   opacity?: number;
+  wrap?: "word" | "char" | "nowrap";
 }
 
 /** Focus + keyboard event props (dispatched by the focus manager). */
@@ -131,6 +138,23 @@ export interface InputProps extends LayoutProps, PaintProps, FocusProps {
   onEnter?: (value: string) => void;
 }
 
+/** `<textarea>` — multi-line native-backed editor. */
+export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
+  value?: string;
+  modelValue?: string;
+  placeholder?: string;
+  placeholderColor?: Color;
+  cursorColor?: Color;
+  wrap?: "word" | "char" | "nowrap";
+  tabBehavior?: "focus" | "indent";
+  tabSize?: number;
+  "onUpdate:value"?: (value: string) => void;
+  "onUpdate:modelValue"?: (value: string) => void;
+  onInput?: (value: string) => void;
+  onChange?: (value: string) => void;
+  onEnter?: (value: string) => void;
+}
+
 /**
  * `<canvas>` — first-class custom drawing (JS host). `@draw` receives a clamped,
  * clipped `CanvasContext` (local 0-based coords) + the laid-out rect; `buffered`
@@ -152,6 +176,7 @@ declare module "@vue/runtime-core" {
     em: DefineComponent<SpanProps>;
     strong: DefineComponent<SpanProps>;
     input: DefineComponent<InputProps>;
+    textarea: DefineComponent<TextareaProps>;
     canvas: DefineComponent<CanvasProps>;
   }
 }

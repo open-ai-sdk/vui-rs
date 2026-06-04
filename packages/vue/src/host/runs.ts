@@ -1,6 +1,6 @@
 // Flatten a `<text>` Renderable's inline subtree into ordered styled runs — the
-// JS-host twin of the FFI `runs.ts`. Used to feed the layout-node measure (and,
-// in Phase 04, the JS text paint via wrap.ts). Span style folds down the chain:
+// JS-host twin of the FFI `runs.ts`. Used to feed native text-buffer measure and
+// render. Span style folds down the chain:
 // `fg`/`bg` are overridden by inner spans, attrs are OR-combined.
 import type { TextRun } from "@vui-rs/core";
 import { type Renderable, type RunStyle } from "./renderable.ts";
@@ -12,7 +12,11 @@ export function flattenRuns(textNode: Renderable): TextRun[] {
   return out;
 }
 
-function collectRuns(node: Renderable, inherited: RunStyle, out: TextRun[]): void {
+function collectRuns(
+  node: Renderable,
+  inherited: RunStyle,
+  out: TextRun[],
+): void {
   // A leaf whose content was set via `setElementText` (Vue's text-children fast
   // path) carries it in `directText` rather than a child raw-text node.
   if (node.children.length === 0) {

@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "workspaces": {
-    "packages": ["packages/*", "examples/*"],
+    "packages": [
+      "packages/*",
+      "examples/*"
+    ],
     "catalog": {
       "@vitejs/plugin-vue": "^6.0.0",
       "@vue/compiler-core": "3.5.35",
@@ -18,6 +21,8 @@
     "build:native": "bun run scripts/build-native.ts",
     "build:packages": "bun run --filter './packages/*' build",
     "build:examples": "bun run --filter '@vui-rs/example-*' build",
+    "dev:form": "bun run --filter @vui-rs/example-form build && bun examples/form/dist/app.js",
+    "dev:textarea": "bun run --filter @vui-rs/example-textarea build && bun examples/textarea/dist/app.js",
     "dev": "bun run scripts/abi-probe.ts",
     "typecheck:sfc": "vue-tsc --noEmit",
     "bench": "bun run examples/paint-bench.ts >/dev/null",

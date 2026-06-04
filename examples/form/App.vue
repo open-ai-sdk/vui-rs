@@ -1,6 +1,6 @@
-<!-- Two inputs with v-model + Tab focus. Demonstrates the v-model contract
-     (<input v-model> → VuiHostInput/VuiInput), v-for over a field config, and a
-     v-if greeting. UI-only: it just reflects the typed values. -->
+<!-- Inputs + native-backed textarea with v-model + Tab focus. Demonstrates the
+     v-model contract for <input>/<textarea>, v-for over a field config, and a
+     live preview. UI-only: it just reflects the typed values. -->
 <template>
   <box
     :width="48"
@@ -28,8 +28,28 @@
         v-model="values[field.key]"
       />
     </template>
-    <text v-if="values.name" :fg="TEXT">Hi <b :fg="GREEN">{{ values.name }}</b>!</text>
-    <text :fg="SUBTLE">Tab to switch · Ctrl-C to quit</text>
+    <text :fg="SUBTLE">Notes</text>
+    <textarea
+      :width="{ pct: 1 }"
+      :height="5"
+      border="rounded"
+      :borderColor="BLUE"
+      :bg="SURFACE"
+      :fg="TEXT"
+      :cursorColor="GREEN"
+      placeholder="multi-line notes; Enter, arrows, Ctrl-Z"
+      :placeholderColor="SUBTLE"
+      wrap="word"
+      v-model="values.notes"
+    />
+    <text v-if="values.name" :fg="TEXT"
+      >Hi <b :fg="GREEN">{{ values.name }}</b
+      >!</text
+    >
+    <text v-if="values.notes" :fg="SUBTLE">Notes: {{ values.notes }}</text>
+    <text :fg="SUBTLE"
+      >Tab to switch · Enter inserts newline · Ctrl-Z undo · Ctrl-C quit</text
+    >
   </box>
 </template>
 
@@ -48,5 +68,9 @@ const fields = [
   { key: "email", label: "Email", placeholder: "you@example.com" },
 ] as const;
 
-const values = reactive<Record<string, string>>({ name: "", email: "" });
+const values = reactive<Record<string, string>>({
+  name: "",
+  email: "",
+  notes: "",
+});
 </script>

@@ -34,6 +34,8 @@ export {
 // Editable input + keyboard/focus.
 export { EditRenderable, type EditState } from "./host/edit-renderable.ts";
 export { VuiHostInput, VuiHostInput as VuiInput } from "./host/components/input.ts";
+export { TextareaRenderable, type TextareaState } from "./host/textarea-renderable.ts";
+export { VuiHostTextarea, VuiHostTextarea as VuiTextarea } from "./host/components/textarea.ts";
 export {
   createHostFocusManager,
   createHostFocusManager as createFocusManager,
@@ -52,6 +54,7 @@ export type {
   Color,
   InputProps,
   SpanProps,
+  TextareaProps,
   TextProps,
 } from "./vui-elements.ts";
 export { parseColor } from "./color.ts";
@@ -62,7 +65,16 @@ export { type Theme, ThemeSymbol, darkTheme } from "./theme.ts";
 export { useTheme, provideTheme } from "./use-theme.ts";
 
 // Re-export the color/attr helpers + key utilities so apps depend on @vui-rs/vue alone.
-export { Attr, rgba, Key, matchesKey, type KeyEvent, type InputEvent } from "@vui-rs/core";
+export {
+  Attr,
+  EditMotion,
+  rgba,
+  Key,
+  matchesKey,
+  type KeyEvent,
+  type InputEvent,
+  type TextWrapMode,
+} from "@vui-rs/core";
 
 // Vue reactivity + authoring API, re-exported so apps depend on @vui-rs/vue alone.
 export {

@@ -4,20 +4,40 @@
 // mark the node in `dirtyLayout`; span/text changes mark the enclosing `<text>`
 // in `dirtyText`. The bucket classification is shared via `prop-buckets.ts`.
 import { parseColor } from "../color.ts";
-import { ATTR_FLAGS, INSET_SIDES, LAYOUT_KEYS, isEvent } from "../prop-buckets.ts";
+import {
+  ATTR_FLAGS,
+  INSET_SIDES,
+  LAYOUT_KEYS,
+  isEvent,
+} from "../prop-buckets.ts";
 import { type EditRenderable } from "./edit-renderable.ts";
 import { type Renderable, type RunStyle } from "./renderable.ts";
+import { type TextareaRenderable } from "./textarea-renderable.ts";
 import { enclosingText } from "./tree.ts";
 
 let warnedKeys: Set<string> | null = null;
 
-export function patchProp(el: Renderable, key: string, prev: unknown, next: unknown): void {
+export function patchProp(
+  el: Renderable,
+  key: string,
+  prev: unknown,
+  next: unknown,
+): void {
   applyProp(el, key, prev, next);
 }
 
-function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): void {
+function applyProp(
+  el: Renderable,
+  key: string,
+  prev: unknown,
+  next: unknown,
+): void {
   if (key === "style") {
-    spreadStyle(el, prev as Record<string, unknown> | null, next as Record<string, unknown> | null);
+    spreadStyle(
+      el,
+      prev as Record<string, unknown> | null,
+      next as Record<string, unknown> | null,
+    );
     return;
   }
   if (key === "class" || key === "className") return; // no CSS classes in a TUI
@@ -53,6 +73,9 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     } else if (el.kind === "edit") {
       (el as EditRenderable).edit.focused = on;
       el.markDirty();
+    } else if (el.kind === "textarea") {
+      (el as TextareaRenderable).textarea.focused = on;
+      el.markDirty();
     }
     el.ctx.scheduleRender();
     return;
@@ -62,8 +85,23 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     el.ctx.scheduleRender();
     return;
   }
+  if (
+    el.kind === "textarea" &&
+    applyTextarea(el as TextareaRenderable, key, next)
+  ) {
+    el.markDirty();
+    el.ctx.scheduleRender();
+    return;
+  }
   if (LAYOUT_KEYS.has(key) || INSET_SIDES.has(key)) {
     applyLayout(el, key, next);
+    if (el.kind === "textarea") {
+      const textarea = el as TextareaRenderable;
+      if (key === "width")
+        textarea.textarea.autoWidth = next == null || next === "auto";
+      if (key === "height")
+        textarea.textarea.autoHeight = next == null || next === "auto";
+    }
     el.ctx.dirtyLayout.add(el);
     el.markDirty();
   } else if (!applyPaint(el, key, next)) {
@@ -107,7 +145,12 @@ function applyPaint(el: Renderable, key: string, next: unknown): boolean {
       p.opacity = typeof next === "number" ? next : 1;
       return true;
     case "wrap":
-      p.wrap = next === "nowrap" || next === false ? "nowrap" : "wrap";
+      p.wrap =
+        next === "nowrap" || next === false
+          ? "nowrap"
+          : next === "char"
+            ? "char"
+            : "word";
       // Wrap mode changes the measured size of a `<text>`, so re-measure it.
       if (el.kind === "text") el.ctx.dirtyText.add(el);
       return true;
@@ -124,7 +167,8 @@ function applyPaint(el: Renderable, key: string, next: unknown): boolean {
 type PaintProps = Renderable["paint"];
 
 function applyBorder(el: Renderable, next: unknown): void {
-  const style = next === true ? "single" : !next ? "none" : (next as PaintProps["border"]);
+  const style =
+    next === true ? "single" : !next ? "none" : (next as PaintProps["border"]);
   el.paint.border = style;
   // A visible border reserves one layout cell per side so the frame fits.
   (el.style as Record<string, unknown>).border = style === "none" ? 0 : 1;
@@ -155,6 +199,49 @@ function applyEdit(el: EditRenderable, key: string, next: unknown): boolean {
       return true;
     case "maxLength":
       el.edit.maxLength = typeof next === "number" ? next : undefined;
+      return true;
+  }
+  return false;
+}
+
+function applyTextarea(
+  el: TextareaRenderable,
+  key: string,
+  next: unknown,
+): boolean {
+  switch (key) {
+    case "value":
+      {
+        const value = next == null ? "" : String(next);
+        if (value !== el.getValue()) el.setValue(value);
+      }
+      return true;
+    case "placeholder":
+      el.textarea.placeholder = next == null ? "" : String(next);
+      return true;
+    case "placeholderColor":
+      el.textarea.placeholderColor = parseColor(next);
+      return true;
+    case "cursorColor":
+      el.textarea.cursorColor = parseColor(next);
+      return true;
+    case "wrap":
+      el.textarea.wrap =
+        next === "nowrap" || next === false
+          ? "nowrap"
+          : next === "char"
+            ? "char"
+            : "word";
+      el.ctx.dirtyLayout.add(el);
+      return true;
+    case "tabBehavior":
+      el.textarea.tabBehavior = next === "indent" ? "indent" : "focus";
+      return true;
+    case "tabSize":
+      el.textarea.tabSize =
+        typeof next === "number" && Number.isFinite(next)
+          ? Math.max(1, Math.floor(next))
+          : 2;
       return true;
   }
   return false;
@@ -202,13 +289,17 @@ function spreadStyle(
   prev: Record<string, unknown> | null,
   next: Record<string, unknown> | null,
 ): void {
-  const keys = new Set([...Object.keys(prev ?? {}), ...Object.keys(next ?? {})]);
+  const keys = new Set([
+    ...Object.keys(prev ?? {}),
+    ...Object.keys(next ?? {}),
+  ]);
   for (const k of keys) applyProp(el, k, prev?.[k], next?.[k]);
 }
 
 function setEvent(el: Renderable, key: string, next: unknown): void {
   const name = key.slice(2).toLowerCase();
-  if (typeof next === "function") el.events.set(name, next as (...a: unknown[]) => void);
+  if (typeof next === "function")
+    el.events.set(name, next as (...a: unknown[]) => void);
   else el.events.delete(name);
 }
 
@@ -218,7 +309,9 @@ function storeUnknown(el: Renderable, key: string, next: unknown): void {
     warnedKeys ??= new Set();
     if (!warnedKeys.has(key)) {
       warnedKeys.add(key);
-      console.warn(`vui: unknown prop "${key}" on <${el.tag}> — stored, not applied`);
+      console.warn(
+        `vui: unknown prop "${key}" on <${el.tag}> — stored, not applied`,
+      );
     }
   }
 }

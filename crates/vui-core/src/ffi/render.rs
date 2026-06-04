@@ -11,7 +11,8 @@ use crate::buffer::{Cell, CellBuffer, ClipRect};
 use crate::color::Rgba;
 use crate::ffi::status;
 use crate::renderer::Renderer;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use crate::text::{EditorView, TextBufferView};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 /// Run `f` inside the panic boundary, returning a status code. A null renderer
 /// short-circuits to `NULL_PTR`; a panic becomes `PANIC`.
@@ -111,8 +112,14 @@ pub extern "C" fn vui_buffer_draw_text(
         };
         match std::str::from_utf8(bytes) {
             Ok(text) => {
-                rr.back_mut()
-                    .draw_text(x, y, text, Rgba::from_packed(fg), Rgba::from_packed(bg), attrs);
+                rr.back_mut().draw_text(
+                    x,
+                    y,
+                    text,
+                    Rgba::from_packed(fg),
+                    Rgba::from_packed(bg),
+                    attrs,
+                );
                 status::OK
             }
             Err(_) => status::BAD_ARG,
@@ -148,8 +155,14 @@ pub extern "C" fn vui_buffer_set_cell(
     attrs: u16,
 ) -> u32 {
     with_renderer(r, |rr| {
-        rr.back_mut()
-            .set_cell(x, y, ch, Rgba::from_packed(fg), Rgba::from_packed(bg), attrs);
+        rr.back_mut().set_cell(
+            x,
+            y,
+            ch,
+            Rgba::from_packed(fg),
+            Rgba::from_packed(bg),
+            attrs,
+        );
         status::OK
     })
 }
@@ -311,6 +324,77 @@ pub extern "C" fn vui_buffer_blit(
             return status::NULL_PTR;
         };
         rr.back_mut().blit(src, dst_x, dst_y, clip);
+        status::OK
+    })
+}
+
+/// Draw a cached native text-buffer view into the renderer back buffer.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_buffer_draw_textbuffer(
+    r: *mut Renderer,
+    view: *mut TextBufferView,
+    x: i32,
+    y: i32,
+    fg: u32,
+    bg: u32,
+    has_bg: u8,
+    attrs: u16,
+    clip: *const ClipRect,
+) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(clip) = read_clip(clip) else {
+            return status::NULL_PTR;
+        };
+        let Some(view) = (unsafe { view.as_mut() }) else {
+            return status::NULL_PTR;
+        };
+        view.draw(
+            rr.back_mut(),
+            x,
+            y,
+            Rgba::from_packed(fg),
+            if has_bg == 0 {
+                None
+            } else {
+                Some(Rgba::from_packed(bg))
+            },
+            attrs,
+            clip,
+        );
+        status::OK
+    })
+}
+
+/// Draw a native editor view, including its cursor when focused.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_buffer_draw_editor(
+    r: *mut Renderer,
+    view: *mut EditorView,
+    x: i32,
+    y: i32,
+    fg: u32,
+    bg: u32,
+    cursor_bg: u32,
+    attrs: u16,
+    clip: *const ClipRect,
+) -> u32 {
+    with_renderer(r, |rr| {
+        let Some(clip) = read_clip(clip) else {
+            return status::NULL_PTR;
+        };
+        let Some(view) = (unsafe { view.as_mut() }) else {
+            return status::NULL_PTR;
+        };
+        view.draw(
+            rr.back_mut(),
+            x,
+            y,
+            Rgba::from_packed(fg),
+            Rgba::from_packed(bg),
+            Rgba::from_packed(cursor_bg),
+            attrs,
+            clip,
+        );
         status::OK
     })
 }

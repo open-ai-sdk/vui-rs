@@ -6,6 +6,7 @@
 import type { InputEvent } from "@vui-rs/core";
 import { type EditRenderable } from "./edit-renderable.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
+import { type TextareaRenderable } from "./textarea-renderable.ts";
 
 /** An input event as seen by handlers — augmented with bubble control. */
 export type DispatchableEvent = InputEvent & {
@@ -42,6 +43,7 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
 
   function setFocused(node: Renderable, on: boolean): void {
     if (node.kind === "edit") (node as EditRenderable).edit.focused = on;
+    else if (node.kind === "textarea") (node as TextareaRenderable).textarea.focused = on;
     node.events.get(on ? "focus" : "blur")?.();
   }
 

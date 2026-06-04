@@ -1,13 +1,15 @@
-// The JS twins of paint.rs's draw helpers — fill, border ring + title, wrapped
-// text runs, and the single-line edit. Every write goes through the PaintBuffer
+// The JS twins of paint.rs's draw helpers — fill, border ring + title, and the
+// single-line edit. Every write goes through the PaintBuffer
 // (clip-aware native prims); a "transparent" cell (no node/run bg) keeps the
-// background already under it via `bgUnder`, exactly like paint.rs. Line breaks
-// come from the shared `wrap.ts` so painted glyphs land where layout measured.
+// background already under it via `bgUnder`, exactly like paint.rs.
 import { Attr, charWidth } from "@vui-rs/core";
-import type { TextRun } from "@vui-rs/core";
 import { type EditState } from "./edit-renderable.ts";
-import { type Clip, type PaintBuffer, type PaintCtx, type PaintProps } from "./renderable.ts";
-import { type WrapMode, walkRuns } from "./wrap.ts";
+import {
+  type Clip,
+  type PaintBuffer,
+  type PaintCtx,
+  type PaintProps,
+} from "./renderable.ts";
 
 export const DEFAULT_FG = 0xe5e5e5ff;
 export const DEFAULT_BG = 0x000000ff;
@@ -41,12 +43,29 @@ const cp = (g: string): number => g.codePointAt(0) ?? 0;
 const gWidth = (g: string): number => Math.max(charWidth(cp(g)), 1);
 
 /** `put`: write a cell (the buffer clips it). The JS twin of paint.rs `put`. */
-function put(buf: PaintBuffer, clip: Clip, x: number, y: number, ch: number, fg: number, bg: number, attrs: number): void {
+function put(
+  buf: PaintBuffer,
+  clip: Clip,
+  x: number,
+  y: number,
+  ch: number,
+  fg: number,
+  bg: number,
+  attrs: number,
+): void {
   buf.setCell(x, y, ch, fg, bg, attrs, clip);
 }
 
 /** Opaque background fill of the node box (paint.rs `fill`). */
-export function drawFill(buf: PaintBuffer, clip: Clip, x0: number, y0: number, x1: number, y1: number, bg: number): void {
+export function drawFill(
+  buf: PaintBuffer,
+  clip: Clip,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  bg: number,
+): void {
   if (x1 <= x0 || y1 <= y0) return;
   buf.fillRect(x0, y0, x1 - x0, y1 - y0, bg, clip);
 }
@@ -56,14 +75,28 @@ export function drawFill(buf: PaintBuffer, clip: Clip, x0: number, y0: number, x
  * title. The common prefix of paint.rs `paint_node` before the kind-specific
  * content. `renderSelf` calls this, then draws its own content (runs / edit).
  */
-export function drawChrome(buf: PaintBuffer, ctx: PaintCtx, paint: PaintProps): void {
+export function drawChrome(
+  buf: PaintBuffer,
+  ctx: PaintCtx,
+  paint: PaintProps,
+): void {
   const { x0, y0, x1, y1, clip } = ctx;
   if (paint.bg !== undefined) drawFill(buf, clip, x0, y0, x1, y1, paint.bg);
   if (paint.border !== "none") {
     const color = paint.borderColor ?? paint.fg ?? DEFAULT_FG;
     drawBorder(buf, clip, x0, y0, x1, y1, paint.border, color, paint.bg);
     if (paint.title) {
-      drawTitle(buf, clip, x0, x1, y0, paint.title, paint.fg ?? DEFAULT_FG, paint.bg, paint.titleAlign);
+      drawTitle(
+        buf,
+        clip,
+        x0,
+        x1,
+        y0,
+        paint.title,
+        paint.fg ?? DEFAULT_FG,
+        paint.bg,
+        paint.titleAlign,
+      );
     }
   }
 }
@@ -132,39 +165,11 @@ export function drawTitle(
   const titleW = gs.reduce((n, g) => n + gWidth(g), 0);
   let start: number;
   if (align === "right") start = innerRight - titleW;
-  else if (align === "center") start = innerLeft + Math.trunc((avail - titleW) / 2);
+  else if (align === "center")
+    start = innerLeft + Math.trunc((avail - titleW) / 2);
   else start = innerLeft;
   start = Math.max(start, innerLeft);
   drawLine(buf, clip, start, innerRight, y0, gs, fg, nodeBg);
-}
-
-/** Wrapped multi-run text (paint.rs `draw_runs`), using the shared wrap logic. */
-export function drawRuns(
-  buf: PaintBuffer,
-  clip: Clip,
-  cx0: number,
-  cy0: number,
-  cx1: number,
-  cy1: number,
-  runs: TextRun[],
-  paint: PaintProps,
-): void {
-  if (cx1 <= cx0 || cy1 <= cy0) return;
-  const budget = cx1 - cx0;
-  const mode: WrapMode = paint.wrap;
-  walkRuns(runs, budget, mode, (cell) => {
-    const row = cy0 + cell.row;
-    if (row >= cy1) return; // below the content box
-    const col = cx0 + cell.col;
-    const run = runs[cell.run]!;
-    const fg = run.fg ?? paint.fg ?? DEFAULT_FG;
-    const attrs = paint.attrs | (run.attrs ?? 0);
-    const bg = run.bg ?? paint.bg ?? buf.bgUnder(col, row);
-    put(buf, clip, col, row, cp(cell.ch), fg, bg, attrs);
-    if (cell.width === 2) {
-      put(buf, clip, col + 1, row, 0, fg, bg, attrs | Attr.WIDE_CONTINUATION);
-    }
-  });
 }
 
 /** Single-line text from `start`, clipped to `[start,end)` on row `y` (paint.rs `draw_line`). */
@@ -184,7 +189,8 @@ export function drawLine(
     if (col + w > end) break;
     const cellBg = bg ?? buf.bgUnder(col, y);
     put(buf, clip, col, y, cp(g), fg, cellBg, 0);
-    if (w === 2) put(buf, clip, col + 1, y, 0, fg, cellBg, Attr.WIDE_CONTINUATION);
+    if (w === 2)
+      put(buf, clip, col + 1, y, 0, fg, cellBg, Attr.WIDE_CONTINUATION);
     col += w;
   }
 }
@@ -210,7 +216,8 @@ export function drawEdit(
   const fg = paint.fg ?? DEFAULT_FG;
   const valGs = graphemes(edit.value);
   let cursorCol = 0;
-  for (let i = 0; i < edit.cursor && i < valGs.length; i++) cursorCol += gWidth(valGs[i]!);
+  for (let i = 0; i < edit.cursor && i < valGs.length; i++)
+    cursorCol += gWidth(valGs[i]!);
   // Scroll so the cursor stays on screen once the value overflows the content box.
   const scroll = cursorCol >= width ? cursorCol - width + 1 : 0;
 
@@ -218,10 +225,32 @@ export function drawEdit(
     if (edit.placeholder !== "") {
       const color = edit.placeholderColor ?? fg;
       const attrs = edit.placeholderColor !== undefined ? 0 : Attr.DIM;
-      drawGlyphs(buf, clip, cx0, cx1, row, glyphCells(edit.placeholder), 0, color, paint.bg, attrs);
+      drawGlyphs(
+        buf,
+        clip,
+        cx0,
+        cx1,
+        row,
+        glyphCells(edit.placeholder),
+        0,
+        color,
+        paint.bg,
+        attrs,
+      );
     }
   } else {
-    drawGlyphs(buf, clip, cx0, cx1, row, glyphCells(edit.value), scroll, fg, paint.bg, paint.attrs);
+    drawGlyphs(
+      buf,
+      clip,
+      cx0,
+      cx1,
+      row,
+      glyphCells(edit.value),
+      scroll,
+      fg,
+      paint.bg,
+      paint.attrs,
+    );
   }
 
   if (edit.focused) {
@@ -232,7 +261,8 @@ export function drawEdit(
       const wide = Math.max(charWidth(underCp), 1) === 2 && sx + 1 < cx1;
       let cfg: number;
       let cbg: number;
-      const cattrs = paint.attrs | (edit.cursorColor !== undefined ? 0 : Attr.INVERSE);
+      const cattrs =
+        paint.attrs | (edit.cursorColor !== undefined ? 0 : Attr.INVERSE);
       if (edit.cursorColor !== undefined) {
         cfg = paint.bg ?? DEFAULT_BG;
         cbg = edit.cursorColor;
@@ -241,7 +271,17 @@ export function drawEdit(
         cbg = paint.bg ?? buf.bgUnder(sx, row);
       }
       put(buf, clip, sx, row, underCp, cfg, cbg, cattrs);
-      if (wide) put(buf, clip, sx + 1, row, 0, cfg, cbg, cattrs | Attr.WIDE_CONTINUATION);
+      if (wide)
+        put(
+          buf,
+          clip,
+          sx + 1,
+          row,
+          0,
+          cfg,
+          cbg,
+          cattrs | Attr.WIDE_CONTINUATION,
+        );
     }
   }
 }
@@ -277,7 +317,17 @@ export function drawGlyphs(
     }
     const cellBg = bg ?? buf.bgUnder(sx, row);
     put(buf, clip, sx, row, ch, fg, cellBg, attrs);
-    if (w === 2 && sx + 1 < cx1) put(buf, clip, sx + 1, row, 0, fg, cellBg, attrs | Attr.WIDE_CONTINUATION);
+    if (w === 2 && sx + 1 < cx1)
+      put(
+        buf,
+        clip,
+        sx + 1,
+        row,
+        0,
+        fg,
+        cellBg,
+        attrs | Attr.WIDE_CONTINUATION,
+      );
     col += w;
   }
 }

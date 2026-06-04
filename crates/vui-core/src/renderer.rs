@@ -220,7 +220,7 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::{attr, DEFAULT_BG, DEFAULT_FG};
+    use crate::buffer::{DEFAULT_BG, DEFAULT_FG, attr};
 
     fn red() -> Rgba {
         Rgba::new(255, 0, 0, 255)
@@ -229,7 +229,8 @@ mod tests {
     #[test]
     fn first_frame_emits_sync_wrapper_and_content() {
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         assert!(s.starts_with("\x1b[?2026h"));
@@ -240,7 +241,8 @@ mod tests {
     #[test]
     fn unchanged_frame_emits_nothing() {
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint(); // first paint clears force and syncs front
         r.paint(); // identical back vs front
         assert!(r.out.is_empty(), "no-op frame should emit zero bytes");
@@ -249,10 +251,12 @@ mod tests {
     #[test]
     fn only_changed_cells_are_emitted() {
         let mut r = Renderer::new(5, 1);
-        r.back_mut().draw_text(0, 0, "abcde", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "abcde", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         // Change a single cell in the middle.
-        r.back_mut().set_cell(2, 0, 'X' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(2, 0, 'X' as u32, DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         assert!(s.contains('X'));
@@ -274,7 +278,8 @@ mod tests {
     #[test]
     fn style_change_re_emits_sgr() {
         let mut r = Renderer::new(2, 1);
-        r.back_mut().set_cell(0, 0, 'a' as u32, red(), DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(0, 0, 'a' as u32, red(), DEFAULT_BG, 0);
         r.back_mut()
             .set_cell(1, 0, 'b' as u32, red(), DEFAULT_BG, attr::BOLD);
         r.paint();
@@ -285,7 +290,8 @@ mod tests {
     #[test]
     fn wide_char_skips_continuation_cell() {
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "世a", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "世a", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         assert!(s.contains('世'));
@@ -299,9 +305,11 @@ mod tests {
         // Half-overwrite: a single write onto a wide glyph's right half must
         // also clear its left half, so no half-glyph lingers on screen.
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "世", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "世", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
-        r.back_mut().set_cell(1, 0, 'x' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(1, 0, 'x' as u32, DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         assert!(s.contains("\x1b[1;1H"), "leader column must be repainted");
@@ -313,9 +321,11 @@ mod tests {
     #[test]
     fn overwriting_wide_leader_clears_orphan_half() {
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "世", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "世", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
-        r.back_mut().set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         assert!(s.contains('a'));
@@ -330,7 +340,8 @@ mod tests {
         // A width-2 glyph planted at the last column (no room for a continuation)
         // must not be emitted, or it would overflow the row.
         let mut r = Renderer::new(2, 1);
-        r.back_mut().set_cell(1, 0, '世' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(1, 0, '世' as u32, DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         assert!(!s.contains('世'));
@@ -358,7 +369,8 @@ mod tests {
     #[test]
     fn resize_forces_full_redraw() {
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         r.paint();
         assert!(r.out.is_empty());
@@ -367,4 +379,3 @@ mod tests {
         assert!(!r.out.is_empty());
     }
 }
-

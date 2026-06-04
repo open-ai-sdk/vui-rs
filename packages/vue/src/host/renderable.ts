@@ -4,11 +4,18 @@
 // `renderSelf(buffer, clip)` (filled in Phase 04). Phase 01 only builds the tree:
 // node-ops mutate parent/children and patch-prop routes props onto these fields;
 // layout (Phase 03) fills `rect`, paint (Phase 04) implements `renderSelf`.
-import type { VuiNode, VuiStyle } from "@vui-rs/core";
+import type { TextWrapMode, VuiNode, VuiStyle } from "@vui-rs/core";
 import { markRaw } from "@vue/runtime-core";
 import type { Theme } from "../theme.ts";
 
-export type RenderableKind = "box" | "text" | "edit" | "span" | "raw-text" | "comment";
+export type RenderableKind =
+  | "box"
+  | "text"
+  | "edit"
+  | "textarea"
+  | "span"
+  | "raw-text"
+  | "comment";
 
 /** Run-style a `span` folds into its enclosing `<text>` (mirrors host-node RunStyle). */
 export interface RunStyle {
@@ -32,7 +39,7 @@ export interface PaintProps {
   titleAlign: "left" | "center" | "right";
   visible: boolean;
   opacity: number;
-  wrap: "wrap" | "nowrap";
+  wrap: TextWrapMode;
 }
 
 /** Edge insets (padding/border) a laid-out node reports, in cells. */
@@ -68,12 +75,61 @@ export interface Clip {
  * keeps whatever it sits on (the JS twin of paint.rs `bg_under`).
  */
 export interface PaintBuffer {
-  fillRect(x: number, y: number, w: number, h: number, bg: number, clip: Clip): void;
-  setCell(x: number, y: number, ch: number, fg: number, bg: number, attrs: number, clip: Clip): void;
+  fillRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    bg: number,
+    clip: Clip,
+  ): void;
+  setCell(
+    x: number,
+    y: number,
+    ch: number,
+    fg: number,
+    bg: number,
+    attrs: number,
+    clip: Clip,
+  ): void;
   /** Draw a whole string on a row, clipped (one FFI op). Used by the canvas ctx. */
-  drawText(x: number, y: number, text: string, fg: number, bg: number, attrs: number, clip: Clip): void;
+  drawText(
+    x: number,
+    y: number,
+    text: string,
+    fg: number,
+    bg: number,
+    attrs: number,
+    clip: Clip,
+  ): void;
+  /** Draw a native editor view in one clipped FFI op. */
+  drawEditor(
+    view: import("@vui-rs/core").EditorView,
+    x: number,
+    y: number,
+    fg: number,
+    bg: number,
+    cursorBg: number,
+    attrs: number,
+    clip: Clip,
+  ): void;
+  /** Draw a native text-buffer view in one clipped FFI op. */
+  drawTextBuffer(
+    view: import("@vui-rs/core").TextBufferView,
+    x: number,
+    y: number,
+    fg: number,
+    bg: number | undefined,
+    attrs: number,
+    clip: Clip,
+  ): void;
   /** Composite an offscreen buffer into the back buffer at `(dstX,dstY)`, clipped. */
-  blit(src: import("@vui-rs/core").OffscreenBuffer, dstX: number, dstY: number, clip: Clip): void;
+  blit(
+    src: import("@vui-rs/core").OffscreenBuffer,
+    dstX: number,
+    dstY: number,
+    clip: Clip,
+  ): void;
   bgUnder(x: number, y: number): number;
 }
 
@@ -106,7 +162,7 @@ export function newPaint(): PaintProps {
     titleAlign: "left",
     visible: true,
     opacity: 1,
-    wrap: "wrap",
+    wrap: "word",
   };
 }
 

@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { Renderer } from "@vui-rs/core";
 import type { Renderable } from "../src/host/renderable.ts";
 import { createHostApp } from "../src/host/create-host-app.ts";
+import { VuiHostTextarea } from "../src/host/components/textarea.ts";
 import { defineComponent, h, nextTick, ref } from "../src/index.ts";
 
 function mount(w: number, hgt: number, render: () => unknown) {
@@ -43,7 +44,11 @@ describe("JS-host layout (taffy via FFI)", () => {
 
   test("explicit dims + padding are reported as rect + insets", () => {
     const { root, cleanup } = mount(20, 6, () =>
-      h("box", { width: 12, height: 4, padding: { left: 1, top: 2, right: 1, bottom: 1 } }),
+      h("box", {
+        width: 12,
+        height: 4,
+        padding: { left: 1, top: 2, right: 1, bottom: 1 },
+      }),
     );
     const box = root.children[0]!;
     expect(round(box.rect!.w)).toBe(12);
@@ -56,9 +61,16 @@ describe("JS-host layout (taffy via FFI)", () => {
   test("a bare <text> auto-sizes to its content (shared wrap measure)", () => {
     const { root, cleanup } = mount(80, 24, () =>
       // row + align-start so BOTH axes show the measured size (stretch would mask height).
-      h("box", { width: 80, height: 24, flexDirection: "row", alignItems: "flex-start" }, [
-        h("text", {}, "hello"),
-      ]),
+      h(
+        "box",
+        {
+          width: 80,
+          height: 24,
+          flexDirection: "row",
+          alignItems: "flex-start",
+        },
+        [h("text", {}, "hello")],
+      ),
     );
     const text = root.children[0]!.children[0]!;
     expect(text.kind).toBe("text");
@@ -69,9 +81,18 @@ describe("JS-host layout (taffy via FFI)", () => {
 
   test("wrapping text in a fixed width reports the wrapped height", () => {
     const { root, cleanup } = mount(80, 24, () =>
-      h("box", { width: 80, height: 24, flexDirection: "row", alignItems: "flex-start" }, [
-        h("text", { width: 10 }, "abcdefghijklmnopqrstuvwxy"), // 25 chars / 10 = 3 rows
-      ]),
+      h(
+        "box",
+        {
+          width: 80,
+          height: 24,
+          flexDirection: "row",
+          alignItems: "flex-start",
+        },
+        [
+          h("text", { width: 10 }, "abcdefghijklmnopqrstuvwxy"), // 25 chars / 10 = 3 rows
+        ],
+      ),
     );
     const text = root.children[0]!.children[0]!;
     expect(round(text.rect!.w)).toBe(10);
@@ -79,13 +100,42 @@ describe("JS-host layout (taffy via FFI)", () => {
     cleanup();
   });
 
+  test("an unsized textarea auto-sizes height from native editor content", () => {
+    const { root, cleanup } = mount(80, 24, () =>
+      h(
+        "box",
+        {
+          width: 80,
+          height: 24,
+          flexDirection: "row",
+          alignItems: "flex-start",
+        },
+        [h(VuiHostTextarea, { value: "one\ntwo", width: 10 })],
+      ),
+    );
+    const textarea = root.children[0]!.children[0]!;
+    expect(textarea.kind).toBe("textarea");
+    expect(round(textarea.rect!.w)).toBe(10);
+    expect(round(textarea.rect!.h)).toBe(2);
+    cleanup();
+  });
+
   test("removing a node frees its layout subtree and re-lays-out the rest (no stale handle)", async () => {
     const show = ref(true);
     const { app, root, cleanup } = mount(40, 6, () =>
-      h("box", { width: 40, height: 6, flexDirection: "row", alignItems: "flex-start" }, [
-        show.value ? h("text", { key: "a" }, "hello") : null,
-        h("text", { key: "b" }, "x"),
-      ]),
+      h(
+        "box",
+        {
+          width: 40,
+          height: 6,
+          flexDirection: "row",
+          alignItems: "flex-start",
+        },
+        [
+          show.value ? h("text", { key: "a" }, "hello") : null,
+          h("text", { key: "b" }, "x"),
+        ],
+      ),
     );
     const container = root.children[0]!;
     const textsOf = () => container.children.filter((c) => c.kind === "text");
@@ -114,10 +164,14 @@ describe("JS-host layout (taffy via FFI)", () => {
     const r = new Renderer(40, 10);
     const App = defineComponent({
       setup: () => () =>
-        h("box", { width: { pct: 1 }, height: { pct: 1 }, flexDirection: "row" }, [
-          h("box", { flexGrow: 1, flexBasis: 0, height: { pct: 1 } }),
-          h("box", { flexGrow: 1, flexBasis: 0, height: { pct: 1 } }),
-        ]),
+        h(
+          "box",
+          { width: { pct: 1 }, height: { pct: 1 }, flexDirection: "row" },
+          [
+            h("box", { flexGrow: 1, flexBasis: 0, height: { pct: 1 } }),
+            h("box", { flexGrow: 1, flexBasis: 0, height: { pct: 1 } }),
+          ],
+        ),
     });
     const app = createHostApp(App).mount({ renderer: r });
     const row = app.context.root!.children[0]!;

@@ -8,7 +8,7 @@ import { type Renderable } from "./renderable.ts";
 export function enclosingText(node: Renderable | null): Renderable | null {
   for (let n = node; n; n = n.parent) {
     if (n.kind === "text") return n;
-    if (n.kind === "box" || n.kind === "edit") return null; // a box/input breaks the chain
+    if (n.kind === "box" || n.kind === "edit" || n.kind === "textarea") return null; // layout widgets break the chain
   }
   return null;
 }
@@ -22,9 +22,9 @@ export function detachFromParent(node: Renderable): void {
   node.parent = null;
 }
 
-/** A node that participates in layout/paint (box/text/edit), vs a virtual inline node. */
+/** A node that participates in layout/paint, vs a virtual inline node. */
 export function isLayoutNode(node: Renderable): boolean {
-  return node.kind === "box" || node.kind === "text" || node.kind === "edit";
+  return node.kind === "box" || node.kind === "text" || node.kind === "edit" || node.kind === "textarea";
 }
 
 /** First following sibling that owns a layout node — the anchor for `insertBefore`. */

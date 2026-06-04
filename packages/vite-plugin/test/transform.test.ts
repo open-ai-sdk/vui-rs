@@ -42,6 +42,12 @@ describe("vuiCompilerOptions — tag resolution", () => {
     expect(code).not.toContain(`createElementVNode("input"`);
   });
 
+  test("<textarea> resolves to a component (so it reaches VuiTextarea)", () => {
+    const code = compile(`<textarea placeholder="x" />`);
+    expect(code).toContain(`resolveComponent("textarea")`);
+    expect(code).not.toContain(`createElementVNode("textarea"`);
+  });
+
   test("extra customElements are treated as elements", () => {
     const res = compileTemplate({
       source: `<x-panel></x-panel>`,
@@ -68,7 +74,14 @@ describe("vuiModelTransform — v-model contract", () => {
     expect(code).not.toContain("modelValue");
   });
 
-  test("v-model on a non-input element is a compile error", () => {
+  test("v-model on <textarea> emits value + onUpdate:value", () => {
+    const code = compile(`<textarea v-model="body" />`);
+    expect(code).toContain("value:");
+    expect(code).toContain(`"onUpdate:value"`);
+    expect(code).not.toContain("modelValue");
+  });
+
+  test("v-model on a non-editable element is a compile error", () => {
     const res = compileTemplate({
       source: `<box v-model="x"></box>`,
       filename: "T.vue",

@@ -6,6 +6,7 @@
 pub mod canvas;
 pub mod node;
 pub mod render;
+pub mod text;
 
 /// FFI status codes shared by the exported functions.
 pub mod status {

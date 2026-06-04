@@ -19,21 +19,73 @@ export class NativePaintBuffer implements PaintBuffer {
     // Fetch the view once per paint pass (it dangles across resize/free, but no
     // resize happens mid-pass). Writes via the FFI prims alias this same memory.
     this.#view = renderer.backBufferView();
-    this.#dv = new DataView(this.#view.buffer, this.#view.byteOffset, this.#view.byteLength);
+    this.#dv = new DataView(
+      this.#view.buffer,
+      this.#view.byteOffset,
+      this.#view.byteLength,
+    );
     this.#w = renderer.width;
     this.#h = renderer.height;
   }
 
-  fillRect(x: number, y: number, w: number, h: number, bg: number, clip: Clip): void {
+  fillRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    bg: number,
+    clip: Clip,
+  ): void {
     this.#r.fillRectClipped(x, y, w, h, bg, clip);
   }
 
-  setCell(x: number, y: number, ch: number, fg: number, bg: number, attrs: number, clip: Clip): void {
+  setCell(
+    x: number,
+    y: number,
+    ch: number,
+    fg: number,
+    bg: number,
+    attrs: number,
+    clip: Clip,
+  ): void {
     this.#r.setCellClipped(x, y, ch, { fg, bg, attrs }, clip);
   }
 
-  drawText(x: number, y: number, text: string, fg: number, bg: number, attrs: number, clip: Clip): void {
+  drawText(
+    x: number,
+    y: number,
+    text: string,
+    fg: number,
+    bg: number,
+    attrs: number,
+    clip: Clip,
+  ): void {
     this.#r.drawTextClipped(x, y, text, { fg, bg, attrs }, clip);
+  }
+
+  drawEditor(
+    view: import("@vui-rs/core").EditorView,
+    x: number,
+    y: number,
+    fg: number,
+    bg: number,
+    cursorBg: number,
+    attrs: number,
+    clip: Clip,
+  ): void {
+    this.#r.drawEditor(view, x, y, { fg, bg, cursorBg, attrs }, clip);
+  }
+
+  drawTextBuffer(
+    view: import("@vui-rs/core").TextBufferView,
+    x: number,
+    y: number,
+    fg: number,
+    bg: number | undefined,
+    attrs: number,
+    clip: Clip,
+  ): void {
+    this.#r.drawTextBuffer(view, x, y, { fg, bg, attrs }, clip);
   }
 
   blit(src: OffscreenBuffer, dstX: number, dstY: number, clip: Clip): void {

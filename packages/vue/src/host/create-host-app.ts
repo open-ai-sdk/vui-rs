@@ -9,15 +9,22 @@ import {
   type Component,
   createRenderer as createVueRenderer,
 } from "@vue/runtime-core";
-import { Renderer, createKeyDecoder, createTerminalSession, matchesKey } from "@vui-rs/core";
+import {
+  Renderer,
+  createKeyDecoder,
+  createTerminalSession,
+  matchesKey,
+} from "@vui-rs/core";
 import { BoxRenderable } from "./box-renderable.ts";
 import { VuiHostInput } from "./components/input.ts";
+import { VuiHostTextarea } from "./components/textarea.ts";
 import { createHostFocusManager } from "./focus.ts";
 import { createHostScheduler } from "./scheduler.ts";
 import { createNodeOps } from "./node-ops.ts";
 import { runLayout } from "./layout.ts";
 import { runPaint } from "./paint-walk.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
+import { type TextareaRenderable } from "./textarea-renderable.ts";
 import { type Theme, ThemeSymbol, darkTheme } from "../theme.ts";
 
 export interface HostMountOptions {
@@ -71,10 +78,12 @@ export function createHostApp(
   const vueApp = createVueApp(rootComponent, rootProps ?? null);
   // Built-in `<input>` widget (JS edit model), so templates use it without import.
   vueApp.component("input", VuiHostInput);
+  vueApp.component("textarea", VuiHostTextarea);
 
   let mounted = false;
   let ownsRenderer = false;
   let teardownSession: (() => void) | null = null;
+  let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   const app: VuiHostApp = {
     get renderer() {
@@ -131,10 +140,26 @@ export function createHostApp(
     session.onData((data) => {
       for (const ev of decoder.feed(data)) {
         if (ev.type === "key" && matchesKey(ev, "ctrl+c")) {
+          const current = ctx.focusManager?.current();
+          if (
+            current?.kind === "textarea" &&
+            (current as TextareaRenderable).hasSelection()
+          ) {
+            ctx.focusManager?.dispatch(ev);
+            continue;
+          }
           app.unmount();
           process.exit(0);
         }
         if (ev.type === "key" && ev.name === "tab") {
+          const current = ctx.focusManager?.current();
+          if (
+            current?.kind === "textarea" &&
+            (current as TextareaRenderable).textarea.tabBehavior === "indent"
+          ) {
+            ctx.focusManager?.dispatch(ev);
+            continue;
+          }
           if (ev.shift) ctx.focusManager?.focusPrev();
           else ctx.focusManager?.focusNext();
           continue;
@@ -149,7 +174,14 @@ export function createHostApp(
       }
     });
     session.start();
-    teardownSession = () => session.stop();
+    keepAliveTimer = setInterval(() => {}, 1 << 30);
+    teardownSession = () => {
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+      }
+      session.stop();
+    };
   }
 
   return app;

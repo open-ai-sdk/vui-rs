@@ -8,6 +8,7 @@ import { BoxRenderable } from "./box-renderable.ts";
 import { CanvasRenderable } from "./canvas-renderable.ts";
 import { EditRenderable } from "./edit-renderable.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
+import { TextareaRenderable } from "./textarea-renderable.ts";
 import { SpanRenderable, TextRenderable } from "./text-renderable.ts";
 
 /** Build a Renderable for `tag` in `ctx`. Custom entries supply their own factory. */
@@ -25,6 +26,7 @@ const DEFAULT_CATALOGUE: Record<string, CatalogueEntry> = {
   box: { kind: "box", spanAttrs: 0 },
   text: { kind: "text", spanAttrs: 0 },
   input: { kind: "edit", spanAttrs: 0 },
+  "textarea-host": { kind: "textarea", spanAttrs: 0 },
   // First-class custom drawing: a leaf box whose `@draw` paints freely, clipped.
   canvas: { kind: "box", spanAttrs: 0, make: (ctx, tag) => new CanvasRenderable(ctx, tag) },
   span: { kind: "span", spanAttrs: 0 },
@@ -56,7 +58,8 @@ export function lookup(tag: string): CatalogueEntry {
  * `isCustomElement`? `box`/`text`/`canvas` and the inline `span`-kind tags are
  * elements; `edit`-kind tags (`<input>`) are NOT — they resolve to the
  * `VuiHostInput` component (registered at app create) so v-model round-trips
- * through its editing logic. Only knows built-in + `extend()`-ed tags in THIS
+ * through its editing logic. `textarea-host` is the internal element rendered by
+ * the public `<textarea>` component. Only knows built-in + `extend()`-ed tags in THIS
  * process; the Vite build lists runtime tags in the plugin separately.
  */
 export function isVuiTag(tag: string): boolean {
@@ -71,8 +74,8 @@ export function createRenderable(ctx: HostContext, tag: string): Renderable {
   // box/text/edit get a layout-only native node (taffy style + text-for-measure;
   // no paint props). Created lazily only when a renderer is mounted, so pure
   // tree tests (no renderer) still build a Renderable graph with `layoutNode` null.
-  if (ctx.renderer && (node.kind === "box" || node.kind === "text" || node.kind === "edit")) {
-    node.layoutNode = ctx.renderer.createNode(node.kind);
+  if (ctx.renderer && (node.kind === "box" || node.kind === "text" || node.kind === "edit" || node.kind === "textarea")) {
+    node.layoutNode = ctx.renderer.createNode(node.kind === "textarea" ? "edit" : node.kind);
   }
   applyThemeDefaults(node);
   return node;
@@ -86,7 +89,7 @@ export function createRenderable(ctx: HostContext, tag: string): Renderable {
  */
 function applyThemeDefaults(node: Renderable): void {
   const { theme } = node.ctx;
-  if (node.kind === "text" || node.kind === "edit") {
+  if (node.kind === "text" || node.kind === "edit" || node.kind === "textarea") {
     node.paint.fg = theme.fg;
   } else if (node.kind === "box") {
     node.paint.borderColor = theme.border;
@@ -101,6 +104,8 @@ function buildBuiltin(ctx: HostContext, tag: string, entry: CatalogueEntry): Ren
       return new TextRenderable(ctx, tag);
     case "edit":
       return new EditRenderable(ctx, tag);
+    case "textarea":
+      return new TextareaRenderable(ctx, tag);
     case "span":
       return new SpanRenderable(ctx, tag, entry.spanAttrs);
     default:

@@ -3,23 +3,35 @@
 // when a handler calls preventDefault. Runs offscreen (injected renderer).
 import { describe, expect, test } from "bun:test";
 import { Renderer, type KeyEvent } from "@vui-rs/core";
-import { createApp, defineComponent, h } from "../src/index.ts";
+import { createApp, defineComponent, h, ref, nextTick } from "../src/index.ts";
+import { VuiHostTextarea } from "../src/host/components/textarea.ts";
 import type { DispatchableEvent } from "../src/focus.ts";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function keyEvent(name: string): KeyEvent {
-  return { type: "key", name, ctrl: false, alt: false, shift: false, meta: false, raw: name };
+  return {
+    type: "key",
+    name,
+    ctrl: false,
+    alt: false,
+    shift: false,
+    meta: false,
+    raw: name,
+  };
 }
 
 function mount(render: () => unknown) {
   const r = new Renderer(40, 6);
   const App = defineComponent({ setup: () => render });
   const app = createApp(App).mount({ renderer: r, altScreen: false });
-  return { app, cleanup: () => {
-    app.unmount();
-    r.free();
-  } };
+  return {
+    app,
+    cleanup: () => {
+      app.unmount();
+      r.free();
+    },
+  };
 }
 
 describe("focus manager", () => {
@@ -97,7 +109,11 @@ describe("focus manager", () => {
     const events: string[] = [];
     const { app, cleanup } = mount(() =>
       h("box", null, [
-        h("input", { focusable: true, onFocus: () => events.push("focus-a"), onBlur: () => events.push("blur-a") }),
+        h("input", {
+          focusable: true,
+          onFocus: () => events.push("focus-a"),
+          onBlur: () => events.push("blur-a"),
+        }),
         h("input", { focusable: true, onFocus: () => events.push("focus-b") }),
       ]),
     );
@@ -107,6 +123,33 @@ describe("focus manager", () => {
       fm.focusNext(); // -> a
       fm.focusNext(); // -> b (blurs a)
       expect(events).toEqual(["focus-a", "blur-a", "focus-b"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("textarea indent mode can receive Tab instead of moving focus", async () => {
+    const value = ref("");
+    const { app, cleanup } = mount(() =>
+      h("box", null, [
+        h(VuiHostTextarea, {
+          value: value.value,
+          focused: true,
+          tabBehavior: "indent",
+          tabSize: 2,
+          "onUpdate:value": (v: string) => (value.value = v),
+        }),
+        h("input", { focusable: true }),
+      ]),
+    );
+    try {
+      await nextTick();
+      const fm = app.context.focusManager!;
+      const textarea = app.context.root!.children[0]!.children[0]!;
+      expect(fm.current()).toBe(textarea);
+      fm.dispatch(keyEvent("tab"));
+      expect(fm.current()).toBe(textarea);
+      expect(value.value).toBe("  ");
     } finally {
       cleanup();
     }

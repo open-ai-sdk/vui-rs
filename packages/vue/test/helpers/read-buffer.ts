@@ -50,7 +50,32 @@ export function firstGlyphFg(r: Renderer): Channels | null {
   const i = firstGlyphIndex(buf);
   if (i < 0) return null;
   const base = i * CELL_BYTES;
-  return { r: buf[base + 4]!, g: buf[base + 5]!, b: buf[base + 6]!, a: buf[base + 7]! };
+  return {
+    r: buf[base + 4]!,
+    g: buf[base + 5]!,
+    b: buf[base + 6]!,
+    a: buf[base + 7]!,
+  };
+}
+
+export function cellFg(r: Renderer, x: number, y: number): Channels {
+  const buf = r.backBufferView();
+  const base = (y * r.width + x) * CELL_BYTES;
+  return {
+    r: buf[base + 4]!,
+    g: buf[base + 5]!,
+    b: buf[base + 6]!,
+    a: buf[base + 7]!,
+  };
+}
+
+export function cellAttrs(r: Renderer, x: number, y: number): number {
+  const buf = r.backBufferView();
+  const base = (y * r.width + x) * CELL_BYTES + 12;
+  return new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint16(
+    base,
+    true,
+  );
 }
 
 /** Concatenate every non-blank glyph in row-major order — a coarse "what's on screen". */

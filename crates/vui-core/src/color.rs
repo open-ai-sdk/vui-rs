@@ -97,7 +97,11 @@ fn parse_rgb_function(value: &str) -> Option<Rgba> {
         None => 255,
         Some(s) => {
             let raw = decimal(s)?;
-            clamp255(if raw <= 1.0 { (raw * 255.0).round() } else { raw.round() })
+            clamp255(if raw <= 1.0 {
+                (raw * 255.0).round()
+            } else {
+                raw.round()
+            })
         }
     };
     Some(Rgba::new(r, g, b, a))
@@ -141,7 +145,9 @@ fn parse_color_table(json: &str) -> HashMap<String, u32> {
     let mut map = HashMap::new();
     for pair in strings.chunks_exact(2) {
         let (name, hex) = (pair[0], pair[1]);
-        let body = hex.strip_prefix('#').expect("color-names.json value must start with #");
+        let body = hex
+            .strip_prefix('#')
+            .expect("color-names.json value must start with #");
         let packed = parse_hex(body).expect("color-names.json has a bad hex value");
         map.insert(name.to_ascii_lowercase(), packed);
     }
@@ -184,7 +190,10 @@ mod tests {
 
     #[test]
     fn parses_rgb_function() {
-        assert_eq!(parse("rgb(13, 188, 121)"), Some(Rgba::new(13, 188, 121, 255)));
+        assert_eq!(
+            parse("rgb(13, 188, 121)"),
+            Some(Rgba::new(13, 188, 121, 255))
+        );
         assert_eq!(parse("rgba(255,0,0,0.5)"), Some(Rgba::new(255, 0, 0, 128)));
         assert_eq!(parse("rgba(0,0,0,128)"), Some(Rgba::new(0, 0, 0, 128)));
         assert_eq!(parse("rgb(300, -5, 10)"), Some(Rgba::new(255, 0, 10, 255))); // clamped

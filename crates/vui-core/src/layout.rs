@@ -199,7 +199,11 @@ mod tests {
         s.width = len(4.0);
         s.height = len(2.0);
         t.set_style(txt, &s);
-        set_text(&mut t, txt, "this is a long string that would wrap to many rows");
+        set_text(
+            &mut t,
+            txt,
+            "this is a long string that would wrap to many rows",
+        );
         compute(&mut t, 80, 24);
         let b = node_box(&t, txt).unwrap();
         assert_eq!(b.w.round() as i32, 4);

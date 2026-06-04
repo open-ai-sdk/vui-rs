@@ -10,6 +10,8 @@ export {
   EditMotion,
   type EditMotionCode,
   EXPECTED_ABI_VERSION,
+  NativeTextWrap,
+  type NativeTextWrapCode,
   NodeKindCode,
   Status,
   STYLE_FFI_BYTES,

@@ -15,12 +15,12 @@ import {
 } from "@vue/compiler-core";
 
 /** Tags `v-model` is valid on — the editable widget(s). */
-const MODELABLE_TAGS = new Set(["input"]);
+const MODELABLE_TAGS = new Set(["input", "textarea"]);
 
 export const vuiModelTransform: DirectiveTransform = (dir, node, context) => {
   if (!MODELABLE_TAGS.has(node.tag)) {
     const err = new SyntaxError(
-      `vui: v-model is only supported on <input>; got <${node.tag}>`,
+      `vui: v-model is only supported on <input> and <textarea>; got <${node.tag}>`,
     ) as SyntaxError & { code: number; loc: typeof dir.loc };
     err.code = -1;
     err.loc = dir.loc;

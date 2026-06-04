@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 9;
+export const EXPECTED_ABI_VERSION = 11;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -59,17 +59,22 @@ export const EditMotion = {
   WordRight: 3,
   Home: 4,
   End: 5,
+  Up: 6,
+  Down: 7,
+  DocStart: 8,
+  DocEnd: 9,
 } as const;
 export type EditMotionCode = (typeof EditMotion)[keyof typeof EditMotion];
 
-/** Text wrap mode for `vui_node_set_text_wrap` (0 = wrap, the default). */
-export const TextWrapCode = { Wrap: 0, NoWrap: 1 } as const;
+export const NativeTextWrap = { None: 0, Char: 1, Word: 2 } as const;
+export type NativeTextWrapCode =
+  (typeof NativeTextWrap)[keyof typeof NativeTextWrap];
 
 export const symbols = {
   // Version / ABI probes.
   vui_version: { args: [], returns: FFIType.u32 },
   vui_abi_version: { args: [], returns: FFIType.u32 },
-  // Glyph column width (0/1/2). The shared width source for the JS-host wrap.ts.
+  // Glyph column width (0/1/2). Useful for JS single-line edit/canvas helpers.
   vui_char_width: { args: [FFIType.u32], returns: FFIType.u32 },
 
   // Lifecycle.
@@ -100,11 +105,26 @@ export const symbols = {
     returns: FFIType.u32,
   },
   vui_buffer_fill_rect: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32],
+    args: [
+      FFIType.ptr,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+    ],
     returns: FFIType.u32,
   },
   vui_buffer_set_cell: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u16],
+    args: [
+      FFIType.ptr,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u16,
+    ],
     returns: FFIType.u32,
   },
   vui_buffer_clear: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
@@ -130,12 +150,27 @@ export const symbols = {
     returns: FFIType.u32,
   },
   vui_buffer_fill_rect_clipped: {
-    args: [FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.ptr],
+    args: [
+      FFIType.ptr,
+      FFIType.i32,
+      FFIType.i32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.ptr,
+    ],
     returns: FFIType.u32,
   },
   vui_buffer_set_cell_clipped: {
     args: [
-      FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u16, FFIType.ptr,
+      FFIType.ptr,
+      FFIType.i32,
+      FFIType.i32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u16,
+      FFIType.ptr,
     ],
     returns: FFIType.u32,
   },
@@ -150,24 +185,179 @@ export const symbols = {
     ],
     returns: FFIType.u32,
   },
+  vui_buffer_draw_textbuffer: {
+    args: [
+      FFIType.ptr, // renderer
+      FFIType.ptr, // *mut TextBufferView
+      FFIType.i32, // x
+      FFIType.i32, // y
+      FFIType.u32, // fg
+      FFIType.u32, // bg
+      FFIType.u8, // has bg
+      FFIType.u16, // attrs
+      FFIType.ptr, // *const ClipRect
+    ],
+    returns: FFIType.u32,
+  },
+  vui_buffer_draw_editor: {
+    args: [
+      FFIType.ptr, // renderer
+      FFIType.ptr, // *mut EditorView
+      FFIType.i32, // x
+      FFIType.i32, // y
+      FFIType.u32, // fg
+      FFIType.u32, // bg
+      FFIType.u32, // cursor bg
+      FFIType.u16, // attrs
+      FFIType.ptr, // *const ClipRect
+    ],
+    returns: FFIType.u32,
+  },
+
+  // Native text subsystem.
+  vui_textbuf_new: { args: [], returns: FFIType.ptr },
+  vui_textbuf_free: { args: [FFIType.ptr], returns: FFIType.void },
+  vui_textbuf_set_text: {
+    args: [FFIType.ptr, FFIType.ptr, "usize"],
+    returns: FFIType.u32,
+  },
+  vui_textbuf_set_runs: {
+    args: [
+      FFIType.ptr, // *mut TextBuffer
+      FFIType.ptr, // *const TextRunFfi
+      "usize", // run count
+      FFIType.ptr, // concatenated utf-8 bytes
+      "usize", // byte length
+    ],
+    returns: FFIType.u32,
+  },
+  vui_textbuf_line_count: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_textbuf_length: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_textview_new: { args: [FFIType.ptr], returns: FFIType.ptr },
+  vui_textview_free: { args: [FFIType.ptr], returns: FFIType.void },
+  vui_textview_set_wrap: {
+    args: [FFIType.ptr, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_textview_set_width: {
+    args: [FFIType.ptr, FFIType.u32],
+    returns: FFIType.u32,
+  },
+  vui_textview_measure: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u8, FFIType.ptr],
+    returns: FFIType.u32,
+  },
+  vui_editbuf_new: { args: [], returns: FFIType.ptr },
+  vui_editbuf_free: { args: [FFIType.ptr], returns: FFIType.void },
+  vui_editbuf_set_value: {
+    args: [FFIType.ptr, FFIType.ptr, "usize"],
+    returns: FFIType.u32,
+  },
+  vui_editbuf_value_len: { args: [FFIType.ptr], returns: "usize" },
+  vui_editbuf_copy_value: {
+    args: [FFIType.ptr, FFIType.ptr, "usize"],
+    returns: "usize",
+  },
+  vui_editbuf_insert: {
+    args: [FFIType.ptr, FFIType.ptr, "usize"],
+    returns: FFIType.u32,
+  },
+  vui_editbuf_backspace: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_delete: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_newline: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_move: {
+    args: [FFIType.ptr, FFIType.u8, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_editbuf_select_all: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_has_selection: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_selected_len: { args: [FFIType.ptr], returns: "usize" },
+  vui_editbuf_copy_selected: {
+    args: [FFIType.ptr, FFIType.ptr, "usize"],
+    returns: "usize",
+  },
+  vui_editbuf_delete_selection: {
+    args: [FFIType.ptr, FFIType.ptr],
+    returns: FFIType.u32,
+  },
+  vui_editbuf_undo: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_redo: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_can_undo: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_can_redo: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_editbuf_cursor: {
+    args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
+    returns: FFIType.u32,
+  },
+  vui_editor_new: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
+    returns: FFIType.ptr,
+  },
+  vui_editor_free: { args: [FFIType.ptr], returns: FFIType.void },
+  vui_editor_set_wrap: {
+    args: [FFIType.ptr, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_editor_set_viewport: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
+    returns: FFIType.u32,
+  },
+  vui_editor_set_focused: {
+    args: [FFIType.ptr, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_editor_move: {
+    args: [FFIType.ptr, FFIType.u8, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_editor_measure: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u8, FFIType.ptr],
+    returns: FFIType.u32,
+  },
 
   // Offscreen cell buffer (canvas / buffered nodes). Pointer is *mut CellBuffer.
   vui_cbuf_new: { args: [FFIType.u32, FFIType.u32], returns: FFIType.ptr },
   vui_cbuf_free: { args: [FFIType.ptr], returns: FFIType.void },
-  vui_cbuf_resize: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
+  vui_cbuf_resize: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
+    returns: FFIType.u32,
+  },
   vui_cbuf_ptr: { args: [FFIType.ptr], returns: FFIType.ptr },
   vui_cbuf_len: { args: [FFIType.ptr], returns: "usize" },
   vui_cbuf_clear: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
   vui_cbuf_draw_text: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr, "usize", FFIType.u32, FFIType.u32, FFIType.u16],
+    args: [
+      FFIType.ptr,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.ptr,
+      "usize",
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u16,
+    ],
     returns: FFIType.u32,
   },
   vui_cbuf_fill_rect: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32],
+    args: [
+      FFIType.ptr,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+    ],
     returns: FFIType.u32,
   },
   vui_cbuf_set_cell: {
-    args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u16],
+    args: [
+      FFIType.ptr,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u32,
+      FFIType.u16,
+    ],
     returns: FFIType.u32,
   },
 
@@ -214,6 +404,12 @@ export const symbols = {
   vui_debug_tree_hash: { args: [FFIType.ptr], returns: FFIType.u64 },
 
   // JS-host layout: run taffy without painting, then read each node's box.
-  vui_layout_compute: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
-  vui_node_rect: { args: [FFIType.ptr, FFIType.u32, FFIType.ptr], returns: FFIType.u32 },
+  vui_layout_compute: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.u32],
+    returns: FFIType.u32,
+  },
+  vui_node_rect: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr],
+    returns: FFIType.u32,
+  },
 } as const;

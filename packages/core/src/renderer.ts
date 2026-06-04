@@ -3,10 +3,18 @@ import { loadNativeLib } from "./native/load-native-lib.ts";
 import { CELL_BYTES, NodeKindCode, Status } from "./native/ffi-symbols.ts";
 import { VuiNode } from "./node.ts";
 import { type OffscreenBuffer } from "./offscreen-buffer.ts";
+import type { TextBufferView } from "./text/text-buffer-view.ts";
+import type { EditorView } from "./text/editor-view.ts";
 
 /** Pack 8-bit channels into the `0xRRGGBBAA` u32 the FFI expects. */
 export function rgba(r: number, g: number, b: number, a = 255): number {
-  return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | (a & 0xff)) >>> 0;
+  return (
+    (((r & 0xff) << 24) |
+      ((g & 0xff) << 16) |
+      ((b & 0xff) << 8) |
+      (a & 0xff)) >>>
+    0
+  );
 }
 
 export interface TextStyle {
@@ -84,7 +92,10 @@ export class Renderer {
   }
 
   fillRect(x: number, y: number, w: number, h: number, bg: number): void {
-    check(this.#lib.symbols.vui_buffer_fill_rect(this.#ptr, x, y, w, h, bg), "fill_rect");
+    check(
+      this.#lib.symbols.vui_buffer_fill_rect(this.#ptr, x, y, w, h, bg),
+      "fill_rect",
+    );
   }
 
   setCell(x: number, y: number, ch: number, style: TextStyle = {}): void {
@@ -118,30 +129,68 @@ export class Renderer {
     return this.#clip;
   }
 
-  drawTextClipped(x: number, y: number, text: string, style: TextStyle, clip: ClipRect): void {
+  drawTextClipped(
+    x: number,
+    y: number,
+    text: string,
+    style: TextStyle,
+    clip: ClipRect,
+  ): void {
     const bytes = encoder.encode(text);
     check(
       this.#lib.symbols.vui_buffer_draw_text_clipped(
-        this.#ptr, x, y, bytes, bytes.byteLength,
-        style.fg ?? DEFAULT_FG, style.bg ?? DEFAULT_BG, style.attrs ?? 0,
+        this.#ptr,
+        x,
+        y,
+        bytes,
+        bytes.byteLength,
+        style.fg ?? DEFAULT_FG,
+        style.bg ?? DEFAULT_BG,
+        style.attrs ?? 0,
         this.#packClip(clip),
       ),
       "draw_text_clipped",
     );
   }
 
-  fillRectClipped(x: number, y: number, w: number, h: number, bg: number, clip: ClipRect): void {
+  fillRectClipped(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    bg: number,
+    clip: ClipRect,
+  ): void {
     check(
-      this.#lib.symbols.vui_buffer_fill_rect_clipped(this.#ptr, x, y, w, h, bg, this.#packClip(clip)),
+      this.#lib.symbols.vui_buffer_fill_rect_clipped(
+        this.#ptr,
+        x,
+        y,
+        w,
+        h,
+        bg,
+        this.#packClip(clip),
+      ),
       "fill_rect_clipped",
     );
   }
 
-  setCellClipped(x: number, y: number, ch: number, style: TextStyle, clip: ClipRect): void {
+  setCellClipped(
+    x: number,
+    y: number,
+    ch: number,
+    style: TextStyle,
+    clip: ClipRect,
+  ): void {
     check(
       this.#lib.symbols.vui_buffer_set_cell_clipped(
-        this.#ptr, x, y, ch,
-        style.fg ?? DEFAULT_FG, style.bg ?? DEFAULT_BG, style.attrs ?? 0,
+        this.#ptr,
+        x,
+        y,
+        ch,
+        style.fg ?? DEFAULT_FG,
+        style.bg ?? DEFAULT_BG,
+        style.attrs ?? 0,
         this.#packClip(clip),
       ),
       "set_cell_clipped",
@@ -151,8 +200,62 @@ export class Renderer {
   /** Composite an offscreen buffer into the back buffer at `(dstX, dstY)`, clipped. */
   blit(src: OffscreenBuffer, dstX: number, dstY: number, clip: ClipRect): void {
     check(
-      this.#lib.symbols.vui_buffer_blit(this.#ptr, src.nativePtr, dstX, dstY, this.#packClip(clip)),
+      this.#lib.symbols.vui_buffer_blit(
+        this.#ptr,
+        src.nativePtr,
+        dstX,
+        dstY,
+        this.#packClip(clip),
+      ),
       "blit",
+    );
+  }
+
+  /** Draw a native text-buffer view into the back buffer, clipped. */
+  drawTextBuffer(
+    view: TextBufferView,
+    x: number,
+    y: number,
+    style: TextStyle,
+    clip: ClipRect,
+  ): void {
+    check(
+      this.#lib.symbols.vui_buffer_draw_textbuffer(
+        this.#ptr,
+        view.nativePtr,
+        x,
+        y,
+        style.fg ?? DEFAULT_FG,
+        style.bg ?? 0,
+        style.bg === undefined ? 0 : 1,
+        style.attrs ?? 0,
+        this.#packClip(clip),
+      ),
+      "draw_textbuffer",
+    );
+  }
+
+  /** Draw a native editor view, including its cursor when focused. */
+  drawEditor(
+    view: EditorView,
+    x: number,
+    y: number,
+    style: TextStyle & { cursorBg?: number },
+    clip: ClipRect,
+  ): void {
+    check(
+      this.#lib.symbols.vui_buffer_draw_editor(
+        this.#ptr,
+        view.nativePtr,
+        x,
+        y,
+        style.fg ?? DEFAULT_FG,
+        style.bg ?? DEFAULT_BG,
+        style.cursorBg ?? style.fg ?? DEFAULT_FG,
+        style.attrs ?? 0,
+        this.#packClip(clip),
+      ),
+      "draw_editor",
     );
   }
 
@@ -182,7 +285,11 @@ export class Renderer {
   /** Create a detached node (`"box"`, `"text"`, or `"edit"`); attach under a parent. */
   createNode(kind: "box" | "text" | "edit"): VuiNode {
     const code =
-      kind === "text" ? NodeKindCode.Text : kind === "edit" ? NodeKindCode.Edit : NodeKindCode.Box;
+      kind === "text"
+        ? NodeKindCode.Text
+        : kind === "edit"
+          ? NodeKindCode.Edit
+          : NodeKindCode.Box;
     const id = this.#lib.symbols.vui_node_new(this.#ptr, code);
     if (id === 0) {
       throw new Error("vui-core: failed to create node");
@@ -200,13 +307,22 @@ export class Renderer {
    * to the terminal by default. Read each node's box with `VuiNode.layoutRect`.
    * Dirty-gate on the caller side (skip when no style/text changed).
    */
-  computeLayout(width: number = this.#width, height: number = this.#height): void {
-    check(this.#lib.symbols.vui_layout_compute(this.#ptr, width, height), "layout_compute");
+  computeLayout(
+    width: number = this.#width,
+    height: number = this.#height,
+  ): void {
+    check(
+      this.#lib.symbols.vui_layout_compute(this.#ptr, width, height),
+      "layout_compute",
+    );
   }
 
   /** Reallocate to a new size; forces a full repaint on the next `render()`. */
   resize(width: number, height: number): void {
-    check(this.#lib.symbols.vui_renderer_resize(this.#ptr, width, height), "resize");
+    check(
+      this.#lib.symbols.vui_renderer_resize(this.#ptr, width, height),
+      "resize",
+    );
     this.#width = width;
     this.#height = height;
   }

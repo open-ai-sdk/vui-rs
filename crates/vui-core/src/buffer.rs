@@ -272,7 +272,14 @@ impl CellBuffer {
             if col >= clip.x0 && col + w <= clip.x1 {
                 self.set_cell(col as u32, y as u32, ch as u32, fg, bg, attrs);
                 if w == 2 {
-                    self.set_cell((col + 1) as u32, y as u32, 0, fg, bg, attrs | attr::WIDE_CONTINUATION);
+                    self.set_cell(
+                        (col + 1) as u32,
+                        y as u32,
+                        0,
+                        fg,
+                        bg,
+                        attrs | attr::WIDE_CONTINUATION,
+                    );
                 }
             }
             col += w;
