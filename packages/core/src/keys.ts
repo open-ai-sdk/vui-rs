@@ -29,7 +29,27 @@ export interface PasteEvent {
   text: string;
 }
 
-export type InputEvent = KeyEvent | PasteEvent;
+export type MouseButton =
+  | "left"
+  | "middle"
+  | "right"
+  | "wheelUp"
+  | "wheelDown";
+
+export interface MouseEvent {
+  type: "mouse";
+  kind: "down" | "up" | "move" | "drag" | "wheel";
+  button: MouseButton | null;
+  x: number;
+  y: number;
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+  meta: boolean;
+  raw: string;
+}
+
+export type InputEvent = KeyEvent | PasteEvent | MouseEvent;
 
 interface Mods {
   ctrl?: boolean;
@@ -41,6 +61,7 @@ interface Mods {
 
 const PASTE_START = "\x1b[200~";
 const PASTE_END = "\x1b[201~";
+const MOUSE_BUTTONS = ["left", "middle", "right"] as const;
 
 const ARROW_NAMES: Record<string, string> = { A: "up", B: "down", C: "right", D: "left", H: "home", F: "end" };
 const TILDE_NAMES: Record<string, string> = {
@@ -71,10 +92,18 @@ function decodeMod(param?: string): Mods {
  * truncated escape/paste sequence that needs more input (the caller decides
  * whether to buffer it or flush best-effort).
  */
-function stepOne(s: string, i: number, out: InputEvent[]): number {
+interface MouseState {
+  buttons: Set<MouseButton>;
+}
+
+function newMouseState(): MouseState {
+  return { buttons: new Set() };
+}
+
+function stepOne(s: string, i: number, out: InputEvent[], mouse: MouseState): number {
   const code = s.charCodeAt(i);
   if (code === 0x1b) {
-    const r = parseEscape(s, i, out);
+    const r = parseEscape(s, i, out, mouse);
     if (r !== 0) return r; // >0 consumed, or -1 incomplete
     out.push(key("escape", { raw: "\x1b" }));
     return 1;
@@ -103,9 +132,10 @@ function stepOne(s: string, i: number, out: InputEvent[]): number {
 export function parseKeys(data: string | Uint8Array): InputEvent[] {
   const s = typeof data === "string" ? data : decoder.decode(data);
   const events: InputEvent[] = [];
+  const mouse = newMouseState();
   let i = 0;
   while (i < s.length) {
-    const consumed = stepOne(s, i, events);
+    const consumed = stepOne(s, i, events, mouse);
     if (consumed === -1) {
       // No more input coming (stateless): flush a truncated ESC as a bare Escape
       // and re-scan the remainder rather than dropping it.
@@ -136,13 +166,14 @@ export interface KeyDecoder {
  */
 export function createKeyDecoder(): KeyDecoder {
   let pending = "";
+  const mouse = newMouseState();
   return {
     feed(data) {
       const s = pending + (typeof data === "string" ? data : decoder.decode(data));
       const events: InputEvent[] = [];
       let i = 0;
       while (i < s.length) {
-        const consumed = stepOne(s, i, events);
+        const consumed = stepOne(s, i, events, mouse);
         if (consumed === -1) break; // truncated tail: buffer it for the next feed
         i += consumed;
       }
@@ -162,10 +193,10 @@ export function createKeyDecoder(): KeyDecoder {
  * bare/unrecognised ESC (caller emits Escape), or `-1` for a truncated sequence
  * that needs more input.
  */
-function parseEscape(s: string, i: number, out: InputEvent[]): number {
+function parseEscape(s: string, i: number, out: InputEvent[], mouse: MouseState): number {
   const next = s[i + 1];
   if (next === undefined) return -1; // live decoder buffers; stateless parser flushes as Escape
-  if (next === "[") return parseCSI(s, i, out);
+  if (next === "[") return parseCSI(s, i, out, mouse);
   if (next === "O") return parseSS3(s, i, out);
   // ESC + key → Alt-modified.
   const code = s.charCodeAt(i + 1);
@@ -181,7 +212,9 @@ function parseEscape(s: string, i: number, out: InputEvent[]): number {
   return 0;
 }
 
-function parseCSI(s: string, i: number, out: InputEvent[]): number {
+function parseCSI(s: string, i: number, out: InputEvent[], mouse: MouseState): number {
+  if (s[i + 2] === "<") return parseSgrMouse(s, i, out, mouse);
+  if (s[i + 2] === "M") return parseX10Mouse(s, i, out, mouse);
   let j = i + 2;
   let params = "";
   while (j < s.length && (s[j]! === ";" || (s[j]! >= "0" && s[j]! <= "9"))) {
@@ -217,6 +250,95 @@ function parseCSI(s: string, i: number, out: InputEvent[]): number {
     return consumed;
   }
   return consumed; // recognised-but-unmapped CSI: consume, emit nothing
+}
+
+function decodeMouseModifiers(code: number): Mods {
+  return {
+    shift: !!(code & 4),
+    alt: !!(code & 8),
+    ctrl: !!(code & 16),
+    meta: false,
+  };
+}
+
+function mouseButton(code: number): MouseButton | null {
+  if (code & 64) return code & 1 ? "wheelDown" : "wheelUp";
+  return MOUSE_BUTTONS[code & 3] ?? null;
+}
+
+function pushMouse(
+  out: InputEvent[],
+  mouse: MouseState,
+  code: number,
+  x: number,
+  y: number,
+  final: "M" | "m",
+  raw: string,
+): void {
+  const wheel = !!(code & 64);
+  const motion = !!(code & 32);
+  const button = mouseButton(code);
+  const mods = decodeMouseModifiers(code);
+  let kind: MouseEvent["kind"];
+
+  if (wheel) {
+    kind = "wheel";
+  } else if (final === "m") {
+    kind = "up";
+  } else if (motion) {
+    kind = mouse.buttons.size > 0 ? "drag" : "move";
+  } else {
+    kind = "down";
+  }
+
+  if (kind === "down" && button) mouse.buttons.add(button);
+  if (kind === "up") {
+    if (button) mouse.buttons.delete(button);
+    else mouse.buttons.clear();
+  }
+
+  out.push({
+    type: "mouse",
+    kind,
+    button,
+    x,
+    y,
+    ctrl: !!mods.ctrl,
+    alt: !!mods.alt,
+    shift: !!mods.shift,
+    meta: false,
+    raw,
+  });
+}
+
+function parseSgrMouse(s: string, i: number, out: InputEvent[], mouse: MouseState): number {
+  let j = i + 3;
+  while (j < s.length && (s[j]! === ";" || (s[j]! >= "0" && s[j]! <= "9"))) j += 1;
+  const final = s[j];
+  if (final === undefined) return -1;
+  if (final !== "M" && final !== "m") return j + 1 - i;
+  const raw = s.slice(i, j + 1);
+  const parts = s.slice(i + 3, j).split(";");
+  if (parts.length !== 3) return j + 1 - i;
+  const code = Number.parseInt(parts[0]!, 10);
+  const x = Number.parseInt(parts[1]!, 10) - 1;
+  const y = Number.parseInt(parts[2]!, 10) - 1;
+  if (!Number.isFinite(code) || !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) {
+    return j + 1 - i;
+  }
+  pushMouse(out, mouse, code, x, y, final, raw);
+  return j + 1 - i;
+}
+
+function parseX10Mouse(s: string, i: number, out: InputEvent[], mouse: MouseState): number {
+  if (i + 5 >= s.length) return -1;
+  const raw = s.slice(i, i + 6);
+  const code = s.charCodeAt(i + 3) - 32;
+  const x = s.charCodeAt(i + 4) - 33;
+  const y = s.charCodeAt(i + 5) - 33;
+  if (x < 0 || y < 0) return 6;
+  pushMouse(out, mouse, code, x, y, code === 3 ? "m" : "M", raw);
+  return 6;
 }
 
 function parseSS3(s: string, i: number, out: InputEvent[]): number {

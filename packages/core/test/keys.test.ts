@@ -1,7 +1,7 @@
 // Byte-chunk → key-event parser coverage: the common terminal key set, modifier
 // decoding, alt/ctrl, and bracketed paste (captured literally, never re-parsed).
 import { describe, expect, test } from "bun:test";
-import { createKeyDecoder, Key, matchesKey, parseKeys, type KeyEvent } from "../src/keys.ts";
+import { createKeyDecoder, Key, matchesKey, parseKeys, type KeyEvent, type MouseEvent } from "../src/keys.ts";
 
 /** Parse a chunk expected to yield exactly one event and return it. */
 function one(data: string) {
@@ -107,5 +107,36 @@ describe("key parser", () => {
     expect(matchesKey(one("\x1b[Z"), "shift+tab")).toBe(true);
     expect(matchesKey(one("\r"), Key.enter)).toBe(true);
     expect(matchesKey({ type: "paste", text: "x" }, "a")).toBe(false);
+  });
+
+  test("SGR mouse parses 0-indexed coordinates and modifiers", () => {
+    const ev = one("\x1b[<20;5;3M") as MouseEvent;
+    expect(ev).toMatchObject({
+      type: "mouse",
+      kind: "down",
+      button: "left",
+      x: 4,
+      y: 2,
+      shift: true,
+      ctrl: true,
+      alt: false,
+    });
+  });
+
+  test("SGR mouse tracks drag and release across decoder chunks", () => {
+    const d = createKeyDecoder();
+    expect(d.feed("\x1b[<0;2;2M")[0]).toMatchObject({ type: "mouse", kind: "down", button: "left" });
+    expect(d.feed("\x1b[<32;3;2M")[0]).toMatchObject({ type: "mouse", kind: "drag", button: "left", x: 2, y: 1 });
+    expect(d.feed("\x1b[<0;3;2m")[0]).toMatchObject({ type: "mouse", kind: "up", button: "left", x: 2, y: 1 });
+  });
+
+  test("SGR wheel emits wheel direction", () => {
+    expect(one("\x1b[<64;1;1M")).toMatchObject({ type: "mouse", kind: "wheel", button: "wheelUp", x: 0, y: 0 });
+    expect(one("\x1b[<65;1;1M")).toMatchObject({ type: "mouse", kind: "wheel", button: "wheelDown", x: 0, y: 0 });
+  });
+
+  test("X10 mouse fallback parses button events", () => {
+    const seq = "\x1b[M" + String.fromCharCode(32) + String.fromCharCode(37) + String.fromCharCode(35);
+    expect(one(seq)).toMatchObject({ type: "mouse", kind: "down", button: "left", x: 4, y: 2 });
   });
 });

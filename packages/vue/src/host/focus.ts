@@ -3,13 +3,19 @@
 // nodes, recomputed per move (no stale registry). One node is focused at a time;
 // Tab/Shift-Tab cycle it; a key/paste event dispatches to the focused node then
 // bubbles to ancestors, stopping on `preventDefault()`.
-import type { InputEvent } from "@vui-rs/core";
+import type { InputEvent, MouseEvent } from "@vui-rs/core";
 import { type EditRenderable } from "./edit-renderable.ts";
+import { hitTest } from "./hit-test.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
 import { type TextareaRenderable } from "./textarea-renderable.ts";
 
 /** An input event as seen by handlers — augmented with bubble control. */
 export type DispatchableEvent = InputEvent & {
+  defaultPrevented: boolean;
+  preventDefault: () => void;
+};
+
+export type DispatchableMouseEvent = MouseEvent & {
   defaultPrevented: boolean;
   preventDefault: () => void;
 };
@@ -22,7 +28,7 @@ export interface HostFocusManager {
   current(): Renderable | null;
   /** Drop a node from focus if it currently holds it (called when it unmounts). */
   release(node: Renderable): void;
-  /** Route a key/paste event to the focused node, then bubble to ancestors. */
+  /** Route an input event to its target, then bubble to ancestors. */
   dispatch(ev: InputEvent): void;
 }
 
@@ -70,21 +76,54 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
     focus(next);
   }
 
-  function dispatch(ev: InputEvent): void {
-    if (!current) return;
+  function findFocusable(node: Renderable | null): Renderable | null {
+    for (let n = node; n; n = n.parent) {
+      if (n.focusable) return n;
+    }
+    return null;
+  }
+
+  function bubble(start: Renderable, ev: InputEvent, handlerName: string): void {
     const d = ev as DispatchableEvent;
     d.defaultPrevented = false;
     d.preventDefault = () => {
       d.defaultPrevented = true;
     };
-    const handlerName = ev.type === "paste" ? "paste" : "keydown";
-    for (let n: Renderable | null = current; n; n = n.parent) {
+    for (let n: Renderable | null = start; n; n = n.parent) {
       const handler = n.events.get(handlerName);
       if (handler) {
         handler(d);
         if (d.defaultPrevented) break;
       }
     }
+  }
+
+  function dispatchMouse(ev: MouseEvent): void {
+    const underCursor = hitTest(ctx.root, ev.x, ev.y);
+    const target = underCursor ?? current;
+    if (!target) return;
+    if (ev.kind === "down") {
+      const focusTarget = findFocusable(target);
+      if (focusTarget) focus(focusTarget);
+    }
+    const handlerName =
+      ev.kind === "down"
+        ? "mousedown"
+        : ev.kind === "up"
+          ? "mouseup"
+          : ev.kind === "wheel"
+            ? "wheel"
+            : "mousemove";
+    bubble(target, ev, handlerName);
+  }
+
+  function dispatch(ev: InputEvent): void {
+    if (ev.type === "mouse") {
+      dispatchMouse(ev);
+      return;
+    }
+    if (!current) return;
+    bubble(current, ev, ev.type === "paste" ? "paste" : "keydown");
   }
 
   return {

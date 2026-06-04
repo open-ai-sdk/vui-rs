@@ -15,6 +15,8 @@ const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const PASTE_ON = "\x1b[?2004h";
 const PASTE_OFF = "\x1b[?2004l";
+const MOUSE_ON = "\x1b[?1006h\x1b[?1000h\x1b[?1002h";
+const MOUSE_OFF = "\x1b[?1002l\x1b[?1000l\x1b[?1006l";
 
 /** The slice of `process.stdin` this module needs (injectable for tests). */
 export interface InputStream {
@@ -89,7 +91,7 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
     if (started) return;
     started = true;
     input.setRawMode?.(true);
-    output.write((altScreen ? ENTER_ALT : "") + HIDE_CURSOR + PASTE_ON);
+    output.write((altScreen ? ENTER_ALT : "") + HIDE_CURSOR + PASTE_ON + MOUSE_ON);
     input.resume?.();
     input.on("data", onDataRaw);
     output.on("resize", onResizeRaw);
@@ -108,7 +110,7 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
     output.off("resize", onResizeRaw);
     input.setRawMode?.(false);
     input.pause?.();
-    output.write(PASTE_OFF + SHOW_CURSOR + (altScreen ? LEAVE_ALT : ""));
+    output.write(MOUSE_OFF + PASTE_OFF + SHOW_CURSOR + (altScreen ? LEAVE_ALT : ""));
     if (installSignals) {
       process.off("exit", stop);
       process.off("SIGINT", onSignal);

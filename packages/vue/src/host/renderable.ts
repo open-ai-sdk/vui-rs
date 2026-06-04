@@ -68,6 +68,9 @@ export interface Clip {
   y1: number;
 }
 
+/** Absolute rounded half-open screen rect cached during the paint walk. */
+export type ScreenRect = Clip;
+
 /**
  * Paint surface a Renderable draws into — the native cell buffer, via the
  * clip-aware prims. Every op takes the clip (already intersected with the
@@ -197,6 +200,8 @@ export class Renderable {
   props: Record<string, unknown> = {};
   /** Computed box from layout; null until the first layout pass. */
   rect: LayoutRect | null = null;
+  /** Absolute rounded border box from the last paint walk; null until painted. */
+  screenRect: ScreenRect | null = null;
   /** Dirty since the last paint walk (drives dirty-subtree skipping in Phase 06). */
   dirty = true;
 

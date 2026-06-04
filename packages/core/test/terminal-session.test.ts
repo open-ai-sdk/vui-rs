@@ -63,7 +63,7 @@ function session() {
 }
 
 describe("terminal session", () => {
-  test("start enters raw mode + alt screen + hides cursor + enables paste", () => {
+  test("start enters raw mode + alt screen + hides cursor + enables paste and mouse", () => {
     const { s, input, output } = session();
     s.start();
     expect(input.rawModeCalls).toEqual([true]);
@@ -71,6 +71,9 @@ describe("terminal session", () => {
     expect(all).toContain("\x1b[?1049h"); // alt screen
     expect(all).toContain("\x1b[?25l"); // hide cursor
     expect(all).toContain("\x1b[?2004h"); // bracketed paste on
+    expect(all).toContain("\x1b[?1006h"); // SGR mouse on
+    expect(all).toContain("\x1b[?1000h"); // button mouse on
+    expect(all).toContain("\x1b[?1002h"); // drag mouse on
     s.stop();
   });
 
@@ -107,6 +110,9 @@ describe("terminal session", () => {
     expect(restores.split("\x1b[?1049l").length - 1).toBe(1); // leave alt screen
     expect(restores.split("\x1b[?25h").length - 1).toBe(1); // show cursor
     expect(restores.split("\x1b[?2004l").length - 1).toBe(1); // paste off
+    expect(restores.split("\x1b[?1006l").length - 1).toBe(1); // SGR mouse off
+    expect(restores.split("\x1b[?1000l").length - 1).toBe(1); // button mouse off
+    expect(restores.split("\x1b[?1002l").length - 1).toBe(1); // drag mouse off
   });
 
   test("data after stop is not delivered", () => {

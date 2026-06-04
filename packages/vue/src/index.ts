@@ -42,6 +42,7 @@ export {
   type HostFocusManager,
   type HostFocusManager as FocusManager,
   type DispatchableEvent,
+  type DispatchableMouseEvent,
 } from "./host/focus.ts";
 export { VuiSpinner } from "./components/spinner.ts";
 
@@ -72,6 +73,7 @@ export {
   Key,
   matchesKey,
   type KeyEvent,
+  type MouseEvent,
   type InputEvent,
   type TextWrapMode,
 } from "@vui-rs/core";

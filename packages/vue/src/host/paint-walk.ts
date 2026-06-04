@@ -39,6 +39,7 @@ export function runPaint(ctx: HostContext): void {
 
 function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY: number, clip: Clip): void {
   const b = node.rect;
+  node.screenRect = null;
   if (!b) return;
   if (!node.paint.visible || node.paint.opacity <= 0) return; // is_drawable
 
@@ -49,6 +50,7 @@ function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY:
   const y0 = round(absY);
   const x1 = round(absX + b.w);
   const y1 = round(absY + b.h);
+  node.screenRect = { x0, y0, x1, y1 };
 
   const nodeClip = intersect(clip, { x0, y0, x1, y1 });
   if (isEmpty(nodeClip)) return; // fully clipped: children too

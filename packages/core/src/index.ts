@@ -35,6 +35,8 @@ export {
   Key,
   type KeyDecoder,
   type KeyEvent,
+  type MouseButton,
+  type MouseEvent,
   type PasteEvent,
   type InputEvent,
 } from "./keys.ts";
