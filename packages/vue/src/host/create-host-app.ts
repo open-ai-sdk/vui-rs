@@ -17,6 +17,9 @@ import {
 } from "@vui-rs/core";
 import { BoxRenderable } from "./box-renderable.ts";
 import { VuiHostInput } from "./components/input.ts";
+import { VuiScrollBar } from "./components/scroll-bar.ts";
+import { VuiScrollBox } from "./components/scroll-box.ts";
+import { VuiSelectList } from "./components/select-list.ts";
 import { VuiHostTextarea } from "./components/textarea.ts";
 import { createHostFocusManager } from "./focus.ts";
 import { createHostScheduler } from "./scheduler.ts";
@@ -79,6 +82,9 @@ export function createHostApp(
   // Built-in `<input>` widget (JS edit model), so templates use it without import.
   vueApp.component("input", VuiHostInput);
   vueApp.component("textarea", VuiHostTextarea);
+  vueApp.component("scroll-box", VuiScrollBox);
+  vueApp.component("scroll-bar", VuiScrollBar);
+  vueApp.component("select-list", VuiSelectList);
 
   let mounted = false;
   let ownsRenderer = false;

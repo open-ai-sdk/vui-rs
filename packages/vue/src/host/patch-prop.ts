@@ -80,6 +80,18 @@ function applyProp(
     el.ctx.scheduleRender();
     return;
   }
+  if (key === "scrollX" || key === "scrollY") {
+    const value =
+      typeof next === "number" && Number.isFinite(next)
+        ? Math.max(0, Math.floor(next))
+        : 0;
+    if (el[key] !== value) {
+      el[key] = value;
+      el.markDirty();
+    }
+    el.ctx.scheduleRender();
+    return;
+  }
   if (el.kind === "edit" && applyEdit(el as EditRenderable, key, next)) {
     el.markDirty();
     el.ctx.scheduleRender();

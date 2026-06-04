@@ -104,6 +104,12 @@ export type BoxProps = LayoutProps & PaintProps & FocusProps;
 /** `<text>` — holds strings + inline run-style tags; sizes/colors its content. */
 export type TextProps = LayoutProps & PaintProps & FocusProps;
 
+interface ScrollProps {
+  /** Paint-time child offset; layout still measures the full child tree. */
+  scrollX?: number;
+  scrollY?: number;
+}
+
 /**
  * Inline run-style tags (`<span>`/`<b>`/`<i>`/`<u>`/`<em>`/`<strong>`) — virtual
  * nodes that fold style into the enclosing `<text>`'s runs. They take only run
@@ -172,9 +178,46 @@ export interface CanvasProps extends LayoutProps, PaintProps, FocusProps {
   onDraw?: (ctx: CanvasContext, rect: CanvasRect) => void;
 }
 
+export interface ScrollBoxProps extends LayoutProps, PaintProps, FocusProps {
+  modelValue?: number;
+  scrollY?: number;
+  step?: number;
+  pageStep?: number;
+  "onUpdate:modelValue"?: (value: number) => void;
+  "onUpdate:scrollY"?: (value: number) => void;
+  onScroll?: (value: number) => void;
+}
+
+export interface ScrollBarProps extends LayoutProps, PaintProps, FocusProps {
+  scrollY?: number;
+  viewportHeight: number;
+  contentHeight: number;
+  thumbBg?: Color;
+  trackBg?: Color;
+  "onUpdate:scrollY"?: (value: number) => void;
+  onScroll?: (value: number) => void;
+}
+
+export type SelectItemValue = string | number;
+export type SelectItem =
+  | SelectItemValue
+  | { label: string; value: SelectItemValue; disabled?: boolean };
+
+export interface SelectListProps extends LayoutProps, PaintProps, FocusProps {
+  items: SelectItem[];
+  modelValue?: SelectItemValue;
+  activeBg?: Color;
+  activeFg?: Color;
+  selectedBg?: Color;
+  selectedFg?: Color;
+  "onUpdate:modelValue"?: (value: SelectItemValue) => void;
+  onSelect?: (value: SelectItemValue, item: SelectItem, index: number) => void;
+  onActive?: (index: number) => void;
+}
+
 declare module "@vue/runtime-core" {
   interface GlobalComponents {
-    box: DefineComponent<BoxProps>;
+    box: DefineComponent<BoxProps & ScrollProps>;
     text: DefineComponent<TextProps>;
     span: DefineComponent<SpanProps>;
     b: DefineComponent<SpanProps>;
@@ -185,5 +228,8 @@ declare module "@vue/runtime-core" {
     input: DefineComponent<InputProps>;
     textarea: DefineComponent<TextareaProps>;
     canvas: DefineComponent<CanvasProps>;
+    "scroll-box": DefineComponent<ScrollBoxProps>;
+    "scroll-bar": DefineComponent<ScrollBarProps>;
+    "select-list": DefineComponent<SelectListProps>;
   }
 }

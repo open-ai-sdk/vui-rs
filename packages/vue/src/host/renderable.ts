@@ -200,6 +200,9 @@ export class Renderable {
   props: Record<string, unknown> = {};
   /** Computed box from layout; null until the first layout pass. */
   rect: LayoutRect | null = null;
+  /** Paint-time scroll offset applied to this node's children. */
+  scrollX = 0;
+  scrollY = 0;
   /** Absolute rounded border box from the last paint walk; null until painted. */
   screenRect: ScreenRect | null = null;
   /** Dirty since the last paint walk (drives dirty-subtree skipping in Phase 06). */

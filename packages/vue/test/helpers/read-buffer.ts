@@ -78,6 +78,22 @@ export function cellAttrs(r: Renderer, x: number, y: number): number {
   );
 }
 
+export function cellGlyph(r: Renderer, x: number, y: number): string {
+  const buf = r.backBufferView();
+  const base = (y * r.width + x) * CELL_BYTES;
+  const ch = new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint32(
+    base,
+    true,
+  );
+  return ch === 0 ? "" : String.fromCodePoint(ch);
+}
+
+export function rowGlyphs(r: Renderer, y: number): string {
+  let out = "";
+  for (let x = 0; x < r.width; x += 1) out += cellGlyph(r, x, y) || " ";
+  return out;
+}
+
 /** Concatenate every non-blank glyph in row-major order — a coarse "what's on screen". */
 export function allGlyphs(r: Renderer): string {
   const buf = r.backBufferView();

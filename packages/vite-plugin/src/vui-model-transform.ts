@@ -14,13 +14,15 @@ import {
   transformModel as baseTransformModel,
 } from "@vue/compiler-core";
 
-/** Tags `v-model` is valid on — the editable widget(s). */
-const MODELABLE_TAGS = new Set(["input", "textarea"]);
+/** Editable tags use vui's `value`/`update:value` contract. */
+const VALUE_MODEL_TAGS = new Set(["input", "textarea"]);
+/** Component widgets keep Vue's standard `modelValue`/`update:modelValue`. */
+const MODEL_VALUE_TAGS = new Set(["scroll-box", "scroll-bar", "select-list"]);
 
 export const vuiModelTransform: DirectiveTransform = (dir, node, context) => {
-  if (!MODELABLE_TAGS.has(node.tag)) {
+  if (!VALUE_MODEL_TAGS.has(node.tag) && !MODEL_VALUE_TAGS.has(node.tag)) {
     const err = new SyntaxError(
-      `vui: v-model is only supported on <input> and <textarea>; got <${node.tag}>`,
+      `vui: v-model is only supported on <input>, <textarea>, <scroll-box>, <scroll-bar>, and <select-list>; got <${node.tag}>`,
     ) as SyntaxError & { code: number; loc: typeof dir.loc };
     err.code = -1;
     err.loc = dir.loc;
@@ -28,11 +30,11 @@ export const vuiModelTransform: DirectiveTransform = (dir, node, context) => {
     return { props: [] };
   }
 
-  // Base transform yields `[modelValue: <exp>, "onUpdate:modelValue": <assign>]`
-  // (+ `modelModifiers` for components, which `VuiInput` ignores). Rename the
-  // two model keys in place; everything else (the assignment, ref-unwrapping,
-  // handler caching) is exactly what we want.
   const result = baseTransformModel(dir, node, context);
+  if (!VALUE_MODEL_TAGS.has(node.tag)) return result;
+  // Base transform yields `[modelValue: <exp>, "onUpdate:modelValue": <assign>]`.
+  // Rename edit widgets to vui's input/textarea contract; component widgets keep
+  // the standard Vue model keys.
   for (const prop of result.props) {
     if (prop.key.type !== NodeTypes.SIMPLE_EXPRESSION) continue;
     if (prop.key.content === "modelValue") prop.key.content = "value";

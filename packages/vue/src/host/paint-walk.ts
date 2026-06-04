@@ -64,9 +64,12 @@ function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY:
 
   node.renderSelf(buf, { x0, y0, x1, y1, clip: nodeClip, cx0, cy0, cx1, cy1, contentClip });
 
-  // Children paint over this node, clipped to its content box; origin stays the
-  // node's UNROUNDED absolute (taffy child positions are relative to it).
+  // Children paint over this node, clipped to its content box. Scroll offsets
+  // are paint-time only: layout stays full-size, while descendants shift inside
+  // the already-intersected content clip.
+  const childParentX = absX - node.scrollX;
+  const childParentY = absY - node.scrollY;
   for (const child of node.children) {
-    paintNode(buf, child, absX, absY, contentClip);
+    paintNode(buf, child, childParentX, childParentY, contentClip);
   }
 }

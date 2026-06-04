@@ -36,6 +36,14 @@ export { EditRenderable, type EditState } from "./host/edit-renderable.ts";
 export { VuiHostInput, VuiHostInput as VuiInput } from "./host/components/input.ts";
 export { TextareaRenderable, type TextareaState } from "./host/textarea-renderable.ts";
 export { VuiHostTextarea, VuiHostTextarea as VuiTextarea } from "./host/components/textarea.ts";
+export { VuiScrollBox } from "./host/components/scroll-box.ts";
+export { VuiScrollBar } from "./host/components/scroll-bar.ts";
+export {
+  VuiSelect,
+  VuiSelectList,
+  type SelectItem,
+  type SelectItemValue,
+} from "./host/components/select-list.ts";
 export {
   createHostFocusManager,
   createHostFocusManager as createFocusManager,
@@ -54,6 +62,9 @@ export type {
   CanvasProps,
   Color,
   InputProps,
+  ScrollBarProps,
+  ScrollBoxProps,
+  SelectListProps,
   SpanProps,
   TextareaProps,
   TextProps,

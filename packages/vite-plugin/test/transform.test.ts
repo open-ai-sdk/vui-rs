@@ -81,6 +81,27 @@ describe("vuiModelTransform — v-model contract", () => {
     expect(code).not.toContain("modelValue");
   });
 
+  test("v-model on <select-list> keeps modelValue + onUpdate:modelValue", () => {
+    const code = compile(`<select-list v-model="choice" :items="items" />`);
+    expect(code).toContain("modelValue:");
+    expect(code).toContain(`"onUpdate:modelValue"`);
+    expect(code).not.toContain(`"onUpdate:value"`);
+  });
+
+  test("v-model on <scroll-box> keeps modelValue + onUpdate:modelValue", () => {
+    const code = compile(`<scroll-box v-model="scrollY"></scroll-box>`);
+    expect(code).toContain("modelValue:");
+    expect(code).toContain(`"onUpdate:modelValue"`);
+    expect(code).not.toContain(`"onUpdate:value"`);
+  });
+
+  test("v-model argument on <scroll-bar> keeps the requested prop", () => {
+    const code = compile(`<scroll-bar v-model:scrollY="scrollY" :viewportHeight="3" :contentHeight="8" />`);
+    expect(code).toContain("scrollY:");
+    expect(code).toContain(`"onUpdate:scrollY"`);
+    expect(code).not.toContain("modelValue");
+  });
+
   test("v-model on a non-editable element is a compile error", () => {
     const res = compileTemplate({
       source: `<box v-model="x"></box>`,
