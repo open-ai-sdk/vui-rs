@@ -23,5 +23,9 @@ export const LAYOUT_KEYS = new Set([
 export const INSET_SIDES = new Set(["top", "right", "bottom", "left"]);
 
 export function isEvent(key: string): boolean {
-  return key.length > 2 && key[0] === "o" && key[1] === "n" && key[2]! >= "A" && key[2]! <= "Z";
+  if (key.length <= 2 || key[0] !== "o" || key[1] !== "n") return false;
+  // `onKeyDown` (standard) OR `on:keyDown` — the Vue template compiler emits the
+  // colon form for a camelCase event arg on a custom element (`@keyDown`), so we
+  // must accept both or such handlers silently drop.
+  return key[2] === ":" || (key[2]! >= "A" && key[2]! <= "Z");
 }

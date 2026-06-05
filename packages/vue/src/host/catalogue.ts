@@ -7,6 +7,7 @@ import { Attr } from "@vui-rs/core";
 import { BoxRenderable } from "./box-renderable.ts";
 import { CanvasRenderable } from "./canvas-renderable.ts";
 import { EditRenderable } from "./edit-renderable.ts";
+import { OverlayRenderable } from "./overlay.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
 import { TextareaRenderable } from "./textarea-renderable.ts";
 import { SpanRenderable, TextRenderable } from "./text-renderable.ts";
@@ -29,6 +30,8 @@ const DEFAULT_CATALOGUE: Record<string, CatalogueEntry> = {
   "textarea-host": { kind: "textarea", spanAttrs: 0 },
   // First-class custom drawing: a leaf box whose `@draw` paints freely, clipped.
   canvas: { kind: "box", spanAttrs: 0, make: (ctx, tag) => new CanvasRenderable(ctx, tag) },
+  // Top-layer box (modal/dialog/toast): hoisted over the tree by the overlay pass.
+  overlay: { kind: "box", spanAttrs: 0, make: (ctx, tag) => new OverlayRenderable(ctx, tag) },
   span: { kind: "span", spanAttrs: 0 },
   b: { kind: "span", spanAttrs: Attr.BOLD },
   strong: { kind: "span", spanAttrs: Attr.BOLD },

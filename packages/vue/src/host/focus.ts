@@ -5,7 +5,7 @@
 // bubbles to ancestors, stopping on `preventDefault()`.
 import type { InputEvent, MouseEvent } from "@vui-rs/core";
 import { type EditRenderable } from "./edit-renderable.ts";
-import { hitTest } from "./hit-test.ts";
+import { hitTestTopmost } from "./hit-test.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
 import { type TextareaRenderable } from "./textarea-renderable.ts";
 
@@ -99,7 +99,7 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
   }
 
   function dispatchMouse(ev: MouseEvent): void {
-    const underCursor = hitTest(ctx.root, ev.x, ev.y);
+    const underCursor = hitTestTopmost(ctx, ev.x, ev.y);
     const target = underCursor ?? current;
     if (!target) return;
     if (ev.kind === "down") {

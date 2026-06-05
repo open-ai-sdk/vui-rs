@@ -3,9 +3,10 @@
 // buffer via the zero-copy view (the same native memory the writes mutate, so a
 // read after a write is consistent — matching paint.rs's sequential bg_under).
 import { CELL_BYTES, type OffscreenBuffer, type Renderer } from "@vui-rs/core";
-import { type Clip, type PaintBuffer } from "./renderable.ts";
+import { type CellUnder, type Clip, type PaintBuffer } from "./renderable.ts";
 
 const DEFAULT_BG = 0x000000ff;
+const DEFAULT_FG = 0xe5e5e5ff;
 
 export class NativePaintBuffer implements PaintBuffer {
   #r: Renderer;
@@ -96,6 +97,25 @@ export class NativePaintBuffer implements PaintBuffer {
   bgUnder(x: number, y: number): number {
     if (x < 0 || y < 0 || x >= this.#w || y >= this.#h) return DEFAULT_BG;
     const base = (y * this.#w + x) * CELL_BYTES + 8; // bg is the 3rd field (offset 8)
+    return this.#packed(base);
+  }
+
+  /** The full cell at `(x,y)`; an off-buffer read returns a blank default cell. */
+  cellUnder(x: number, y: number): CellUnder {
+    if (x < 0 || y < 0 || x >= this.#w || y >= this.#h) {
+      return { ch: 0x20, fg: DEFAULT_FG, bg: DEFAULT_BG, attrs: 0 };
+    }
+    const base = (y * this.#w + x) * CELL_BYTES;
+    return {
+      ch: this.#dv.getUint32(base, true), // ch:u32 @0 (little-endian, like reads)
+      fg: this.#packed(base + 4), // fg:Rgba @4
+      bg: this.#packed(base + 8), // bg:Rgba @8
+      attrs: this.#dv.getUint16(base + 12, true), // attrs:u16 @12
+    };
+  }
+
+  /** Read a 4-byte `Rgba` field at `base` as a packed `0xRRGGBBAA` number. */
+  #packed(base: number): number {
     return (
       ((this.#dv.getUint8(base) << 24) |
         (this.#dv.getUint8(base + 1) << 16) |

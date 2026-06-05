@@ -24,6 +24,7 @@ function context(): HostContext {
   const ctx = {
     renderer: null,
     root: null,
+    overlays: [],
     theme: {} as HostContext["theme"],
     dirtyLayout: new Set<Renderable>(),
     dirtyText: new Set<Renderable>(),

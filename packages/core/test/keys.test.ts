@@ -86,6 +86,27 @@ describe("key parser", () => {
     expect(evs[0]).toMatchObject({ name: "right" });
   });
 
+  test("flush() emits a buffered lone ESC as Escape (escape-timeout path)", () => {
+    const d = createKeyDecoder();
+    // A lone ESC is held (could begin a CSI/SS3) → no event yet, pending non-empty.
+    expect(d.feed("\x1b")).toEqual([]);
+    expect(d.pending()).toBe("\x1b");
+    // The session's escape timer flushes it as a real Escape on idle.
+    const evs = d.flush() as KeyEvent[];
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({ name: "escape" });
+    expect(d.pending()).toBe("");
+    expect(d.flush()).toEqual([]); // nothing left to flush
+  });
+
+  test("flush() does not break a mid-flight bracketed paste", () => {
+    const d = createKeyDecoder();
+    expect(d.feed("\x1b[200~par")).toEqual([]);
+    // A spurious flush mid-paste must NOT truncate it — the paste keeps buffering.
+    expect(d.flush()).toEqual([]);
+    expect(d.feed("tial\x1b[201~")).toEqual([{ type: "paste", text: "partial" }]);
+  });
+
   test("decoder buffers a bracketed paste split across chunks", () => {
     const d = createKeyDecoder();
     expect(d.feed("\x1b[200~hel")).toEqual([]);

@@ -157,6 +157,15 @@ const MAX_PENDING = 64;
 export interface KeyDecoder {
   /** Feed a chunk; returns the events decodable so far. Buffers a partial tail. */
   feed(data: string | Uint8Array): InputEvent[];
+  /**
+   * Force-parse the buffered partial tail (best-effort: a lone ESC becomes a bare
+   * Escape) and clear it. Call on an idle/escape timeout so a standalone Escape
+   * keypress — indistinguishable from the start of a CSI/SS3 sequence until more
+   * bytes arrive — isn't held until the next key. No-op when nothing is pending.
+   */
+  flush(): InputEvent[];
+  /** The currently-buffered partial tail (empty when fully drained). */
+  pending(): string;
 }
 
 /**
@@ -184,6 +193,17 @@ export function createKeyDecoder(): KeyDecoder {
         pending = "";
       }
       return events;
+    },
+    flush() {
+      // Don't force-flush an in-progress bracketed paste — it legitimately spans
+      // reads and must wait for its end marker (or the MAX_PENDING backstop).
+      if (pending === "" || pending.startsWith(PASTE_START)) return [];
+      const events = parseKeys(pending);
+      pending = "";
+      return events;
+    },
+    pending() {
+      return pending;
     },
   };
 }

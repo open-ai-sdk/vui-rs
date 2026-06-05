@@ -31,6 +31,10 @@ export {
   type CanvasStyle,
 } from "./host/canvas-renderable.ts";
 
+// Overlay/portal layer (modals, dialogs, toasts) — the `<overlay>` element.
+export { OverlayRenderable } from "./host/overlay.ts";
+export { type Backdrop } from "./host/renderable.ts";
+
 // Editable input + keyboard/focus.
 export { EditRenderable, type EditState } from "./host/edit-renderable.ts";
 export { VuiHostInput, VuiHostInput as VuiInput } from "./host/components/input.ts";
@@ -62,6 +66,7 @@ export type {
   CanvasProps,
   Color,
   InputProps,
+  OverlayProps,
   ScrollBarProps,
   ScrollBoxProps,
   SelectListProps,

@@ -69,6 +69,17 @@ export function cellFg(r: Renderer, x: number, y: number): Channels {
   };
 }
 
+export function cellBg(r: Renderer, x: number, y: number): Channels {
+  const buf = r.backBufferView();
+  const base = (y * r.width + x) * CELL_BYTES + 8;
+  return {
+    r: buf[base]!,
+    g: buf[base + 1]!,
+    b: buf[base + 2]!,
+    a: buf[base + 3]!,
+  };
+}
+
 export function cellAttrs(r: Renderer, x: number, y: number): number {
   const buf = r.backBufferView();
   const base = (y * r.width + x) * CELL_BYTES + 12;

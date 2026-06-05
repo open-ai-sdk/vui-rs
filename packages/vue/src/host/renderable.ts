@@ -24,6 +24,17 @@ export interface RunStyle {
   attrs: number;
 }
 
+/**
+ * Opaque dim backdrop an overlay can paint under itself: each covered cell is
+ * read back and rewritten with its glyph kept but its fg/bg scaled toward black
+ * by `darken` (0..1). No real alpha — the terminal has none — just a darker
+ * opaque rewrite, enough to push the layer behind a modal into the background.
+ */
+export interface Backdrop {
+  /** Brightness multiplier for the covered cells (0 = black, 1 = unchanged). */
+  darken: number;
+}
+
 /** Visual (non-layout) props a Renderable paints with. The JS twin of Rust PaintProps. */
 export interface PaintProps {
   bg?: number;
@@ -40,6 +51,10 @@ export interface PaintProps {
   visible: boolean;
   opacity: number;
   wrap: TextWrapMode;
+  /** Paint order among siblings (and among overlays); higher draws later/on top. */
+  zIndex: number;
+  /** Opaque dim backdrop painted under an overlay's content; undefined = none. */
+  backdrop?: Backdrop;
 }
 
 /** Edge insets (padding/border) a laid-out node reports, in cells. */
@@ -134,6 +149,20 @@ export interface PaintBuffer {
     clip: Clip,
   ): void;
   bgUnder(x: number, y: number): number;
+  /**
+   * The whole cell currently at `(x,y)` — glyph + colors + attrs — read back from
+   * the live buffer. Lets the overlay backdrop darken a cell in place while
+   * keeping its glyph (the JS-only twin of `bgUnder`, widened to all fields).
+   */
+  cellUnder(x: number, y: number): CellUnder;
+}
+
+/** A cell read back from the buffer: packed colors as `0xRRGGBBAA`. */
+export interface CellUnder {
+  ch: number;
+  fg: number;
+  bg: number;
+  attrs: number;
 }
 
 /**
@@ -166,6 +195,7 @@ export function newPaint(): PaintProps {
     visible: true,
     opacity: 1,
     wrap: "word",
+    zIndex: 0,
   };
 }
 
@@ -205,6 +235,12 @@ export class Renderable {
   scrollY = 0;
   /** Absolute rounded border box from the last paint walk; null until painted. */
   screenRect: ScreenRect | null = null;
+  /**
+   * Overlay/portal root: laid out absolute on the terminal (its layout node is
+   * hoisted under the renderer root), skipped by the main paint walk, and drawn
+   * by the separate overlay pass on top of the tree. Set by `OverlayRenderable`.
+   */
+  isOverlay = false;
   /** Dirty since the last paint walk (drives dirty-subtree skipping in Phase 06). */
   dirty = true;
 
@@ -241,6 +277,11 @@ export class Renderable {
 export interface HostContext {
   renderer: import("@vui-rs/core").Renderer | null;
   root: Renderable | null;
+  /**
+   * Overlay/portal roots, painted after the main tree (low zIndex first) on top
+   * of everything. Registered by node-ops when an `<overlay>` mounts.
+   */
+  overlays: Renderable[];
   theme: Theme;
   /** Renderables whose layout style changed since the last layout pass. */
   dirtyLayout: Set<Renderable>;

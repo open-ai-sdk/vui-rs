@@ -81,6 +81,58 @@
         "vite": "catalog:",
       },
     },
+    "examples/mouse": {
+      "name": "@vui-rs/example-mouse",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/overlay": {
+      "name": "@vui-rs/example-overlay",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/select": {
+      "name": "@vui-rs/example-select",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/textarea": {
+      "name": "@vui-rs/example-textarea",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@vui-rs/core",
       "version": "0.1.0",
@@ -229,6 +281,14 @@
     "@vui-rs/example-form": ["@vui-rs/example-form@workspace:examples/form"],
 
     "@vui-rs/example-layout": ["@vui-rs/example-layout@workspace:examples/layout"],
+
+    "@vui-rs/example-mouse": ["@vui-rs/example-mouse@workspace:examples/mouse"],
+
+    "@vui-rs/example-overlay": ["@vui-rs/example-overlay@workspace:examples/overlay"],
+
+    "@vui-rs/example-select": ["@vui-rs/example-select@workspace:examples/select"],
+
+    "@vui-rs/example-textarea": ["@vui-rs/example-textarea@workspace:examples/textarea"],
 
     "@vui-rs/vite-plugin": ["@vui-rs/vite-plugin@workspace:packages/vite-plugin"],
 

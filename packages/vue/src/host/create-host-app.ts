@@ -49,6 +49,7 @@ function newHostContext(): HostContext {
   const ctx: HostContext = {
     renderer: null,
     root: null,
+    overlays: [],
     theme: darkTheme,
     dirtyLayout: new Set(),
     dirtyText: new Set(),
@@ -90,6 +91,12 @@ export function createHostApp(
   let ownsRenderer = false;
   let teardownSession: (() => void) | null = null;
   let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  let escTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // A lone ESC keypress can't be told apart from the start of a CSI/SS3 sequence
+  // (arrow keys, …) until the next byte arrives, so the decoder buffers it. If no
+  // follow-up byte comes within this window it's a real Escape — flush it.
+  const ESC_FLUSH_MS = 30;
 
   const app: VuiHostApp = {
     get renderer() {
@@ -139,38 +146,57 @@ export function createHostApp(
     },
   };
 
+  /** Route one decoded input event: Ctrl-C exit, Tab focus, else dispatch. */
+  function handleInputEvent(ev: import("@vui-rs/core").InputEvent): void {
+    if (ev.type === "key" && matchesKey(ev, "ctrl+c")) {
+      const current = ctx.focusManager?.current();
+      if (
+        current?.kind === "textarea" &&
+        (current as TextareaRenderable).hasSelection()
+      ) {
+        ctx.focusManager?.dispatch(ev);
+        return;
+      }
+      app.unmount();
+      process.exit(0);
+    }
+    if (ev.type === "key" && ev.name === "tab") {
+      const current = ctx.focusManager?.current();
+      if (
+        current?.kind === "textarea" &&
+        (current as TextareaRenderable).textarea.tabBehavior === "indent"
+      ) {
+        ctx.focusManager?.dispatch(ev);
+        return;
+      }
+      if (ev.shift) ctx.focusManager?.focusPrev();
+      else ctx.focusManager?.focusNext();
+      return;
+    }
+    ctx.focusManager?.dispatch(ev);
+  }
+
   /** Wire the terminal session: keyboard pump (Tab focus + Ctrl-C) and resize. */
   function startSession(renderer: Renderer): void {
     const session = createTerminalSession();
     const decoder = createKeyDecoder();
+    const clearEscTimer = (): void => {
+      if (escTimer) {
+        clearTimeout(escTimer);
+        escTimer = null;
+      }
+    };
     session.onData((data) => {
-      for (const ev of decoder.feed(data)) {
-        if (ev.type === "key" && matchesKey(ev, "ctrl+c")) {
-          const current = ctx.focusManager?.current();
-          if (
-            current?.kind === "textarea" &&
-            (current as TextareaRenderable).hasSelection()
-          ) {
-            ctx.focusManager?.dispatch(ev);
-            continue;
-          }
-          app.unmount();
-          process.exit(0);
-        }
-        if (ev.type === "key" && ev.name === "tab") {
-          const current = ctx.focusManager?.current();
-          if (
-            current?.kind === "textarea" &&
-            (current as TextareaRenderable).textarea.tabBehavior === "indent"
-          ) {
-            ctx.focusManager?.dispatch(ev);
-            continue;
-          }
-          if (ev.shift) ctx.focusManager?.focusPrev();
-          else ctx.focusManager?.focusNext();
-          continue;
-        }
-        ctx.focusManager?.dispatch(ev);
+      clearEscTimer();
+      for (const ev of decoder.feed(data)) handleInputEvent(ev);
+      // A buffered partial tail (notably a lone ESC) is flushed as a real key if
+      // no follow-up byte arrives — so Escape fires on the first press, not the
+      // next keystroke.
+      if (decoder.pending() !== "") {
+        escTimer = setTimeout(() => {
+          escTimer = null;
+          for (const ev of decoder.flush()) handleInputEvent(ev);
+        }, ESC_FLUSH_MS);
       }
     });
     session.onResize((cols, rows) => {
@@ -182,6 +208,7 @@ export function createHostApp(
     session.start();
     keepAliveTimer = setInterval(() => {}, 1 << 30);
     teardownSession = () => {
+      clearEscTimer();
       if (keepAliveTimer) {
         clearInterval(keepAliveTimer);
         keepAliveTimer = null;

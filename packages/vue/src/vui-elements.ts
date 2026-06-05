@@ -81,6 +81,8 @@ interface PaintProps {
   visible?: boolean;
   opacity?: number;
   wrap?: "word" | "char" | "nowrap";
+  /** Paint order among siblings; higher draws on top (default 0). */
+  zIndex?: number;
 }
 
 /** Focus + keyboard event props (dispatched by the focus manager). */
@@ -198,6 +200,17 @@ export interface ScrollBarProps extends LayoutProps, PaintProps, FocusProps {
   onScroll?: (value: number) => void;
 }
 
+/**
+ * `<overlay>` — a top-layer box (modal/dialog/toast). Laid out absolute over the
+ * whole terminal by default and drawn on top of the tree, ignoring ancestor
+ * clips. `backdrop` dims everything behind it (opaque).
+ */
+export interface OverlayProps extends LayoutProps, PaintProps, FocusProps {
+  /** Opaque dim layer behind the overlay: `true` (default dim), a `0..1`
+   * brightness multiplier, or `{ darken }`. Omit for no backdrop. */
+  backdrop?: boolean | number | { darken?: number };
+}
+
 export type SelectItemValue = string | number;
 export type SelectItem =
   | SelectItemValue
@@ -228,6 +241,7 @@ declare module "@vue/runtime-core" {
     input: DefineComponent<InputProps>;
     textarea: DefineComponent<TextareaProps>;
     canvas: DefineComponent<CanvasProps>;
+    overlay: DefineComponent<OverlayProps & ScrollProps>;
     "scroll-box": DefineComponent<ScrollBoxProps>;
     "scroll-bar": DefineComponent<ScrollBarProps>;
     "select-list": DefineComponent<SelectListProps>;

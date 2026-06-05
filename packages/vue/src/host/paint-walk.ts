@@ -6,6 +6,7 @@
 // box. The back buffer is cleared first and flushed (diff/emit) after — the JS
 // host owns the buffer; the native tree compose is bypassed (`renderer.flush`).
 import { NativePaintBuffer } from "./paint-buffer.ts";
+import { drawBackdrop, overlaysInPaintOrder } from "./overlay.ts";
 import { type Clip, type HostContext, type PaintBuffer, type Renderable } from "./renderable.ts";
 
 // Round half AWAY FROM ZERO, to match Rust `f32::round` exactly. `Math.round`
@@ -34,7 +35,51 @@ export function runPaint(ctx: HostContext): void {
   const buf = new NativePaintBuffer(renderer);
   const screen: Clip = { x0: 0, y0: 0, x1: renderer.width, y1: renderer.height };
   paintNode(buf, ctx.root, 0, 0, screen);
+  paintOverlays(buf, ctx, screen);
   renderer.flush();
+}
+
+/**
+ * The overlay pass: after the main tree, draw each registered overlay on top
+ * (low zIndex first). Each paints at the screen origin with the full-screen clip
+ * — overlays are hoisted under the renderer root, so they ignore ancestor clips.
+ * A `backdrop` dims the whole screen first (opaque), so the modal sits over a
+ * darkened layer.
+ */
+function paintOverlays(buf: PaintBuffer, ctx: HostContext, screen: Clip): void {
+  if (ctx.overlays.length === 0) return;
+  for (const overlay of overlaysInPaintOrder(ctx)) {
+    if (!overlay.paint.visible) continue;
+    // Each backdrop dims everything already drawn — including a lower overlay —
+    // so stacked modals compound their dimming. That matches "this modal is in
+    // front, everything behind it recedes".
+    if (overlay.paint.backdrop) {
+      drawBackdrop(buf, screen, screen.x0, screen.y0, screen.x1, screen.y1, overlay.paint.backdrop);
+    }
+    paintNode(buf, overlay, 0, 0, screen);
+  }
+}
+
+/**
+ * Children in paint order: stable-sorted by `zIndex` when any sibling sets a
+ * non-default z, else the array as-is. Default (all z=0) returns the original
+ * order untouched, so a tree with no z-index paints exactly as before (parity).
+ */
+function paintOrder(children: Renderable[]): Renderable[] {
+  let needsSort = false;
+  for (const c of children) {
+    if (c.paint.zIndex !== 0) {
+      needsSort = true;
+      break;
+    }
+  }
+  if (!needsSort) return children;
+  // Decorate-sort to keep ties in document order (a plain comparator sort isn't
+  // guaranteed stable across every engine for large arrays).
+  return children
+    .map((node, i) => ({ node, i }))
+    .sort((a, b) => a.node.paint.zIndex - b.node.paint.zIndex || a.i - b.i)
+    .map((e) => e.node);
 }
 
 function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY: number, clip: Clip): void {
@@ -69,7 +114,10 @@ function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY:
   // the already-intersected content clip.
   const childParentX = absX - node.scrollX;
   const childParentY = absY - node.scrollY;
-  for (const child of node.children) {
+  for (const child of paintOrder(node.children)) {
+    // Overlays are hoisted out of normal flow — drawn by the overlay pass, not
+    // here (so an ancestor's content clip never crops a modal).
+    if (child.isOverlay) continue;
     paintNode(buf, child, childParentX, childParentY, contentClip);
   }
 }

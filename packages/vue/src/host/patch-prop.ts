@@ -11,7 +11,7 @@ import {
   isEvent,
 } from "../prop-buckets.ts";
 import { type EditRenderable } from "./edit-renderable.ts";
-import { type Renderable, type RunStyle } from "./renderable.ts";
+import { type Backdrop, type Renderable, type RunStyle } from "./renderable.ts";
 import { type TextareaRenderable } from "./textarea-renderable.ts";
 import { enclosingText } from "./tree.ts";
 
@@ -156,6 +156,14 @@ function applyPaint(el: Renderable, key: string, next: unknown): boolean {
     case "opacity":
       p.opacity = typeof next === "number" ? next : 1;
       return true;
+    case "zIndex":
+    case "z-index":
+      p.zIndex =
+        typeof next === "number" && Number.isFinite(next) ? Math.trunc(next) : 0;
+      return true;
+    case "backdrop":
+      p.backdrop = parseBackdrop(next);
+      return true;
     case "wrap":
       p.wrap =
         next === "nowrap" || next === false
@@ -185,6 +193,23 @@ function applyBorder(el: Renderable, next: unknown): void {
   // A visible border reserves one layout cell per side so the frame fits.
   (el.style as Record<string, unknown>).border = style === "none" ? 0 : 1;
   el.ctx.dirtyLayout.add(el);
+}
+
+const DEFAULT_DARKEN = 0.4;
+
+/**
+ * Parse the `backdrop` prop into a `Backdrop` (or undefined for off). Accepts
+ * `true` (default dim), a number `0..1` (brightness multiplier), or an object
+ * `{ darken }`. Anything falsy → no backdrop.
+ */
+function parseBackdrop(next: unknown): Backdrop | undefined {
+  if (next === true) return { darken: DEFAULT_DARKEN };
+  if (typeof next === "number" && Number.isFinite(next)) return { darken: next };
+  if (next && typeof next === "object") {
+    const darken = (next as { darken?: unknown }).darken;
+    return { darken: typeof darken === "number" ? darken : DEFAULT_DARKEN };
+  }
+  return undefined;
 }
 
 function combineAttrs(p: PaintProps): number {
@@ -262,7 +287,15 @@ function applyTextarea(
 function applyLayout(el: Renderable, key: string, next: unknown): void {
   const style = el.style as Record<string, unknown>;
   if (INSET_SIDES.has(key)) {
-    const inset = (style.inset as Record<string, unknown> | undefined) ?? {};
+    const cur = style.inset;
+    // `inset` may already be a scalar shorthand (e.g. an overlay's default 0, or
+    // `:inset="2"`). A per-side override must expand it to an object first —
+    // indexing a primitive throws in strict mode. Expanding preserves the scalar
+    // on the other three sides.
+    const inset: Record<string, unknown> =
+      cur != null && typeof cur === "object"
+        ? (cur as Record<string, unknown>)
+        : { left: cur, right: cur, top: cur, bottom: cur };
     inset[key] = next;
     style.inset = inset;
   } else if (key === "borderWidth") {
@@ -309,7 +342,9 @@ function spreadStyle(
 }
 
 function setEvent(el: Renderable, key: string, next: unknown): void {
-  const name = key.slice(2).toLowerCase();
+  // Strip the `on` prefix and a possible `:` (the `on:keyDown` form), then
+  // lowercase so `onKeyDown`, `on:keyDown`, and `onKeydown` all map to "keydown".
+  const name = key.slice(2).replace(/^:/, "").toLowerCase();
   if (typeof next === "function")
     el.events.set(name, next as (...a: unknown[]) => void);
   else el.events.delete(name);

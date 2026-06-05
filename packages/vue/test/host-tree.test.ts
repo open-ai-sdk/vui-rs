@@ -85,6 +85,19 @@ describe("JS host node-ops", () => {
     cleanup();
   });
 
+  test("on: event form (camelCase arg on a custom element) registers a handler", () => {
+    // The Vue template compiler emits `@keyDown` on a custom element as the prop
+    // key `on:keyDown`; it must route to the same "keydown" handler as `onKeyDown`.
+    const handler = () => {};
+    const { root, cleanup } = mount(() =>
+      h("box", { "on:keyDown": handler, "on:mouseDown": handler }),
+    );
+    const box = root.children[0]!;
+    expect(box.events.get("keydown")).toBe(handler);
+    expect(box.events.get("mousedown")).toBe(handler);
+    cleanup();
+  });
+
   test("v-if toggles a child in and out (anchor parity)", async () => {
     const show = ref(true);
     const { root, cleanup } = mount(() =>

@@ -5,6 +5,7 @@
 // tracking-only anchors (the v-for/v-if anchors Vue brackets fragments with).
 import type { RendererOptions } from "@vue/runtime-core";
 import { createRenderable } from "./catalogue.ts";
+import { registerOverlay, unregisterOverlay } from "./overlay.ts";
 import { CommentRenderable, RawTextRenderable } from "./text-renderable.ts";
 import { type HostContext, type Renderable } from "./renderable.ts";
 import { patchProp } from "./patch-prop.ts";
@@ -18,7 +19,18 @@ export function createNodeOps(ctx: HostContext): RendererOptions<Renderable, Ren
     else parent.children.splice(at, 0, child);
     child.parent = parent;
 
-    if (isLayoutNode(child)) {
+    if (child.isOverlay) {
+      // Hoist the overlay's layout node under the renderer root so taffy sizes it
+      // to the terminal (absolute, inset 0) regardless of where it was declared;
+      // the overlay pass paints it on top, ignoring ancestor clips. It stays in
+      // `parent.children` for the Vue tree / focus / cleanup traversal but is
+      // skipped by the main paint walk.
+      if (child.layoutNode && ctx.root?.layoutNode) {
+        ctx.root.layoutNode.appendChild(child.layoutNode);
+      }
+      registerOverlay(ctx, child);
+      ctx.dirtyLayout.add(child);
+    } else if (isLayoutNode(child)) {
       if (parent.kind !== "box") {
         throw new Error(
           `vui: <${child.tag}> cannot nest in <${parent.tag}> — boxes hold boxes/text, text holds strings`,
@@ -56,7 +68,14 @@ export function createNodeOps(ctx: HostContext): RendererOptions<Renderable, Ren
     const parent = el.parent;
     if (el.focusable) ctx.focusManager?.release(el);
     detachFromParent(el);
-    if (isLayoutNode(el)) {
+    if (el.isOverlay) {
+      // Its layout node was hoisted under the root; forgetLayoutSubtree frees it
+      // (top free() detaches from the root) along with its content subtree. No
+      // dirtyLayout needed: an absolute, hoisted overlay contributes nothing to
+      // any sibling's layout, so its removal can't reflow the remaining tree.
+      unregisterOverlay(ctx, el);
+      forgetLayoutSubtree(el);
+    } else if (isLayoutNode(el)) {
       // Detach + free the layout subtree. Vue unmounts descendants with
       // doRemove=false, so only this top node gets remove(); native `free()`
       // reclaims the whole subtree to match. We must then null every descendant's
@@ -120,6 +139,19 @@ export function createNodeOps(ctx: HostContext): RendererOptions<Renderable, Ren
     }
     while (stack.length > 0) {
       const n = stack.pop()!;
+      if (n.isOverlay) {
+        unregisterOverlay(ctx, n);
+        // A nested overlay's layout node was hoisted under the root, so the top
+        // free() above didn't reclaim it — free it explicitly (its own content
+        // subtree cascades). When n === top it was already freed above.
+        if (n !== top && n.layoutNode) {
+          try {
+            n.layoutNode.free();
+          } catch {
+            // Already reclaimed — a no-op, not a crash.
+          }
+        }
+      }
       n.layoutNode = null;
       n.dispose(); // release native resources (e.g. a canvas's offscreen buffer)
       ctx.dirtyLayout.delete(n);
