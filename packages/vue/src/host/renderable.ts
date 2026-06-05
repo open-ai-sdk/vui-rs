@@ -1,11 +1,12 @@
-// The JS host tree the OpenTUI-style renderer walks and paints. Unlike the FFI
+// The JS host tree the renderer walks and paints. Unlike the FFI
 // path (where a `VuiHostNode` wraps an opaque Rust node), a `Renderable` is a
 // plain JS object that owns its style/paint/rect and knows how to draw itself via
 // `renderSelf(buffer, clip)` (filled in Phase 04). Phase 01 only builds the tree:
 // node-ops mutate parent/children and patch-prop routes props onto these fields;
 // layout (Phase 03) fills `rect`, paint (Phase 04) implements `renderSelf`.
 import type { TextWrapMode, VuiNode, VuiStyle } from "@vui-rs/core";
-import { markRaw } from "@vue/runtime-core";
+import { type InjectionKey, markRaw } from "@vue/runtime-core";
+import type { AnimationRegistry } from "./animation/timeline.ts";
 import type { Theme } from "../theme.ts";
 
 export type RenderableKind =
@@ -316,4 +317,17 @@ export interface HostContext {
   paint: ((ctx: HostContext) => void) | null;
   /** Keyboard focus model; wired at mount (null in offscreen-only tests). */
   focusManager: import("./focus.ts").HostFocusManager | null;
+  /**
+   * Active animations (Phase: animation/timeline). The scheduler drives a frame
+   * loop only while this is non-empty; each tween's `onUpdate` sets a reactive
+   * ref → the existing coalesced render. Empty ⇒ zero-render-on-idle holds.
+   */
+  animations: AnimationRegistry;
 }
+
+/**
+ * Injection key for the per-app `HostContext`, provided at mount. Composables
+ * like `useTimeline()` inject it to reach the animation registry/scheduler
+ * without threading a host-element ref through the component.
+ */
+export const HostContextSymbol: InjectionKey<HostContext> = Symbol("vui-host-context");

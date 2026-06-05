@@ -1,6 +1,6 @@
 // An offscreen cell buffer (the native `CellBuffer` behind `vui_cbuf_*`). It
 // owns a standalone grid that canvas / buffered nodes draw into, then composite
-// into the renderer's back buffer with `Renderer.blit`. Mirrors OpenTUI's
+// into the renderer's back buffer with `Renderer.blit`.
 // `OptimizedBuffer`: draw primitives + an optional zero-copy typed-array view.
 // Call `free()` exactly once when done — the instance must not be used after.
 import { type Pointer, toArrayBuffer } from "bun:ffi";

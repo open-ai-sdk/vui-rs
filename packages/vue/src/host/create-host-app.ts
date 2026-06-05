@@ -29,7 +29,7 @@ import { createHostScheduler } from "./scheduler.ts";
 import { createNodeOps } from "./node-ops.ts";
 import { runLayout } from "./layout.ts";
 import { runPaint } from "./paint-walk.ts";
-import { type HostContext, type Renderable } from "./renderable.ts";
+import { type HostContext, HostContextSymbol, type Renderable } from "./renderable.ts";
 import { type TextareaRenderable } from "./textarea-renderable.ts";
 import { type Theme, ThemeSymbol, darkTheme } from "../theme.ts";
 
@@ -66,11 +66,14 @@ function newHostContext(): HostContext {
     layout: runLayout,
     paint: runPaint,
     focusManager: null,
+    // Real registry assigned below (the scheduler owns it but needs `ctx` first).
+    animations: undefined as unknown as HostContext["animations"],
   };
   const scheduler = createHostScheduler(ctx);
   ctx.scheduleRender = scheduler.scheduleRender;
   ctx.flushNow = scheduler.flushNow;
   ctx.dispose = scheduler.dispose;
+  ctx.animations = scheduler.animations;
   ctx.focusManager = createHostFocusManager(ctx);
   return ctx;
 }
@@ -118,6 +121,8 @@ export function createHostApp(
       mounted = true;
       ctx.theme = options.theme ?? darkTheme;
       vueApp.provide(ThemeSymbol, ctx.theme);
+      // Expose the host context to composables (e.g. `useTimeline`) via inject.
+      vueApp.provide(HostContextSymbol, ctx);
       // A renderer is needed for layout (its taffy node tree is the L1 backing) —
       // create one (or reuse an injected one) before the tree is built so child
       // layout nodes can attach under the root's.

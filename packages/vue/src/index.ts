@@ -56,7 +56,32 @@ export {
   type DispatchableEvent,
   type DispatchableMouseEvent,
 } from "./host/focus.ts";
-export { VuiSpinner } from "./components/spinner.ts";
+export {
+  VuiSpinner,
+  SPINNER_PRESETS,
+  type SpinnerPreset,
+} from "./components/spinner.ts";
+
+// Animation/timeline engine: easing curves + number tweens driven by the
+// scheduler's frame loop, plus the `useTimeline()`/`useAnimation()` composables.
+export {
+  type EasingFn,
+  type EasingName,
+  easings,
+  resolveEasing,
+} from "./host/animation/easing.ts";
+export {
+  type AnimateOptions,
+  type Animation,
+  type AnimationRegistry,
+  createAnimation,
+  createAnimationRegistry,
+} from "./host/animation/timeline.ts";
+export {
+  type Timeline,
+  useAnimation,
+  useTimeline,
+} from "./host/animation/use-timeline.ts";
 
 // Rich text: markdown, syntax-highlighted code, unified diff — the `<markdown>`/
 // `<code>`/`<diff>` widgets (registered globally at app create).

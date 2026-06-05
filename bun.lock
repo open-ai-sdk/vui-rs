@@ -16,6 +16,19 @@
         "vue-tsc": "^2.2.0",
       },
     },
+    "examples/animation": {
+      "name": "@vui-rs/example-animation",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "examples/autosize": {
       "name": "@vui-rs/example-autosize",
       "version": "0.1.0",
@@ -312,6 +325,8 @@
     "@vue/shared": ["@vue/shared@3.5.35", "", {}, "sha512-zSbjL7gRXwks2ZQLRGCajBtBXEOXW9Ddhn/HvSdrGkE2dqGnumzW8XtusRrxrE9LvqtiqDXQ+A60Hp6mvdYxfA=="],
 
     "@vui-rs/core": ["@vui-rs/core@workspace:packages/core"],
+
+    "@vui-rs/example-animation": ["@vui-rs/example-animation@workspace:examples/animation"],
 
     "@vui-rs/example-autosize": ["@vui-rs/example-autosize@workspace:examples/autosize"],
 

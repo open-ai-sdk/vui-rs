@@ -4,7 +4,7 @@
 //   - direct  — `onDraw` writes straight into the back buffer each paint.
 //   - buffered — `onDraw` writes into an offscreen buffer, ONLY when dirty, and
 //                the canvas blits that cached framebuffer each frame (cheap for
-//                static/expensive content; the OpenTUI `FrameBufferRenderable`).
+//                static/expensive content; the `FrameBufferRenderable`).
 // A canvas lays out as a leaf box (kind "box": gets a rect, flexes, can have a
 // bg/border/title), so it composes with sibling widgets by construction.
 import { OffscreenBuffer } from "@vui-rs/core";

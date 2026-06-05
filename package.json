@@ -25,6 +25,7 @@
     "dev:textarea": "bun run --filter @vui-rs/example-textarea build && bun examples/textarea/dist/app.js",
     "dev:markdown": "bun run --filter @vui-rs/example-markdown build && bun examples/markdown/dist/app.js",
     "dev:diff": "bun run --filter @vui-rs/example-diff build && bun examples/diff/dist/app.js",
+    "dev:animation": "bun run --filter @vui-rs/example-animation build && bun examples/animation/dist/app.js",
     "dev": "bun run scripts/abi-probe.ts",
     "typecheck:sfc": "vue-tsc --noEmit",
     "bench": "bun run examples/paint-bench.ts >/dev/null",
