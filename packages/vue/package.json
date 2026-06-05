@@ -23,8 +23,10 @@
     }
   },
   "dependencies": {
-    "@vui-rs/core": "workspace:*",
     "@vue/reactivity": "catalog:",
-    "@vue/runtime-core": "catalog:"
+    "@vue/runtime-core": "catalog:",
+    "@vui-rs/core": "workspace:*",
+    "highlight.js": "^11.11.1",
+    "marked": "^18.0.5"
   }
 }

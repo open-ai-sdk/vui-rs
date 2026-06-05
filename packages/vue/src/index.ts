@@ -58,6 +58,29 @@ export {
 } from "./host/focus.ts";
 export { VuiSpinner } from "./components/spinner.ts";
 
+// Rich text: markdown, syntax-highlighted code, unified diff — the `<markdown>`/
+// `<code>`/`<diff>` widgets (registered globally at app create).
+export { VuiMarkdown } from "./host/components/markdown.ts";
+export { VuiCode } from "./host/components/code.ts";
+export { VuiDiff } from "./host/components/diff.ts";
+export {
+  type Highlighter,
+  type StyledLine,
+  type SyntaxPalette,
+  createDefaultHighlighter,
+  defaultHighlighter,
+} from "./host/highlighter.ts";
+export {
+  type MdBlock,
+  type MdSpan,
+  parseMarkdown,
+} from "./host/markdown-parser.ts";
+export {
+  type DiffLine,
+  type DiffLineKind,
+  parseUnifiedDiff,
+} from "./host/diff-parser.ts";
+
 // Re-export the element prop types AND pull `vui-elements` into the module graph
 // so its `GlobalComponents` augmentation (template type-support for <box>/<text>/
 // <input>/<canvas>) ships in the bundled dist .d.ts. Types-only: erased from JS.

@@ -16,7 +16,10 @@ import {
   matchesKey,
 } from "@vui-rs/core";
 import { BoxRenderable } from "./box-renderable.ts";
+import { VuiCode } from "./components/code.ts";
+import { VuiDiff } from "./components/diff.ts";
 import { VuiHostInput } from "./components/input.ts";
+import { VuiMarkdown } from "./components/markdown.ts";
 import { VuiScrollBar } from "./components/scroll-bar.ts";
 import { VuiScrollBox } from "./components/scroll-box.ts";
 import { VuiSelectList } from "./components/select-list.ts";
@@ -87,6 +90,10 @@ export function createHostApp(
   vueApp.component("scroll-box", VuiScrollBox);
   vueApp.component("scroll-bar", VuiScrollBar);
   vueApp.component("select-list", VuiSelectList);
+  // Rich-text widgets, usable as `<markdown>`/`<code>`/`<diff>` without import.
+  vueApp.component("markdown", VuiMarkdown);
+  vueApp.component("code", VuiCode);
+  vueApp.component("diff", VuiDiff);
 
   let mounted = false;
   let ownsRenderer = false;

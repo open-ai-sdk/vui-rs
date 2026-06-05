@@ -23,6 +23,7 @@ import type {
   DispatchableEvent,
   DispatchableMouseEvent,
 } from "./host/focus.ts";
+import type { Highlighter } from "./host/highlighter.ts";
 
 /** A color: a CSS/hex/name string or a packed `0xRRGGBBAA` number (see `rgba`). */
 export type Color = string | number;
@@ -237,6 +238,32 @@ export interface SelectListProps extends LayoutProps, PaintProps, FocusProps {
   onActive?: (index: number) => void;
 }
 
+/**
+ * `<markdown>` — renders a markdown string into box/text/span. Inline emphasis
+ * folds into styled runs; fenced code is delegated to `<code>`. `highlighter`
+ * swaps the syntax engine used for fences.
+ */
+export interface MarkdownProps extends LayoutProps, PaintProps {
+  content?: string;
+  highlighter?: Highlighter;
+}
+
+/** `<code>` — a syntax-highlighted code block (pluggable highlighter). */
+export interface CodeProps extends LayoutProps, PaintProps {
+  text?: string;
+  lang?: string;
+  highlighter?: Highlighter;
+  lineNumbers?: boolean;
+  wrap?: "word" | "char" | "nowrap";
+}
+
+/** `<diff>` — a unified-diff viewer (split mode deferred). */
+export interface DiffProps extends LayoutProps, PaintProps {
+  patch?: string;
+  mode?: "unified" | "split";
+  lineNumbers?: boolean;
+}
+
 declare module "@vue/runtime-core" {
   interface GlobalComponents {
     box: DefineComponent<BoxProps & ScrollProps>;
@@ -254,5 +281,8 @@ declare module "@vue/runtime-core" {
     "scroll-box": DefineComponent<ScrollBoxProps>;
     "scroll-bar": DefineComponent<ScrollBarProps>;
     "select-list": DefineComponent<SelectListProps>;
+    markdown: DefineComponent<MarkdownProps>;
+    code: DefineComponent<CodeProps>;
+    diff: DefineComponent<DiffProps>;
   }
 }
