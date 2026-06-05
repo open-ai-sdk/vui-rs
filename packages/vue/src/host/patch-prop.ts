@@ -156,6 +156,10 @@ function applyPaint(el: Renderable, key: string, next: unknown): boolean {
     case "opacity":
       p.opacity = typeof next === "number" ? next : 1;
       return true;
+    case "overflow":
+      p.overflow =
+        next === "hidden" ? "hidden" : next === "scroll" ? "scroll" : "visible";
+      return true;
     case "zIndex":
     case "z-index":
       p.zIndex =

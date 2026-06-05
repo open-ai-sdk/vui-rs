@@ -59,6 +59,7 @@ function newHostContext(): HostContext {
     flushNow: () => {},
     dispose: () => {},
     renderCount: 0,
+    afterLayout: new Set(),
     layout: runLayout,
     paint: runPaint,
     focusManager: null,

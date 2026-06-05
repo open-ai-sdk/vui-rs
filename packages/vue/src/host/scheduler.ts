@@ -60,6 +60,9 @@ export function createHostScheduler(ctx: HostContext): HostScheduler {
     if (disposed) return;
     lastRenderAt = Date.now();
     ctx.layout?.(ctx); // dirty-gated layout (Phase 03)
+    // Post-layout, pre-paint: viewports clamp/stick their scroll offset to the
+    // freshly-laid-out content size (stick-to-bottom with no one-frame lag).
+    for (const cb of ctx.afterLayout) cb();
     ctx.paint?.(ctx); // tree walk + native diff/emit (Phase 04)
     ctx.renderCount++;
   }

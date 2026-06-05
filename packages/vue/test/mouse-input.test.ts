@@ -34,6 +34,7 @@ function context(): HostContext {
     flushNow: () => {},
     dispose: () => {},
     renderCount: 0,
+    afterLayout: new Set<() => void>(),
     layout: null,
     paint: null,
     focusManager: null,
@@ -85,6 +86,35 @@ describe("mouse input dispatch", () => {
 
     ctx.focusManager!.dispatch(mouse({ kind: "move", button: null, x: 2, y: 2 }));
     expect(hits).toEqual(["child"]);
+  });
+
+  test("pointer capture routes move/up to the capturing node off its cells", () => {
+    const ctx = context();
+    const root = node(ctx, "root", { x0: 0, y0: 0, x1: 10, y1: 10 });
+    const a = append(root, node(ctx, "a", { x0: 0, y0: 0, x1: 1, y1: 10 })); // 1-wide track
+    const b = append(root, node(ctx, "b", { x0: 5, y0: 0, x1: 10, y1: 10 }));
+    ctx.root = root;
+    let aMoves = 0;
+    let bMoves = 0;
+    let aUp = 0;
+    a.events.set("mousemove", () => aMoves++);
+    a.events.set("mouseup", () => aUp++);
+    b.events.set("mousemove", () => bMoves++);
+
+    // No capture: a move over b's cells goes to b.
+    ctx.focusManager!.dispatch(mouse({ kind: "move", button: null, x: 7, y: 2 }));
+    expect([aMoves, bMoves]).toEqual([0, 1]);
+
+    // Capture to a: a drag over b's cells now routes to a, not b.
+    ctx.focusManager!.setPointerCapture(a);
+    ctx.focusManager!.dispatch(mouse({ kind: "drag", x: 7, y: 5 }));
+    expect([aMoves, bMoves]).toEqual([1, 1]);
+
+    // `up` delivers to a and releases the capture.
+    ctx.focusManager!.dispatch(mouse({ kind: "up", x: 7, y: 8 }));
+    expect(aUp).toBe(1);
+    ctx.focusManager!.dispatch(mouse({ kind: "move", button: null, x: 7, y: 2 }));
+    expect([aMoves, bMoves]).toEqual([1, 2]);
   });
 
   test("wheel dispatches to the node under the cursor", () => {

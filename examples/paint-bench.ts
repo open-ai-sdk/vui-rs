@@ -45,6 +45,24 @@ function gridApp(cols: number, rows: number, tick: { value: number }) {
   });
 }
 
+/**
+ * A scrollable viewport of `n` one-row text lines, taller than the screen. Used
+ * to prove paint-walk culling: only the ~H visible rows pay paint cost, so the
+ * frame time is ~constant in `n` (off-screen rows are skipped, not drawn).
+ */
+function scrollApp(n: number, scroll: { value: number }) {
+  return defineComponent({
+    setup() {
+      return () =>
+        h(
+          "box",
+          { width: W, height: H, overflow: "scroll", flexDirection: "column", scrollY: scroll.value },
+          Array.from({ length: n }, (_, i) => h("text", { fg: 0xcdd6f4ff }, `line ${i}`)),
+        );
+    },
+  });
+}
+
 /** Median ms over `iters` forced renders; `mutate` changes state to dirty the tree. */
 function timeRenders(flush: () => void, mutate: () => void, iters: number): number {
   const samples: number[] = [];
@@ -67,6 +85,34 @@ function benchHost(App: ReturnType<typeof defineComponent>, tick: { value: numbe
   return ms;
 }
 
+/**
+ * Time pure paint of a scrolled `n`-row viewport. The tree is built once; each
+ * iteration only nudges the scroll offset on the renderable (no Vue re-render, no
+ * relayout — both dirty-gated off), so the median is the paint walk alone.
+ * Culling should make this ~flat across `n`.
+ */
+function benchScroll(n: number, iters: number): number {
+  const scroll = { value: 0 };
+  const r = new Renderer(W, H);
+  const app = createHostApp(scrollApp(n, scroll)).mount({ renderer: r });
+  app.context.flushNow(); // one-time layout of all n rows
+  const box = app.context.root!.children[0]!;
+  const max = Math.max(0, n - H);
+  let i = 0;
+  const ms = timeRenders(
+    () => app.context.flushNow(),
+    () => {
+      i = max === 0 ? 0 : (i + 1) % (max + 1);
+      box.scrollY = i;
+      box.markDirty();
+    },
+    iters,
+  );
+  app.unmount();
+  r.free();
+  return ms;
+}
+
 async function main(): Promise<void> {
   console.error(`paint benchmark (JS host) — ${W}x${H}, median of ${ITERS} forced renders\n`);
   const cases: Array<[string, number, number]> = [
@@ -80,6 +126,15 @@ async function main(): Promise<void> {
     const n = cols * rows;
     console.error(`${`${label} ~${n * 2}n`.padEnd(24)} ${ms.toFixed(3)} ms/frame`);
   }
+  // Culling: only the ~H visible rows are drawn, so paint grows SUBLINEARLY in
+  // the row count — 10x the rows costs far less than 10x the time (the residual
+  // is the cheap O(children) cull scan; true O(visible) awaits <virtual-list>).
+  console.error("");
+  for (const n of [500, 5000]) {
+    const ms = benchScroll(n, ITERS);
+    console.error(`${`scroll viewport ${n}n`.padEnd(24)} ${ms.toFixed(3)} ms/frame (paint, ~${H} drawn)`);
+  }
+
   // Idle check: after one render, no mutation → the on-demand scheduler is quiet.
   const idleTick = ref(0);
   const r = new Renderer(W, H);

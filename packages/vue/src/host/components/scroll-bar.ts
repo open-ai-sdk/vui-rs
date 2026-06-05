@@ -1,4 +1,4 @@
-import { computed, defineComponent, h, shallowRef } from "@vue/runtime-core";
+import { computed, defineComponent, h, onUnmounted, shallowRef } from "@vue/runtime-core";
 import type { DispatchableMouseEvent } from "../focus.ts";
 import type { Renderable } from "../renderable.ts";
 
@@ -53,6 +53,9 @@ export const VuiScrollBar = defineComponent({
       ev.preventDefault();
       dragStartY = ev.y;
       dragStartScroll = props.scrollY;
+      // Capture the pointer so the drag keeps tracking even when the cursor leaves
+      // the 1-cell-wide track (vertical motion off-column still scrolls).
+      if (track.value) track.value.ctx.focusManager?.setPointerCapture(track.value);
       emitScroll(scrollForPointer(ev.y));
     }
 
@@ -68,7 +71,14 @@ export const VuiScrollBar = defineComponent({
       if (dragStartY == null) return;
       ev.preventDefault();
       dragStartY = null;
+      if (track.value) track.value.ctx.focusManager?.releasePointerCapture(track.value);
     }
+
+    // Belt-and-suspenders: if the bar unmounts mid-drag, don't leave a dangling
+    // capture pointed at a freed node.
+    onUnmounted(() => {
+      if (track.value) track.value.ctx.focusManager?.releasePointerCapture(track.value);
+    });
 
     return () =>
       h(
@@ -78,6 +88,10 @@ export const VuiScrollBar = defineComponent({
           ref: track,
           width: 1,
           height: props.viewportHeight,
+          // Clip the absolute thumb to the track: boxes now default to
+          // overflow `visible`, so without this the thumb could spill past the
+          // track if its geometry ever rounds beyond the travel range.
+          overflow: "hidden",
           bg: props.trackBg,
           onMouseDown,
           onMouseMove,

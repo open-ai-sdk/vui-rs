@@ -81,6 +81,11 @@ interface PaintProps {
   visible?: boolean;
   opacity?: number;
   wrap?: "word" | "char" | "nowrap";
+  /**
+   * Clip children to this box's content box. `visible` (default) lets them
+   * spill; `hidden`/`scroll` make it a viewport (`scroll` pairs with scrollY).
+   */
+  overflow?: "visible" | "hidden" | "scroll";
   /** Paint order among siblings; higher draws on top (default 0). */
   zIndex?: number;
 }
@@ -185,6 +190,10 @@ export interface ScrollBoxProps extends LayoutProps, PaintProps, FocusProps {
   scrollY?: number;
   step?: number;
   pageStep?: number;
+  /** Pin the view to the bottom as content grows (chat/transcript). */
+  stickToBottom?: boolean;
+  /** Render an integrated vertical scrollbar (indicator + drag) on the right edge. */
+  scrollbar?: boolean;
   "onUpdate:modelValue"?: (value: number) => void;
   "onUpdate:scrollY"?: (value: number) => void;
   onScroll?: (value: number) => void;

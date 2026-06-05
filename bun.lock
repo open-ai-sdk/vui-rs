@@ -107,6 +107,19 @@
         "vite": "catalog:",
       },
     },
+    "examples/scroll": {
+      "name": "@vui-rs/example-scroll",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "examples/select": {
       "name": "@vui-rs/example-select",
       "version": "0.1.0",
@@ -285,6 +298,8 @@
     "@vui-rs/example-mouse": ["@vui-rs/example-mouse@workspace:examples/mouse"],
 
     "@vui-rs/example-overlay": ["@vui-rs/example-overlay@workspace:examples/overlay"],
+
+    "@vui-rs/example-scroll": ["@vui-rs/example-scroll@workspace:examples/scroll"],
 
     "@vui-rs/example-select": ["@vui-rs/example-select@workspace:examples/select"],
 

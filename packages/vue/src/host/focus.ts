@@ -30,10 +30,18 @@ export interface HostFocusManager {
   release(node: Renderable): void;
   /** Route an input event to its target, then bubble to ancestors. */
   dispatch(ev: InputEvent): void;
+  /**
+   * Capture the pointer to `node`: until released, all mouse move/drag/up events
+   * route to it regardless of what's under the cursor — so a drag that leaves the
+   * node (e.g. dragging a 1-cell scrollbar thumb sideways) keeps tracking.
+   */
+  setPointerCapture(node: Renderable): void;
+  releasePointerCapture(node?: Renderable): void;
 }
 
 export function createHostFocusManager(ctx: HostContext): HostFocusManager {
   let current: Renderable | null = null;
+  let captured: Renderable | null = null;
 
   /** Focusable nodes in DFS (tab) order, walked from the app root. */
   function order(): Renderable[] {
@@ -99,6 +107,14 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
   }
 
   function dispatchMouse(ev: MouseEvent): void {
+    // An active pointer capture wins for move/drag/up: route straight to the
+    // capturing node so a drag keeps tracking even off the node's cells. `down`
+    // and `wheel` fall through to normal hit-testing.
+    if (captured && ev.kind !== "down" && ev.kind !== "wheel") {
+      bubble(captured, ev, ev.kind === "up" ? "mouseup" : "mousemove");
+      if (ev.kind === "up") captured = null;
+      return;
+    }
     const underCursor = hitTestTopmost(ctx, ev.x, ev.y);
     const target = underCursor ?? current;
     if (!target) return;
@@ -134,7 +150,14 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
     current: () => current,
     release: (node) => {
       if (current === node) current = null;
+      if (captured === node) captured = null;
     },
     dispatch,
+    setPointerCapture: (node) => {
+      captured = node;
+    },
+    releasePointerCapture: (node) => {
+      if (!node || captured === node) captured = null;
+    },
   };
 }

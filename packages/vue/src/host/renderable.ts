@@ -51,6 +51,14 @@ export interface PaintProps {
   visible: boolean;
   opacity: number;
   wrap: TextWrapMode;
+  /**
+   * How children that exceed this node's content box are treated at paint time.
+   * `visible` (default) lets them spill — children are clipped only by the
+   * inherited ancestor clip, not this box's content box. `hidden`/`scroll` clip
+   * children to the content box (a viewport); `scroll` additionally pairs with a
+   * scroll offset + scrollbar. Paint-only — layout (taffy) is unaffected.
+   */
+  overflow: "visible" | "hidden" | "scroll";
   /** Paint order among siblings (and among overlays); higher draws later/on top. */
   zIndex: number;
   /** Opaque dim backdrop painted under an overlay's content; undefined = none. */
@@ -195,6 +203,7 @@ export function newPaint(): PaintProps {
     visible: true,
     opacity: 1,
     wrap: "word",
+    overflow: "visible",
     zIndex: 0,
   };
 }
@@ -294,6 +303,13 @@ export interface HostContext {
   flushNow: () => void;
   dispose: () => void;
   renderCount: number;
+  /**
+   * Callbacks run after the layout pass and before paint, while rects are fresh.
+   * Scroll viewports register here to clamp/stick their offset to the just-laid-
+   * out content size (stick-to-bottom) with no one-frame lag. Mutate paint state
+   * + `markDirty()` only — do NOT `scheduleRender()` (paint runs next this frame).
+   */
+  afterLayout: Set<() => void>;
   /** Layout pass (Phase 03); null until wired. */
   layout: ((ctx: HostContext) => void) | null;
   /** Paint walk (Phase 04); null until wired. */

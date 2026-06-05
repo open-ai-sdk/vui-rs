@@ -26,6 +26,35 @@ function intersect(a: Clip, b: Clip): Clip {
 
 const isEmpty = (c: Clip): boolean => c.x0 >= c.x1 || c.y0 >= c.y1;
 
+/**
+ * Culling test: does a child's rounded border box fall entirely OUTSIDE `clip`?
+ * If so the whole subtree is invisible and the paint walk skips it — so paint
+ * cost scales with the number of VISIBLE nodes, not the total. Half-open math
+ * mirrors `intersect`: border box `[x0,x1)×[y0,y1)` misses `clip` exactly when an
+ * edge is on the wrong side. This is the same emptiness the per-node `nodeClip`
+ * check (line below) would catch, hoisted before the recursive call so an
+ * off-screen child costs one comparison instead of a function frame.
+ *
+ * Rect-based (not subtree-bounds): a child with `overflow:visible` could in
+ * principle position a descendant back inside `clip` after its own box scrolled
+ * out. That escape hatch is what overlays/portals are for; ordinary flow content
+ * (lists, transcripts) stays within its box, so rect culling is exact for it.
+ */
+function cullsOut(
+  child: Renderable,
+  parentX: number,
+  parentY: number,
+  clip: Clip,
+): boolean {
+  const b = child.rect;
+  if (!b) return false; // no rect yet — let paintNode bail on its own
+  const x0 = round(parentX + b.x);
+  const y0 = round(parentY + b.y);
+  const x1 = round(parentX + b.x + b.w);
+  const y1 = round(parentY + b.y + b.h);
+  return x0 >= clip.x1 || x1 <= clip.x0 || y0 >= clip.y1 || y1 <= clip.y0;
+}
+
 export function runPaint(ctx: HostContext): void {
   const renderer = ctx.renderer;
   if (!renderer || !ctx.root) return;
@@ -109,15 +138,22 @@ function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY:
 
   node.renderSelf(buf, { x0, y0, x1, y1, clip: nodeClip, cx0, cy0, cx1, cy1, contentClip });
 
-  // Children paint over this node, clipped to its content box. Scroll offsets
-  // are paint-time only: layout stays full-size, while descendants shift inside
-  // the already-intersected content clip.
+  // Children paint over this node. `overflow:visible` (default) lets them spill
+  // past the content box — they inherit only the ancestor clip; `hidden`/`scroll`
+  // turn this node into a viewport that crops them to its content box. Scroll
+  // offsets are paint-time only: layout stays full-size while descendants shift.
+  const childClip = node.paint.overflow === "visible" ? clip : contentClip;
   const childParentX = absX - node.scrollX;
   const childParentY = absY - node.scrollY;
   for (const child of paintOrder(node.children)) {
     // Overlays are hoisted out of normal flow — drawn by the overlay pass, not
     // here (so an ancestor's content clip never crops a modal).
     if (child.isOverlay) continue;
-    paintNode(buf, child, childParentX, childParentY, contentClip);
+    // Cull subtrees that can't touch the clip region (off-screen / scrolled out).
+    if (cullsOut(child, childParentX, childParentY, childClip)) {
+      child.screenRect = null;
+      continue;
+    }
+    paintNode(buf, child, childParentX, childParentY, childClip);
   }
 }
