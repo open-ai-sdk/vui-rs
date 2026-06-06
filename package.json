@@ -49,7 +49,7 @@
     "bench": "bun run examples/paint-bench.ts >/dev/null",
     "test": "bun run build:packages && cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test packages/ui/test && bun run scripts/abi-probe.ts",
     "changeset": "changeset",
-    "ci:version": "changeset version && bun install --lockfile-only",
+    "ci:version": "changeset version && bun update",
     "ci:publish": "bun run build:native:all && bun run build:packages && bun run scripts/publish-packages.ts && changeset tag",
     "lint": "vp lint",
     "lint:fix": "vp lint --fix",

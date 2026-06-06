@@ -5,6 +5,12 @@
 // published manifests carry real version ranges instead of broken protocol
 // strings.
 //
+// IMPORTANT: `bun publish` resolves a `workspace:*` dep to the version recorded
+// in `bun.lock`, NOT the bumped `package.json` version. So `ci:version` must run
+// `bun update` (NOT `bun install --lockfile-only`) after `changeset version` —
+// otherwise an internal dep (e.g. @vui-rs/vue → @vui-rs/core) publishes pinned to
+// the previous, stale version. See changesets/bun workspace-resolution issue.
+//
 // Runs after `changeset version` has bumped versions and `build:packages` has
 // produced each `dist/` (incl. the cross-compiled native libs in
 // `@vui-rs/core`). Idempotent: a version already on the registry is skipped, so a
