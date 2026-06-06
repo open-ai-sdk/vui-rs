@@ -6,6 +6,7 @@
 // (tree-sitter, shiki) can be swapped in later behind this same interface without
 // touching `<code>`/`<markdown>`.
 import { Attr, parseColor, type TextRun } from "@vui-rs/core";
+import type { Theme } from "../theme.ts";
 import hljs from "highlight.js/lib/core";
 import bash from "highlight.js/lib/languages/bash";
 import css from "highlight.js/lib/languages/css";
@@ -27,11 +28,12 @@ export interface Highlighter {
 
 /**
  * Color + attrs for a highlight scope. Keyed by highlight.js scope name (the part
- * after `hljs-`). Values are author-friendly strings packed once at build time.
- * Tuned for a dark theme (Catppuccin Mocha); override via `createDefaultHighlighter`.
+ * after `hljs-`). Values are author-friendly color strings OR packed `0xRRGGBBAA`
+ * numbers (e.g. from a `Theme`), resolved once via `parseColor`. Tuned for a dark
+ * theme (Catppuccin Mocha); override via `createDefaultHighlighter`.
  */
 export interface SyntaxPalette {
-  [scope: string]: string;
+  [scope: string]: string | number;
 }
 
 const DEFAULT_PALETTE: SyntaxPalette = {
@@ -69,6 +71,36 @@ const DEFAULT_PALETTE: SyntaxPalette = {
   addition: "#a6e3a1",
   deletion: "#f38ba8",
 };
+
+/**
+ * Build a syntax palette from a theme's `syntax*` tokens. Returned partial overrides
+ * the built-in defaults in `createDefaultHighlighter`, so `<code>`/`<markdown>`
+ * fences recolor with the active theme (and on a runtime `setTheme()`).
+ */
+export function syntaxPaletteFromTheme(theme: Theme): SyntaxPalette {
+  return {
+    keyword: theme.syntaxKeyword,
+    "function": theme.syntaxFunction,
+    title: theme.syntaxFunction,
+    name: theme.syntaxFunction,
+    string: theme.syntaxString,
+    "char": theme.syntaxString,
+    number: theme.syntaxNumber,
+    literal: theme.syntaxNumber,
+    type: theme.syntaxType,
+    "class": theme.syntaxType,
+    variable: theme.syntaxVariable,
+    params: theme.syntaxVariable,
+    property: theme.syntaxVariable,
+    operator: theme.syntaxOperator,
+    symbol: theme.syntaxOperator,
+    punctuation: theme.syntaxPunctuation,
+    comment: theme.syntaxComment,
+    doctag: theme.syntaxComment,
+    quote: theme.syntaxComment,
+    built_in: theme.error,
+  };
+}
 
 /** Scopes rendered italic regardless of color. */
 const ITALIC_SCOPES = new Set(["comment", "doctag", "quote"]);

@@ -39,8 +39,9 @@ export class EditRenderable extends Renderable {
   }
 
   renderSelf(buffer: PaintBuffer, ctx: PaintCtx): void {
-    drawChrome(buffer, ctx, this.paint);
-    drawEdit(buffer, ctx.contentClip, ctx.cx0, ctx.cy0, ctx.cx1, this.edit, this.paint);
+    const themeFg = this.ctx.theme.fg;
+    drawChrome(buffer, ctx, this.paint, { fg: themeFg, border: this.ctx.theme.border });
+    drawEdit(buffer, ctx.contentClip, ctx.cx0, ctx.cy0, ctx.cx1, this.edit, this.paint, themeFg);
   }
 
   // --- JS edit model: grapheme-indexed cursor, motions, and editing. ---

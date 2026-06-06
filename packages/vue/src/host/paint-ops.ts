@@ -79,11 +79,12 @@ export function drawChrome(
   buf: PaintBuffer,
   ctx: PaintCtx,
   paint: PaintProps,
+  defaults?: { fg?: number; border?: number },
 ): void {
   const { x0, y0, x1, y1, clip } = ctx;
   if (paint.bg !== undefined) drawFill(buf, clip, x0, y0, x1, y1, paint.bg);
   if (paint.border !== "none") {
-    const color = paint.borderColor ?? paint.fg ?? DEFAULT_FG;
+    const color = paint.borderColor ?? defaults?.border ?? paint.fg ?? DEFAULT_FG;
     drawBorder(buf, clip, x0, y0, x1, y1, paint.border, color, paint.bg);
     if (paint.title) {
       drawTitle(
@@ -93,7 +94,7 @@ export function drawChrome(
         x1,
         y0,
         paint.title,
-        paint.fg ?? DEFAULT_FG,
+        paint.fg ?? defaults?.fg ?? DEFAULT_FG,
         paint.bg,
         paint.titleAlign,
       );
@@ -209,11 +210,12 @@ export function drawEdit(
   cx1: number,
   edit: EditState,
   paint: PaintProps,
+  themeFg?: number,
 ): void {
   const width = cx1 - cx0;
   if (width <= 0) return;
   const row = cy0;
-  const fg = paint.fg ?? DEFAULT_FG;
+  const fg = paint.fg ?? themeFg ?? DEFAULT_FG;
   const valGs = graphemes(edit.value);
   let cursorCol = 0;
   for (let i = 0; i < edit.cursor && i < valGs.length; i++)

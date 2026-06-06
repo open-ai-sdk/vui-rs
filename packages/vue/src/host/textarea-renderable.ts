@@ -47,7 +47,10 @@ export class TextareaRenderable extends Renderable {
   }
 
   renderSelf(buffer: PaintBuffer, ctx: PaintCtx): void {
-    drawChrome(buffer, ctx, this.paint);
+    drawChrome(buffer, ctx, this.paint, {
+      fg: this.ctx.theme.fg,
+      border: this.ctx.theme.border,
+    });
     const width = Math.max(1, ctx.cx1 - ctx.cx0);
     const height = Math.max(1, ctx.cy1 - ctx.cy0);
     this.editor.setViewport(width, height);

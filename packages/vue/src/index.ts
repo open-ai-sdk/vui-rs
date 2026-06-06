@@ -94,6 +94,7 @@ export {
   type SyntaxPalette,
   createDefaultHighlighter,
   defaultHighlighter,
+  syntaxPaletteFromTheme,
 } from "./host/highlighter.ts";
 export {
   type MdBlock,
@@ -125,9 +126,30 @@ export type {
 export { parseColor } from "./color.ts";
 
 // Theming: tokens + composables. Pass a `theme` to `mount()`; read it in
-// components with `useTheme()`, or restyle a subtree with `provideTheme()`.
-export { type Theme, ThemeSymbol, darkTheme } from "./theme.ts";
-export { useTheme, provideTheme } from "./use-theme.ts";
+// components with `useTheme()`, restyle a subtree with `provideTheme()`, or swap
+// the whole theme at runtime with `app.setTheme()` / `useSetTheme()`. Theme JSON files (and `~/.vui/themes/*.json`) load via
+// the loader/registry. `contrast` helpers pick a readable fg for a given bg.
+export { type Theme, ThemeSymbol, darkTheme, lightTheme } from "./theme.ts";
+export { useTheme, provideTheme, useSetTheme } from "./use-theme.ts";
+export {
+  type ColorValue,
+  type ThemeJson,
+  loadThemeFile,
+  resolveThemeJson,
+} from "./theme/loader.ts";
+export {
+  type ThemeInput,
+  BUILTIN_THEMES,
+  detectColorScheme,
+  listThemes,
+  registerTheme,
+  resolveTheme,
+} from "./theme/registry.ts";
+export {
+  isLight,
+  luminance,
+  pickForeground,
+} from "./theme/contrast.ts";
 
 // Re-export the color/attr helpers + key utilities so apps depend on @vui-rs/vue alone.
 export {

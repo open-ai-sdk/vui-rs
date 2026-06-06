@@ -185,6 +185,19 @@
         "vite": "catalog:",
       },
     },
+    "examples/theme-switch": {
+      "name": "@vui-rs/example-theme-switch",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@vui-rs/core",
       "version": "0.1.0",
@@ -351,6 +364,8 @@
     "@vui-rs/example-select": ["@vui-rs/example-select@workspace:examples/select"],
 
     "@vui-rs/example-textarea": ["@vui-rs/example-textarea@workspace:examples/textarea"],
+
+    "@vui-rs/example-theme-switch": ["@vui-rs/example-theme-switch@workspace:examples/theme-switch"],
 
     "@vui-rs/vite-plugin": ["@vui-rs/vite-plugin@workspace:packages/vite-plugin"],
 

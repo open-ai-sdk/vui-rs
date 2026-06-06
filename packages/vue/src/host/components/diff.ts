@@ -9,13 +9,8 @@ import {
   defineComponent,
   h,
 } from "@vue/runtime-core";
-import { parseColor } from "@vui-rs/core";
 import { type DiffLine, parseUnifiedDiff } from "../diff-parser.ts";
 import { useTheme } from "../../use-theme.ts";
-
-/** Default kind colors; added/removed are deliberately diff-conventional. */
-const ADDED = parseColor("#a6e3a1")!;
-const REMOVED = parseColor("#f38ba8")!;
 
 export const VuiDiff = defineComponent({
   name: "VuiDiff",
@@ -35,15 +30,15 @@ export const VuiDiff = defineComponent({
     function colorFor(kind: DiffLine["kind"]): number {
       switch (kind) {
         case "add":
-          return ADDED;
+          return theme.diffAdded;
         case "del":
-          return REMOVED;
+          return theme.diffRemoved;
         case "hunk":
-          return theme.accent;
+          return theme.diffHunkHeader;
         case "meta":
-          return theme.muted;
+          return theme.diffContext;
         default:
-          return theme.fg;
+          return theme.text;
       }
     }
 

@@ -8,6 +8,7 @@
 import {
   type Component,
   createRenderer as createVueRenderer,
+  reactive,
 } from "@vue/runtime-core";
 import {
   Renderer,
@@ -32,6 +33,12 @@ import { runPaint } from "./paint-walk.ts";
 import { type HostContext, HostContextSymbol, type Renderable } from "./renderable.ts";
 import { type TextareaRenderable } from "./textarea-renderable.ts";
 import { type Theme, ThemeSymbol, darkTheme } from "../theme.ts";
+import {
+  type ThemeInput,
+  applyTheme,
+  detectColorScheme,
+  resolveThemeInput,
+} from "../theme/registry.ts";
 
 export interface HostMountOptions {
   renderer?: Renderer;
@@ -44,6 +51,8 @@ export interface HostMountOptions {
 export interface VuiHostApp {
   mount(options?: HostMountOptions): VuiHostApp;
   unmount(): void;
+  /** Swap the active theme at runtime (by name, JSON, full theme, or partial) — no remount. */
+  setTheme(input: ThemeInput, mode?: "dark" | "light"): void;
   readonly renderer: Renderer | null;
   readonly context: HostContext;
 }
@@ -53,7 +62,8 @@ function newHostContext(): HostContext {
     renderer: null,
     root: null,
     overlays: [],
-    theme: darkTheme,
+    // Reactive so a runtime `setTheme()` re-renders every `useTheme()` reader.
+    theme: reactive({ ...darkTheme }),
     dirtyLayout: new Set(),
     dirtyText: new Set(),
     layoutW: -1,
@@ -119,7 +129,9 @@ export function createHostApp(
     mount(options: HostMountOptions = {}): VuiHostApp {
       if (mounted) return app;
       mounted = true;
-      ctx.theme = options.theme ?? darkTheme;
+      // Mutate the reactive theme in place (don't replace the proxy) so the
+      // provided reference stays the live one `setTheme()` later updates.
+      if (options.theme) Object.assign(ctx.theme, options.theme);
       vueApp.provide(ThemeSymbol, ctx.theme);
       // Expose the host context to composables (e.g. `useTimeline`) via inject.
       vueApp.provide(HostContextSymbol, ctx);
@@ -156,6 +168,9 @@ export function createHostApp(
       const owned = ownsRenderer ? ctx.renderer : null;
       ctx.renderer = null;
       owned?.free();
+    },
+    setTheme(input: ThemeInput, mode?: "dark" | "light"): void {
+      applyTheme(ctx, resolveThemeInput(input, mode ?? detectColorScheme(), ctx.theme));
     },
   };
 

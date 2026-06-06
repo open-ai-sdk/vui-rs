@@ -21,7 +21,10 @@ export class TextRenderable extends Renderable {
   }
 
   renderSelf(buffer: PaintBuffer, ctx: PaintCtx): void {
-    drawChrome(buffer, ctx, this.paint);
+    drawChrome(buffer, ctx, this.paint, {
+      fg: this.ctx.theme.fg,
+      border: this.ctx.theme.border,
+    });
     this.syncTextBuffer();
     this.textView.setWidth(Math.max(1, ctx.cx1 - ctx.cx0));
     this.textView.setWrap(this.paint.wrap);

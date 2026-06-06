@@ -14,7 +14,8 @@ import type { TextWrapMode } from "@vui-rs/core";
 import {
   type Highlighter,
   type StyledLine,
-  defaultHighlighter,
+  createDefaultHighlighter,
+  syntaxPaletteFromTheme,
 } from "../highlighter.ts";
 import { useTheme } from "../../use-theme.ts";
 
@@ -47,8 +48,13 @@ export const VuiCode = defineComponent({
   },
   setup(props, { attrs }) {
     const theme = useTheme();
+    // A theme-derived highlighter so fences track the active theme's `syntax*`
+    // tokens; recomputed only when those tokens change (e.g. a runtime setTheme).
+    const themed = computed(() =>
+      createDefaultHighlighter(syntaxPaletteFromTheme(theme)),
+    );
     const lines = computed(() =>
-      (props.highlighter ?? defaultHighlighter).highlight(props.text, props.lang),
+      (props.highlighter ?? themed.value).highlight(props.text, props.lang),
     );
 
     return () => {

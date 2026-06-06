@@ -2,7 +2,7 @@
 // is the TresJS `catalogue`/`extend` pattern — `createElement(tag)` resolves
 // `catalogue[tag]` and constructs the node. `box`/`text`/`input` map to their
 // subclasses; the inline tags (`b/i/u/span`) build virtual `SpanRenderable`s.
-// `extend()` registers custom kinds (the Phase 05 `<canvas>` and userland nodes).
+// `extend()` registers custom kinds (the `<canvas>` and userland nodes).
 import { Attr } from "@vui-rs/core";
 import { BoxRenderable } from "./box-renderable.ts";
 import { CanvasRenderable } from "./canvas-renderable.ts";
@@ -19,7 +19,7 @@ export interface CatalogueEntry {
   kind: Renderable["kind"];
   /** For `span` kinds: attribute bits the tag contributes (bold/italic/…). */
   spanAttrs: number;
-  /** Custom constructor (Phase 05 `extend`); defaults to the built-in for `kind`. */
+  /** Custom constructor (from `extend`); defaults to the built-in for `kind`. */
   make?: RenderableFactory;
 }
 
@@ -80,24 +80,13 @@ export function createRenderable(ctx: HostContext, tag: string): Renderable {
   if (ctx.renderer && (node.kind === "box" || node.kind === "text" || node.kind === "edit" || node.kind === "textarea")) {
     node.layoutNode = ctx.renderer.createNode(node.kind === "textarea" ? "edit" : node.kind);
   }
-  applyThemeDefaults(node);
   return node;
 }
 
-/**
- * Seed a node's colors from the app theme so an unstyled element is still
- * readable (mirrors the FFI host's `applyThemeDefaults`): text/edit default their
- * foreground; a box defaults its border color (used only once a border is set).
- * Explicit `fg`/`bg`/`borderColor` props applied by patch-prop afterwards win.
- */
-function applyThemeDefaults(node: Renderable): void {
-  const { theme } = node.ctx;
-  if (node.kind === "text" || node.kind === "edit" || node.kind === "textarea") {
-    node.paint.fg = theme.fg;
-  } else if (node.kind === "box") {
-    node.paint.borderColor = theme.border;
-  }
-}
+// An unstyled node's colors are NOT seeded here: paint reads the app theme live
+// (`paint.fg ?? ctx.theme.fg`, border ← `ctx.theme.border`), so a runtime
+// `setTheme()` recolors every default element with no remount. Explicit
+// `fg`/`bg`/`borderColor` props (applied by patch-prop) still win at paint time.
 
 function buildBuiltin(ctx: HostContext, tag: string, entry: CatalogueEntry): Renderable {
   switch (entry.kind) {

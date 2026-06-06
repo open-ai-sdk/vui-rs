@@ -1,5 +1,5 @@
 // Markdown → a plain block tree the `<markdown>` component maps to box/text/span.
-// Parsing lives here (wrapping `marked`, the same lexer opencode and pi use) and
+// Parsing lives here (wrapping `marked`) and
 // stays Vue-free so it is unit-testable on its own. Inline formatting is folded
 // into flat styled spans (`MdSpan`) — exactly what a `<text>`'s run flattener
 // consumes — and fenced code is handed off to `<code>` by the component.

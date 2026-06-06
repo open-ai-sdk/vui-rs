@@ -10,6 +10,9 @@ export class BoxRenderable extends Renderable {
   }
 
   renderSelf(buffer: PaintBuffer, ctx: PaintCtx): void {
-    drawChrome(buffer, ctx, this.paint);
+    drawChrome(buffer, ctx, this.paint, {
+      fg: this.ctx.theme.fg,
+      border: this.ctx.theme.border,
+    });
   }
 }

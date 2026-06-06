@@ -63,7 +63,7 @@ function renderBlock(block: MdBlock, ctx: RenderCtx, spaced: boolean): VNode {
     case "heading":
       return h(
         "text",
-        { bold: true, fg: ctx.theme.accent, wrap: "word", ...margin },
+        { bold: true, fg: ctx.theme.markdownHeading, wrap: "word", ...margin },
         spanNodes(block.spans, ctx.theme),
       );
     case "paragraph":
@@ -82,14 +82,14 @@ function renderBlock(block: MdBlock, ctx: RenderCtx, spaced: boolean): VNode {
         "box",
         { flexDirection: "row", alignItems: "stretch", ...margin },
         [
-          h("box", { width: 1, backgroundColor: ctx.theme.muted }),
+          h("box", { width: 1, backgroundColor: ctx.theme.markdownBlockQuote }),
           h("box", { flexDirection: "column", alignItems: "stretch", margin: { left: 1 } },
             block.blocks.map((b, i) => renderBlock(b, ctx, i > 0)),
           ),
         ],
       );
     case "hr":
-      return h("text", { fg: ctx.theme.muted, wrap: "nowrap", ...margin }, HR_RULE);
+      return h("text", { fg: ctx.theme.markdownHorizontalRule, wrap: "nowrap", ...margin }, HR_RULE);
     case "table":
       return renderTable(block, ctx.theme, margin);
   }
@@ -102,12 +102,15 @@ function renderList(
 ): VNode {
   const rows = list.items.map((item, i) => {
     const bullet = list.ordered ? `${list.start + i}. ` : "• ";
+    const bulletColor = list.ordered
+      ? ctx.theme.markdownListEnumeration
+      : ctx.theme.markdownListItem;
     const content: VNode[] = [
       h("text", { wrap: "word" }, spanNodes(item.spans, ctx.theme)),
     ];
     if (item.children) content.push(renderList(item.children, ctx, {}));
     return h("box", { flexDirection: "row", alignItems: "stretch" }, [
-      h("text", { fg: ctx.theme.muted, wrap: "nowrap" }, bullet),
+      h("text", { fg: bulletColor, wrap: "nowrap" }, bullet),
       h("box", { flexDirection: "column", alignItems: "stretch", flexGrow: 1 }, content),
     ]);
   });
@@ -184,10 +187,10 @@ function spanNodes(spans: MdSpan[], theme: Theme): (VNode | string)[] {
     if (s.bold) props.bold = true;
     if (s.italic) props.italic = true;
     if (s.strike) props.strikethrough = true;
-    if (s.code) props.fg = theme.accent;
+    if (s.code) props.fg = theme.markdownCode;
     if (s.href !== undefined) {
       props.underline = true;
-      props.fg = theme.accent;
+      props.fg = theme.markdownLink;
     }
     return h("span", props, s.text);
   });

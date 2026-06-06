@@ -1,41 +1,87 @@
-// The theme: a small set of semantic color tokens (packed `0xRRGGBBAA`) that
-// drive default colors across the tree. The app-level theme is applied to host
-// `<box>`/`<text>` defaults at mount (canvas fg/bg, text fg, default border
-// color); components read the active theme with `useTheme()` and can restyle a
-// subtree with `provideTheme()`. Tokens are resolved colors — author them with
-// `parseColor`-friendly strings and they are packed once here.
+// The theme: a set of semantic color tokens (packed `0xRRGGBBAA`) that drive
+// default colors across the tree. Theme
+// files load unchanged (see `theme/loader.ts`). The app-level theme is applied to
+// the canvas at mount and read by components with `useTheme()`; `setTheme()` swaps
+// it at runtime (one re-render, no remount) and `provideTheme()` restyles a
+// subtree (a static snapshot — it does not track later `setTheme()` swaps).
+// Built-in themes + the JSON loader live under `theme/`.
 import type { InjectionKey } from "@vue/runtime-core";
-import { parseColor } from "@vui-rs/core";
 
-/** Semantic color tokens. Values are packed `0xRRGGBBAA` numbers. */
+/**
+ * Semantic color tokens. Values are packed `0xRRGGBBAA` numbers. 
+ * `fg`/`bg`/`muted` are legacy aliases of
+ * `text`/`background`/`textMuted`, kept for backward compatibility.
+ */
 export interface Theme {
-  /** Default foreground (text). */
-  fg: number;
-  /** Canvas background. */
-  bg: number;
-  /** Primary accent (highlights, spinners, focused affordances). */
+  // Brand / highlight.
+  primary: number;
+  secondary: number;
+  /** The one highlight color (spinners, focused affordances, links); maps to `primary`. */
   accent: number;
-  /** De-emphasised text (hints, secondary labels). */
-  muted: number;
-  /** Default border color. */
-  border: number;
-  /** Error / destructive color. */
+  // Status.
   error: number;
+  warning: number;
+  success: number;
+  info: number;
+  // Text.
+  text: number;
+  textMuted: number;
+  /** Foreground for a selected list item. */
+  selectedText: number;
+  // Backgrounds.
+  background: number;
+  backgroundPanel: number;
+  backgroundElement: number;
+  backgroundMenu: number;
+  // Borders.
+  border: number;
+  borderActive: number;
+  borderSubtle: number;
+  // Diff.
+  diffAdded: number;
+  diffRemoved: number;
+  diffContext: number;
+  diffHunkHeader: number;
+  diffAddedBg: number;
+  diffRemovedBg: number;
+  diffContextBg: number;
+  // Markdown.
+  markdownText: number;
+  markdownHeading: number;
+  markdownLink: number;
+  markdownLinkText: number;
+  markdownCode: number;
+  markdownBlockQuote: number;
+  markdownEmph: number;
+  markdownStrong: number;
+  markdownHorizontalRule: number;
+  markdownListItem: number;
+  markdownListEnumeration: number;
+  markdownImage: number;
+  markdownImageText: number;
+  markdownCodeBlock: number;
+  // Syntax (used by the default highlighter palette).
+  syntaxComment: number;
+  syntaxKeyword: number;
+  syntaxFunction: number;
+  syntaxVariable: number;
+  syntaxString: number;
+  syntaxNumber: number;
+  syntaxType: number;
+  syntaxOperator: number;
+  syntaxPunctuation: number;
+  // Legacy aliases (mirror text/background/textMuted).
+  /** Default foreground (alias of `text`). */
+  fg: number;
+  /** Canvas background (alias of `background`). */
+  bg: number;
+  /** De-emphasised text (alias of `textMuted`). */
+  muted: number;
 }
 
 /** Injection key for the active theme; `useTheme()` reads it, `provideTheme()` sets it. */
 export const ThemeSymbol: InjectionKey<Theme> = Symbol("vui.theme");
 
-function packed(color: string): number {
-  return parseColor(color)!;
-}
-
-/** The default dark theme (Catppuccin Mocha palette). */
-export const darkTheme: Theme = {
-  fg: packed("#cdd6f4"),
-  bg: packed("#1e1e2e"),
-  accent: packed("#89b4fa"),
-  muted: packed("#7f849c"),
-  border: packed("#585b70"),
-  error: packed("#f38ba8"),
-};
+// The default dark/light themes are resolved from the built-in Catppuccin JSON;
+// re-exported here so existing `./theme.ts` import sites keep working.
+export { darkTheme, lightTheme } from "./theme/registry.ts";
