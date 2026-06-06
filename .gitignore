@@ -1,6 +1,9 @@
 # Rust (cargo workspace build dir at repo root)
 /target
 
+# zig linker cache (cargo-zigbuild cross-compile, build:native:all)
+.zig-cache/
+
 # Bun / Node
 node_modules/
 *.tsbuildinfo
