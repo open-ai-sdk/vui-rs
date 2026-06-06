@@ -11,8 +11,8 @@
   "dependencies": {
     "@vue/runtime-core": "catalog:",
     "@vui-rs/core": "workspace:*",
-    "@vui-rs/vue": "workspace:*",
-    "@vui-rs/ui": "workspace:*"
+    "@vui-rs/ui": "workspace:*",
+    "@vui-rs/vue": "workspace:*"
   },
   "devDependencies": {
     "@vui-rs/vite-plugin": "workspace:*",

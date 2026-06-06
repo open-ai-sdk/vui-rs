@@ -1,3 +1,3 @@
-import { vuiExample } from "../vite-factory.ts";
+import { vuiExample } from '../vite-factory.ts'
 
-export default vuiExample();
+export default vuiExample()

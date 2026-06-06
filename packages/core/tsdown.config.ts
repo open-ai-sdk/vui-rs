@@ -6,19 +6,19 @@
 // into one dist/index.js would shift the depth and break `dlopen`.
 //
 // `bun:ffi` (Bun-only) and `node:*` stay external; this package is Bun-runtime.
-import { defineConfig } from "tsdown";
+import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ["src/index.ts"],
-  format: "esm",
+  entry: ['src/index.ts'],
+  format: 'esm',
   unbundle: true,
   dts: true,
-  platform: "neutral",
-  external: [/^node:/, "bun:ffi"],
+  platform: 'neutral',
+  external: [/^node:/, 'bun:ffi'],
   // Copy the prebuilt native lib(s) from `native/<arch>/` (populated by
   // scripts/build-native.ts) into `dist/native/<arch>/`, so `dist/` is
   // self-contained. tsdown copies a `from` dir as `to/<basename>`, so `to: dist`
   // yields `dist/native/<arch>/`. The loader's first candidate (`here/<arch>/lib`,
   // here = `dist/native`) resolves it at runtime.
-  copy: [{ from: "native", to: "dist" }],
-});
+  copy: [{ from: 'native', to: 'dist' }],
+})

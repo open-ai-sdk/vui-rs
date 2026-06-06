@@ -9,68 +9,68 @@
 // which flow through Vue → `scheduleRender` → the throttle below, so the loop
 // only *advances time* and never paints directly (no second render cadence). When
 // the last animation finishes the loop stops, restoring zero-render-on-idle.
-import { queuePostFlushCb } from "@vue/runtime-core";
-import { type AnimationRegistry, createAnimationRegistry } from "./animation/timeline.ts";
-import { type HostContext } from "./renderable.ts";
+import { queuePostFlushCb } from '@vue/runtime-core'
+import { type AnimationRegistry, createAnimationRegistry } from './animation/timeline.ts'
+import { type HostContext } from './renderable.ts'
 
-const FRAME_MS = 16;
+const FRAME_MS = 16
 // Clamp the per-frame delta so a long pause (GC, blocked event loop) can't make
 // an animation leap or spin the carry loop; it just resumes a few frames behind.
-const MAX_DT_MS = 100;
+const MAX_DT_MS = 100
 
 export interface HostScheduler {
-  scheduleRender: () => void;
-  flushNow: () => void;
-  dispose: () => void;
-  animations: AnimationRegistry;
+  scheduleRender: () => void
+  flushNow: () => void
+  dispose: () => void
+  animations: AnimationRegistry
 }
 
 export function createHostScheduler(ctx: HostContext): HostScheduler {
-  let flushQueued = false;
-  let lastRenderAt = 0;
-  let trailingTimer: ReturnType<typeof setTimeout> | null = null;
-  let frameTimer: ReturnType<typeof setInterval> | null = null;
-  let lastFrameAt = 0;
-  let disposed = false;
+  let flushQueued = false
+  let lastRenderAt = 0
+  let trailingTimer: ReturnType<typeof setTimeout> | null = null
+  let frameTimer: ReturnType<typeof setInterval> | null = null
+  let lastFrameAt = 0
+  let disposed = false
 
-  const animations = createAnimationRegistry(setAnimating);
+  const animations = createAnimationRegistry(setAnimating)
 
   function scheduleRender(): void {
-    if (disposed || flushQueued) return;
-    flushQueued = true;
-    queuePostFlushCb(onFlush);
+    if (disposed || flushQueued) return
+    flushQueued = true
+    queuePostFlushCb(onFlush)
   }
 
   function onFlush(): void {
-    flushQueued = false;
-    if (disposed) return;
-    const since = Date.now() - lastRenderAt;
+    flushQueued = false
+    if (disposed) return
+    const since = Date.now() - lastRenderAt
     if (since >= FRAME_MS) {
-      render();
+      render()
     } else if (!trailingTimer) {
       trailingTimer = setTimeout(() => {
-        trailingTimer = null;
-        render();
-      }, FRAME_MS - since);
+        trailingTimer = null
+        render()
+      }, FRAME_MS - since)
     }
   }
 
   function flushNow(): void {
-    clearTrailing();
-    render();
+    clearTrailing()
+    render()
   }
 
   function dispose(): void {
-    disposed = true;
-    clearTrailing();
-    stopFrames();
-    animations.clear();
+    disposed = true
+    clearTrailing()
+    stopFrames()
+    animations.clear()
   }
 
   function clearTrailing(): void {
     if (trailingTimer) {
-      clearTimeout(trailingTimer);
-      trailingTimer = null;
+      clearTimeout(trailingTimer)
+      trailingTimer = null
     }
   }
 
@@ -78,46 +78,46 @@ export function createHostScheduler(ctx: HostContext): HostScheduler {
 
   /** Empty↔non-empty edge from the registry: start the loop, or stop it when idle. */
   function setAnimating(active: boolean): void {
-    if (active) startFrames();
-    else stopFrames();
+    if (active) startFrames()
+    else stopFrames()
   }
 
   function startFrames(): void {
-    if (frameTimer || disposed) return;
-    lastFrameAt = Date.now();
-    frameTimer = setInterval(onFrame, FRAME_MS);
+    if (frameTimer || disposed) return
+    lastFrameAt = Date.now()
+    frameTimer = setInterval(onFrame, FRAME_MS)
   }
 
   function stopFrames(): void {
     if (frameTimer) {
-      clearInterval(frameTimer);
-      frameTimer = null;
+      clearInterval(frameTimer)
+      frameTimer = null
     }
   }
 
   function onFrame(): void {
     if (disposed) {
-      stopFrames();
-      return;
+      stopFrames()
+      return
     }
-    const now = Date.now();
-    const dt = Math.min(MAX_DT_MS, now - lastFrameAt);
-    lastFrameAt = now;
+    const now = Date.now()
+    const dt = Math.min(MAX_DT_MS, now - lastFrameAt)
+    lastFrameAt = now
     // Advance animations only; `onUpdate` sets refs → coalesced render. If this
     // drains the registry, `setAnimating(false)` stops the loop for us.
-    animations.tick(dt);
+    animations.tick(dt)
   }
 
   function render(): void {
-    if (disposed) return;
-    lastRenderAt = Date.now();
-    ctx.layout?.(ctx); // dirty-gated layout (Phase 03)
+    if (disposed) return
+    lastRenderAt = Date.now()
+    ctx.layout?.(ctx) // dirty-gated layout (Phase 03)
     // Post-layout, pre-paint: viewports clamp/stick their scroll offset to the
     // freshly-laid-out content size (stick-to-bottom with no one-frame lag).
-    for (const cb of ctx.afterLayout) cb();
-    ctx.paint?.(ctx); // tree walk + native diff/emit (Phase 04)
-    ctx.renderCount++;
+    for (const cb of ctx.afterLayout) cb()
+    ctx.paint?.(ctx) // tree walk + native diff/emit (Phase 04)
+    ctx.renderCount++
   }
 
-  return { scheduleRender, flushNow, dispose, animations };
+  return { scheduleRender, flushNow, dispose, animations }
 }

@@ -1,21 +1,21 @@
-import { overlaysInPaintOrder } from "./overlay.ts";
-import type { HostContext, Renderable } from "./renderable.ts";
+import { overlaysInPaintOrder } from './overlay.ts'
+import type { HostContext, Renderable } from './renderable.ts'
 
 function contains(node: Renderable, x: number, y: number): boolean {
-  const r = node.screenRect;
-  return !!r && x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1;
+  const r = node.screenRect
+  return !!r && x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1
 }
 
 /** Return the topmost painted Renderable at a 0-indexed terminal cell. */
 export function hitTest(root: Renderable | null, x: number, y: number): Renderable | null {
-  if (!root || !contains(root, x, y)) return null;
-  let hit: Renderable = root;
+  if (!root || !contains(root, x, y)) return null
+  let hit: Renderable = root
   for (const child of root.children) {
-    if (child.isOverlay) continue; // overlays are tested first, separately
-    const childHit = hitTest(child, x, y);
-    if (childHit) hit = childHit;
+    if (child.isOverlay) continue // overlays are tested first, separately
+    const childHit = hitTest(child, x, y)
+    if (childHit) hit = childHit
   }
-  return hit;
+  return hit
 }
 
 /**
@@ -30,17 +30,17 @@ export function hitTest(root: Renderable | null, x: number, y: number): Renderab
  * callers.
  */
 export function hitTestTopmost(ctx: HostContext, x: number, y: number): Renderable | null {
-  const overlays = overlaysInPaintOrder(ctx);
+  const overlays = overlaysInPaintOrder(ctx)
   for (let i = overlays.length - 1; i >= 0; i--) {
-    const ov = overlays[i]!;
-    if (!ov.paint.visible) continue;
-    const hit = hitTest(ov, x, y);
+    const ov = overlays[i]!
+    if (!ov.paint.visible) continue
+    const hit = hitTest(ov, x, y)
     // A real descendant of the overlay was hit → it claims the cell. The overlay
     // *container* itself (the `hit === ov` fallback over its empty area) only
     // claims the cell when it's a modal backdrop; otherwise the event falls
     // through to whatever is underneath.
-    if (hit && hit !== ov) return hit;
-    if (ov.paint.backdrop) return ov; // modal capture over its whole inset
+    if (hit && hit !== ov) return hit
+    if (ov.paint.backdrop) return ov // modal capture over its whole inset
   }
-  return hitTest(ctx.root, x, y);
+  return hitTest(ctx.root, x, y)
 }

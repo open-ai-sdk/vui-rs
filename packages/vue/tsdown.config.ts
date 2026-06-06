@@ -6,11 +6,11 @@
 // The GlobalComponents augmentation (src/vui-elements.d.ts, referenced from
 // index.ts) MUST survive into dist/index.d.ts so Volar keeps recognising
 // <box>/<text>/<input> for consumers — verified after build.
-import { defineConfig } from "tsdown";
+import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ["src/index.ts"],
-  format: "esm",
+  entry: ['src/index.ts'],
+  format: 'esm',
   dts: true,
-  platform: "neutral",
-});
+  platform: 'neutral',
+})

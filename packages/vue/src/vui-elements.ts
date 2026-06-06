@@ -10,112 +10,103 @@
 // paint-prop.ts. It is a real module (not a `.d.ts`) and `index.ts` re-exports
 // its prop types, so the augmentation survives dts bundling for published
 // consumers (a triple-slash `.d.ts` reference would be dropped by the bundler).
-import type { DefineComponent } from "@vue/runtime-core";
-import type {
-  AlignValue,
-  Dim,
-  JustifyValue,
-  Sides,
-  VuiStyle,
-} from "@vui-rs/core";
-import type { CanvasContext, CanvasRect } from "./host/canvas-renderable.ts";
-import type {
-  DispatchableEvent,
-  DispatchableMouseEvent,
-} from "./host/focus.ts";
-import type { Highlighter } from "./host/highlighter.ts";
+import type { DefineComponent } from '@vue/runtime-core'
+import type { AlignValue, Dim, JustifyValue, Sides, VuiStyle } from '@vui-rs/core'
+import type { CanvasContext, CanvasRect } from './host/canvas-renderable.ts'
+import type { DispatchableEvent, DispatchableMouseEvent } from './host/focus.ts'
+import type { Highlighter } from './host/highlighter.ts'
 
 /** A color: a CSS/hex/name string or a packed `0xRRGGBBAA` number (see `rgba`). */
-export type Color = string | number;
+export type Color = string | number
 
 /** Layout props — folded into the node's taffy style (mirror of `VuiStyle`). */
 interface LayoutProps {
-  display?: "flex" | "none";
-  position?: "relative" | "absolute";
-  flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
-  flexWrap?: "nowrap" | "wrap" | "wrap-reverse";
-  alignItems?: AlignValue;
-  alignSelf?: AlignValue;
-  justifyContent?: JustifyValue;
-  flexGrow?: number;
-  flexShrink?: number;
-  flexBasis?: Dim;
-  width?: Dim;
-  height?: Dim;
-  minWidth?: Dim;
-  minHeight?: Dim;
-  maxWidth?: Dim;
-  maxHeight?: Dim;
-  padding?: Sides;
-  margin?: Sides;
-  inset?: Sides;
+  display?: 'flex' | 'none'
+  position?: 'relative' | 'absolute'
+  flexDirection?: 'row' | 'column' | 'row-reverse' | 'column-reverse'
+  flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse'
+  alignItems?: AlignValue
+  alignSelf?: AlignValue
+  justifyContent?: JustifyValue
+  flexGrow?: number
+  flexShrink?: number
+  flexBasis?: Dim
+  width?: Dim
+  height?: Dim
+  minWidth?: Dim
+  minHeight?: Dim
+  maxWidth?: Dim
+  maxHeight?: Dim
+  padding?: Sides
+  margin?: Sides
+  inset?: Sides
   /** Per-side `inset` shorthands (absolute positioning). */
-  top?: Dim;
-  right?: Dim;
-  bottom?: Dim;
-  left?: Dim;
-  gap?: number | { width?: number; height?: number };
+  top?: Dim
+  right?: Dim
+  bottom?: Dim
+  left?: Dim
+  gap?: number | { width?: number; height?: number }
   /** Border thickness in layout cells; `border` (paint) sets this implicitly. */
-  borderWidth?: Dim;
+  borderWidth?: Dim
   /** A whole `VuiStyle` object, spread through `patchProp`. */
-  style?: VuiStyle;
+  style?: VuiStyle
 }
 
 /** Paint props — applied immediately to the Rust node (`set_*`). */
 interface PaintProps {
-  bg?: Color;
-  backgroundColor?: Color;
-  fg?: Color;
-  color?: Color;
+  bg?: Color
+  backgroundColor?: Color
+  fg?: Color
+  color?: Color
   /** Raw attribute bitmask (OR of `Attr.*`); the boolean flags below OR onto it. */
-  attrs?: number;
-  bold?: boolean;
-  dim?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-  inverse?: boolean;
-  border?: boolean | "none" | "single" | "double" | "rounded";
-  borderColor?: Color;
-  title?: string;
-  titleAlign?: "left" | "center" | "right";
-  visible?: boolean;
-  opacity?: number;
-  wrap?: "word" | "char" | "nowrap";
+  attrs?: number
+  bold?: boolean
+  dim?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+  inverse?: boolean
+  border?: boolean | 'none' | 'single' | 'double' | 'rounded'
+  borderColor?: Color
+  title?: string
+  titleAlign?: 'left' | 'center' | 'right'
+  visible?: boolean
+  opacity?: number
+  wrap?: 'word' | 'char' | 'nowrap'
   /**
    * Clip children to this box's content box. `visible` (default) lets them
    * spill; `hidden`/`scroll` make it a viewport (`scroll` pairs with scrollY).
    */
-  overflow?: "visible" | "hidden" | "scroll";
+  overflow?: 'visible' | 'hidden' | 'scroll'
   /** Paint order among siblings; higher draws on top (default 0). */
-  zIndex?: number;
+  zIndex?: number
 }
 
 /** Focus + keyboard event props (dispatched by the focus manager). */
 interface FocusProps {
   /** Participate in Tab focus traversal. */
-  focusable?: boolean;
+  focusable?: boolean
   /** Controlled focus: focus this node on mount / when true. */
-  focused?: boolean;
-  onKeyDown?: (ev: DispatchableEvent) => void;
-  onPaste?: (ev: DispatchableEvent) => void;
-  onMouseDown?: (ev: DispatchableMouseEvent) => void;
-  onMouseUp?: (ev: DispatchableMouseEvent) => void;
-  onMouseMove?: (ev: DispatchableMouseEvent) => void;
-  onWheel?: (ev: DispatchableMouseEvent) => void;
-  onFocus?: () => void;
-  onBlur?: () => void;
+  focused?: boolean
+  onKeyDown?: (ev: DispatchableEvent) => void
+  onPaste?: (ev: DispatchableEvent) => void
+  onMouseDown?: (ev: DispatchableMouseEvent) => void
+  onMouseUp?: (ev: DispatchableMouseEvent) => void
+  onMouseMove?: (ev: DispatchableMouseEvent) => void
+  onWheel?: (ev: DispatchableMouseEvent) => void
+  onFocus?: () => void
+  onBlur?: () => void
 }
 
 /** `<box>` — a flex container; the only element that may hold boxes/text. */
-export type BoxProps = LayoutProps & PaintProps & FocusProps;
+export type BoxProps = LayoutProps & PaintProps & FocusProps
 /** `<text>` — holds strings + inline run-style tags; sizes/colors its content. */
-export type TextProps = LayoutProps & PaintProps & FocusProps;
+export type TextProps = LayoutProps & PaintProps & FocusProps
 
 interface ScrollProps {
   /** Paint-time child offset; layout still measures the full child tree. */
-  scrollX?: number;
-  scrollY?: number;
+  scrollX?: number
+  scrollY?: number
 }
 
 /**
@@ -124,17 +115,17 @@ interface ScrollProps {
  * style, not layout.
  */
 export interface SpanProps {
-  fg?: Color;
-  color?: Color;
-  bg?: Color;
-  backgroundColor?: Color;
-  attrs?: number;
-  bold?: boolean;
-  dim?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-  inverse?: boolean;
+  fg?: Color
+  color?: Color
+  bg?: Color
+  backgroundColor?: Color
+  attrs?: number
+  bold?: boolean
+  dim?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+  inverse?: boolean
 }
 
 /**
@@ -145,35 +136,35 @@ export interface SpanProps {
  * props fall through to the underlying edit node.
  */
 export interface InputProps extends LayoutProps, PaintProps, FocusProps {
-  value?: string;
+  value?: string
   /** Alias so bare `v-model` type-checks; rewritten to `value` at build time. */
-  modelValue?: string;
-  placeholder?: string;
-  placeholderColor?: Color;
-  cursorColor?: Color;
-  maxLength?: number;
-  "onUpdate:value"?: (value: string) => void;
-  "onUpdate:modelValue"?: (value: string) => void;
-  onInput?: (value: string) => void;
-  onChange?: (value: string) => void;
-  onEnter?: (value: string) => void;
+  modelValue?: string
+  placeholder?: string
+  placeholderColor?: Color
+  cursorColor?: Color
+  maxLength?: number
+  'onUpdate:value'?: (value: string) => void
+  'onUpdate:modelValue'?: (value: string) => void
+  onInput?: (value: string) => void
+  onChange?: (value: string) => void
+  onEnter?: (value: string) => void
 }
 
 /** `<textarea>` — multi-line native-backed editor. */
 export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
-  value?: string;
-  modelValue?: string;
-  placeholder?: string;
-  placeholderColor?: Color;
-  cursorColor?: Color;
-  wrap?: "word" | "char" | "nowrap";
-  tabBehavior?: "focus" | "indent";
-  tabSize?: number;
-  "onUpdate:value"?: (value: string) => void;
-  "onUpdate:modelValue"?: (value: string) => void;
-  onInput?: (value: string) => void;
-  onChange?: (value: string) => void;
-  onEnter?: (value: string) => void;
+  value?: string
+  modelValue?: string
+  placeholder?: string
+  placeholderColor?: Color
+  cursorColor?: Color
+  wrap?: 'word' | 'char' | 'nowrap'
+  tabBehavior?: 'focus' | 'indent'
+  tabSize?: number
+  'onUpdate:value'?: (value: string) => void
+  'onUpdate:modelValue'?: (value: string) => void
+  onInput?: (value: string) => void
+  onChange?: (value: string) => void
+  onEnter?: (value: string) => void
 }
 
 /**
@@ -182,32 +173,32 @@ export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
  * switches to an offscreen framebuffer that re-runs `@draw` only on change.
  */
 export interface CanvasProps extends LayoutProps, PaintProps, FocusProps {
-  buffered?: boolean;
-  onDraw?: (ctx: CanvasContext, rect: CanvasRect) => void;
+  buffered?: boolean
+  onDraw?: (ctx: CanvasContext, rect: CanvasRect) => void
 }
 
 export interface ScrollBoxProps extends LayoutProps, PaintProps, FocusProps {
-  modelValue?: number;
-  scrollY?: number;
-  step?: number;
-  pageStep?: number;
+  modelValue?: number
+  scrollY?: number
+  step?: number
+  pageStep?: number
   /** Pin the view to the bottom as content grows (chat/transcript). */
-  stickToBottom?: boolean;
+  stickToBottom?: boolean
   /** Render an integrated vertical scrollbar (indicator + drag) on the right edge. */
-  scrollbar?: boolean;
-  "onUpdate:modelValue"?: (value: number) => void;
-  "onUpdate:scrollY"?: (value: number) => void;
-  onScroll?: (value: number) => void;
+  scrollbar?: boolean
+  'onUpdate:modelValue'?: (value: number) => void
+  'onUpdate:scrollY'?: (value: number) => void
+  onScroll?: (value: number) => void
 }
 
 export interface ScrollBarProps extends LayoutProps, PaintProps, FocusProps {
-  scrollY?: number;
-  viewportHeight: number;
-  contentHeight: number;
-  thumbBg?: Color;
-  trackBg?: Color;
-  "onUpdate:scrollY"?: (value: number) => void;
-  onScroll?: (value: number) => void;
+  scrollY?: number
+  viewportHeight: number
+  contentHeight: number
+  thumbBg?: Color
+  trackBg?: Color
+  'onUpdate:scrollY'?: (value: number) => void
+  onScroll?: (value: number) => void
 }
 
 /**
@@ -218,27 +209,25 @@ export interface ScrollBarProps extends LayoutProps, PaintProps, FocusProps {
 export interface OverlayProps extends LayoutProps, PaintProps, FocusProps {
   /** Opaque dim layer behind the overlay: `true` (default dim), a `0..1`
    * brightness multiplier, or `{ darken }`. Omit for no backdrop. */
-  backdrop?: boolean | number | { darken?: number };
+  backdrop?: boolean | number | { darken?: number }
   /** Confine Tab/Shift-Tab focus to this overlay's subtree while open (modal).
    * Default `false`; non-trapping overlays (toasts/popups) keep the tab order. */
-  trapFocus?: boolean;
+  trapFocus?: boolean
 }
 
-export type SelectItemValue = string | number;
-export type SelectItem =
-  | SelectItemValue
-  | { label: string; value: SelectItemValue; disabled?: boolean };
+export type SelectItemValue = string | number
+export type SelectItem = SelectItemValue | { label: string; value: SelectItemValue; disabled?: boolean }
 
 export interface SelectListProps extends LayoutProps, PaintProps, FocusProps {
-  items: SelectItem[];
-  modelValue?: SelectItemValue;
-  activeBg?: Color;
-  activeFg?: Color;
-  selectedBg?: Color;
-  selectedFg?: Color;
-  "onUpdate:modelValue"?: (value: SelectItemValue) => void;
-  onSelect?: (value: SelectItemValue, item: SelectItem, index: number) => void;
-  onActive?: (index: number) => void;
+  items: SelectItem[]
+  modelValue?: SelectItemValue
+  activeBg?: Color
+  activeFg?: Color
+  selectedBg?: Color
+  selectedFg?: Color
+  'onUpdate:modelValue'?: (value: SelectItemValue) => void
+  onSelect?: (value: SelectItemValue, item: SelectItem, index: number) => void
+  onActive?: (index: number) => void
 }
 
 /**
@@ -247,45 +236,45 @@ export interface SelectListProps extends LayoutProps, PaintProps, FocusProps {
  * swaps the syntax engine used for fences.
  */
 export interface MarkdownProps extends LayoutProps, PaintProps {
-  content?: string;
-  highlighter?: Highlighter;
+  content?: string
+  highlighter?: Highlighter
 }
 
 /** `<code>` — a syntax-highlighted code block (pluggable highlighter). */
 export interface CodeProps extends LayoutProps, PaintProps {
-  text?: string;
-  lang?: string;
-  highlighter?: Highlighter;
-  lineNumbers?: boolean;
-  wrap?: "word" | "char" | "nowrap";
+  text?: string
+  lang?: string
+  highlighter?: Highlighter
+  lineNumbers?: boolean
+  wrap?: 'word' | 'char' | 'nowrap'
 }
 
 /** `<diff>` — a unified-diff viewer (split mode deferred). */
 export interface DiffProps extends LayoutProps, PaintProps {
-  patch?: string;
-  mode?: "unified" | "split";
-  lineNumbers?: boolean;
+  patch?: string
+  mode?: 'unified' | 'split'
+  lineNumbers?: boolean
 }
 
-declare module "@vue/runtime-core" {
+declare module '@vue/runtime-core' {
   interface GlobalComponents {
-    box: DefineComponent<BoxProps & ScrollProps>;
-    text: DefineComponent<TextProps>;
-    span: DefineComponent<SpanProps>;
-    b: DefineComponent<SpanProps>;
-    i: DefineComponent<SpanProps>;
-    u: DefineComponent<SpanProps>;
-    em: DefineComponent<SpanProps>;
-    strong: DefineComponent<SpanProps>;
-    input: DefineComponent<InputProps>;
-    textarea: DefineComponent<TextareaProps>;
-    canvas: DefineComponent<CanvasProps>;
-    overlay: DefineComponent<OverlayProps & ScrollProps>;
-    "scroll-box": DefineComponent<ScrollBoxProps>;
-    "scroll-bar": DefineComponent<ScrollBarProps>;
-    "select-list": DefineComponent<SelectListProps>;
-    markdown: DefineComponent<MarkdownProps>;
-    code: DefineComponent<CodeProps>;
-    diff: DefineComponent<DiffProps>;
+    box: DefineComponent<BoxProps & ScrollProps>
+    text: DefineComponent<TextProps>
+    span: DefineComponent<SpanProps>
+    b: DefineComponent<SpanProps>
+    i: DefineComponent<SpanProps>
+    u: DefineComponent<SpanProps>
+    em: DefineComponent<SpanProps>
+    strong: DefineComponent<SpanProps>
+    input: DefineComponent<InputProps>
+    textarea: DefineComponent<TextareaProps>
+    canvas: DefineComponent<CanvasProps>
+    overlay: DefineComponent<OverlayProps & ScrollProps>
+    'scroll-box': DefineComponent<ScrollBoxProps>
+    'scroll-bar': DefineComponent<ScrollBarProps>
+    'select-list': DefineComponent<SelectListProps>
+    markdown: DefineComponent<MarkdownProps>
+    code: DefineComponent<CodeProps>
+    diff: DefineComponent<DiffProps>
   }
 }

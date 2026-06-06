@@ -20,10 +20,10 @@ import {
   ElementTypes,
   NodeTypes,
   transformModel as baseTransformModel,
-} from "@vue/compiler-core";
+} from '@vue/compiler-core'
 
 /** Editable tags use vui's `value`/`update:value` contract. */
-const VALUE_MODEL_TAGS = new Set(["input", "textarea"]);
+const VALUE_MODEL_TAGS = new Set(['input', 'textarea'])
 
 export const vuiModelTransform: DirectiveTransform = (dir, node, context) => {
   // A vui element (box/text/span/overlay/canvas/image) has nothing to two-way
@@ -31,22 +31,22 @@ export const vuiModelTransform: DirectiveTransform = (dir, node, context) => {
   if (node.tagType === ElementTypes.ELEMENT) {
     const err = new SyntaxError(
       `vui: v-model is not supported on the <${node.tag}> element (only on <input>/<textarea> and components)`,
-    ) as SyntaxError & { code: number; loc: typeof dir.loc };
-    err.code = -1;
-    err.loc = dir.loc;
-    context.onError(err);
-    return { props: [] };
+    ) as SyntaxError & { code: number; loc: typeof dir.loc }
+    err.code = -1
+    err.loc = dir.loc
+    context.onError(err)
+    return { props: [] }
   }
 
-  const result = baseTransformModel(dir, node, context);
+  const result = baseTransformModel(dir, node, context)
   // Components (runtime widgets + app components) keep the standard model keys.
-  if (!VALUE_MODEL_TAGS.has(node.tag)) return result;
+  if (!VALUE_MODEL_TAGS.has(node.tag)) return result
   // Base transform yields `[modelValue: <exp>, "onUpdate:modelValue": <assign>]`
   // for the default (unnamed) model; rename to vui's input/textarea contract.
   for (const prop of result.props) {
-    if (prop.key.type !== NodeTypes.SIMPLE_EXPRESSION) continue;
-    if (prop.key.content === "modelValue") prop.key.content = "value";
-    else if (prop.key.content === "onUpdate:modelValue") prop.key.content = "onUpdate:value";
+    if (prop.key.type !== NodeTypes.SIMPLE_EXPRESSION) continue
+    if (prop.key.content === 'modelValue') prop.key.content = 'value'
+    else if (prop.key.content === 'onUpdate:modelValue') prop.key.content = 'onUpdate:value'
   }
-  return result;
-};
+  return result
+}

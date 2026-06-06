@@ -10,130 +10,130 @@
 //   • `<VuiAutocomplete>` — the presentation: a bordered list of the given
 //     suggestions with the active row highlighted, rendered in normal flow right
 //     under the input (so it never gets overpainted by following content).
-import { type PropType, type Ref, computed, defineComponent, h, ref, watch } from "@vue/runtime-core";
-import { type DispatchableEvent, useTheme } from "@vui-rs/vue";
+import { type PropType, type Ref, computed, defineComponent, h, ref, watch } from '@vue/runtime-core'
+import { type DispatchableEvent, useTheme } from '@vui-rs/vue'
 
 export interface Suggestion {
-  label: string;
-  value: string;
+  label: string
+  value: string
   /** Right-aligned secondary text (type, path, etc.). */
-  hint?: string;
+  hint?: string
 }
 
 /** Produces suggestions for a query. Return `[]` to contribute nothing. */
-export type SuggestionProvider = (query: string) => Suggestion[];
+export type SuggestionProvider = (query: string) => Suggestion[]
 
 export interface AutocompleteOptions {
-  query: () => string;
-  providers: SuggestionProvider[];
-  onAccept: (s: Suggestion) => void;
+  query: () => string
+  providers: SuggestionProvider[]
+  onAccept: (s: Suggestion) => void
   /** Cap the merged suggestion list. */
-  max?: number;
+  max?: number
 }
 
 export interface AutocompleteApi {
-  suggestions: Ref<Suggestion[]>;
-  active: Ref<number>;
+  suggestions: Ref<Suggestion[]>
+  active: Ref<number>
   /** True when there is at least one suggestion to show. */
-  visible: Ref<boolean>;
+  visible: Ref<boolean>
   /** Up/Down navigation — wire on the input's wrapper (they bubble out of the input). */
-  onKeyDown: (ev: DispatchableEvent) => void;
+  onKeyDown: (ev: DispatchableEvent) => void
   /** Accept the active suggestion — call from the input's `@enter`. */
-  accept: () => void;
+  accept: () => void
 }
 
 /** Wire provider-stack suggestions + keyboard navigation for an input. */
 export function useAutocomplete(opts: AutocompleteOptions): AutocompleteApi {
-  const active = ref(0);
+  const active = ref(0)
   const suggestions = computed<Suggestion[]>(() => {
-    const q = opts.query();
-    const merged: Suggestion[] = [];
+    const q = opts.query()
+    const merged: Suggestion[] = []
     for (const provider of opts.providers) {
       for (const s of provider(q)) {
-        merged.push(s);
-        if (opts.max && merged.length >= opts.max) return merged;
+        merged.push(s)
+        if (opts.max && merged.length >= opts.max) return merged
       }
     }
-    return merged;
-  });
-  const visible = computed(() => suggestions.value.length > 0);
+    return merged
+  })
+  const visible = computed(() => suggestions.value.length > 0)
 
   // Reset the cursor when the suggestion set changes shape under it.
   watch(suggestions, (s) => {
-    if (active.value > s.length - 1) active.value = Math.max(0, s.length - 1);
-  });
+    if (active.value > s.length - 1) active.value = Math.max(0, s.length - 1)
+  })
 
   function move(delta: number): void {
-    const n = suggestions.value.length;
-    if (n === 0) return;
-    active.value = (active.value + delta + n) % n;
+    const n = suggestions.value.length
+    if (n === 0) return
+    active.value = (active.value + delta + n) % n
   }
 
   function accept(): void {
-    const s = suggestions.value[active.value];
-    if (s) opts.onAccept(s);
+    const s = suggestions.value[active.value]
+    if (s) opts.onAccept(s)
   }
 
   function onKeyDown(ev: DispatchableEvent): void {
-    if (ev.type !== "key" || !visible.value) return;
-    if (ev.name === "up") {
-      ev.preventDefault();
-      move(-1);
-    } else if (ev.name === "down") {
-      ev.preventDefault();
-      move(1);
+    if (ev.type !== 'key' || !visible.value) return
+    if (ev.name === 'up') {
+      ev.preventDefault()
+      move(-1)
+    } else if (ev.name === 'down') {
+      ev.preventDefault()
+      move(1)
     }
   }
 
-  return { suggestions, active, visible, onKeyDown, accept };
+  return { suggestions, active, visible, onKeyDown, accept }
 }
 
 export const VuiAutocomplete = defineComponent({
-  name: "VuiAutocomplete",
+  name: 'VuiAutocomplete',
   props: {
     suggestions: { type: Array as PropType<Suggestion[]>, default: () => [] },
     active: { type: Number, default: 0 },
     maxRows: { type: Number, default: 8 },
   },
-  emits: ["select"],
+  emits: ['select'],
   setup(props, { emit }) {
-    const theme = useTheme();
-    const shown = computed(() => props.suggestions.slice(0, props.maxRows));
+    const theme = useTheme()
+    const shown = computed(() => props.suggestions.slice(0, props.maxRows))
     return () => {
-      if (props.suggestions.length === 0) return null;
+      if (props.suggestions.length === 0) return null
       return h(
-        "box",
+        'box',
         {
-          flexDirection: "column",
-          border: "rounded",
+          flexDirection: 'column',
+          border: 'rounded',
           borderColor: theme.border,
           bg: theme.backgroundMenu,
-          alignSelf: "flex-start",
+          alignSelf: 'flex-start',
           minWidth: 20,
         },
         shown.value.map((s, i) => {
-          const on = i === props.active;
+          const on = i === props.active
           return h(
-            "box",
+            'box',
             {
               key: s.value,
-              flexDirection: "row",
-              justifyContent: "space-between",
+              flexDirection: 'row',
+              justifyContent: 'space-between',
               gap: 2,
               bg: on ? theme.primary : undefined,
               padding: { left: 1, right: 1 },
               onMouseDown: (ev: DispatchableEvent) => {
-                ev.preventDefault();
-                emit("select", s, i);
+                ev.preventDefault()
+                emit('select', s, i)
               },
             },
             [
-              h("text", { fg: on ? theme.selectedText : theme.text }, s.label),
-              s.hint ? h("text", { fg: on ? theme.selectedText : theme.textMuted }, s.hint) : null,
+              h('text', { fg: on ? theme.selectedText : theme.text }, s.label),
+              s.hint ? h('text', { fg: on ? theme.selectedText : theme.textMuted }, s.hint) : null,
             ],
-          );
+          )
         }),
-      );
-    };
+      )
+    }
   },
-});
+})

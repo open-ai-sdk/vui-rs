@@ -12,9 +12,8 @@
   >
     <text :fg="ACCENT" bold>vui-rs · text selection + clipboard (OSC 52) demo</text>
     <text :fg="MUTED">
-      <b :fg="GREEN">drag</b> the mouse over the text to select ·
-      <b :fg="GREEN">Ctrl/Cmd-C</b> copies to the system clipboard ·
-      <b :fg="GREEN">click</b> elsewhere or <b :fg="RED">Esc</b> clears / quits
+      <b :fg="GREEN">drag</b> the mouse over the text to select · <b :fg="GREEN">Ctrl/Cmd-C</b> copies to the system
+      clipboard · <b :fg="GREEN">click</b> elsewhere or <b :fg="RED">Esc</b> clears / quits
     </text>
     <text> </text>
 
@@ -31,23 +30,22 @@
 
     <text> </text>
     <text :fg="MUTED"
-      >Selection is line-flow (like an editor) and works over static
-      <b :fg="TEXT">&lt;text&gt;</b> / <b :fg="TEXT">&lt;markdown&gt;</b>. Copy
-      reads the rendered glyphs (what you see is what you copy).</text
+      >Selection is line-flow (like an editor) and works over static <b :fg="TEXT">&lt;text&gt;</b> /
+      <b :fg="TEXT">&lt;markdown&gt;</b>. Copy reads the rendered glyphs (what you see is what you copy).</text
     >
   </box>
 </template>
 
 <script setup lang="ts">
-import type { DispatchableEvent } from "@vui-rs/vue";
+import type { DispatchableEvent } from '@vui-rs/vue'
 
-const BG = "#1e1e2e";
-const TEXT = "#cdd6f4";
-const MUTED = "#9399b2";
-const ACCENT = "#cba6f7";
-const BLUE = "#89b4fa";
-const GREEN = "#a6e3a1";
-const RED = "#f38ba8";
+const BG = '#1e1e2e'
+const TEXT = '#cdd6f4'
+const MUTED = '#9399b2'
+const ACCENT = '#cba6f7'
+const BLUE = '#89b4fa'
+const GREEN = '#a6e3a1'
+const RED = '#f38ba8'
 
 const MD = `# Releasing the kraken
 
@@ -62,12 +60,12 @@ this text with the mouse and copy it — the selection highlights in *inverse* a
 
 > Selection over static content is read-only — your inputs and textareas keep
 > their own native selection.
-`;
+`
 
 function onKey(ev: DispatchableEvent): void {
-  if (ev.type === "key" && ev.name === "escape") {
-    ev.preventDefault();
-    process.exit(0);
+  if (ev.type === 'key' && ev.name === 'escape') {
+    ev.preventDefault()
+    process.exit(0)
   }
 }
 </script>

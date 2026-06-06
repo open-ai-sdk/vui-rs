@@ -1,74 +1,74 @@
-import { describe, expect, test } from "bun:test";
-import { h, nextTick, ref } from "@vue/runtime-core";
-import { VuiDialogSelect } from "../src/dialog-select.ts";
-import { allGlyphs, key, mount } from "./helpers.ts";
+import { describe, expect, test } from 'bun:test'
+import { h, nextTick, ref } from '@vue/runtime-core'
+import { VuiDialogSelect } from '../src/dialog-select.ts'
+import { allGlyphs, key, mount } from './helpers.ts'
 
-const ITEMS = ["Open File", "Close File", "Save As", "Open Folder"];
+const ITEMS = ['Open File', 'Close File', 'Save As', 'Open Folder']
 
 function mountSelect() {
-  const selected: Array<string | number> = [];
-  const open = ref(true);
+  const selected: Array<string | number> = []
+  const open = ref(true)
   const harness = mount(60, 16, () =>
     h(VuiDialogSelect, {
       open: open.value,
-      title: "Pick",
+      title: 'Pick',
       items: ITEMS,
-      "onUpdate:open": (v: boolean) => (open.value = v),
+      'onUpdate:open': (v: boolean) => (open.value = v),
       onSelect: (v: string | number) => selected.push(v),
     }),
-  );
-  return { ...harness, selected, open };
+  )
+  return { ...harness, selected, open }
 }
 
-describe("VuiDialogSelect", () => {
-  test("typing filters the list (fuzzy)", async () => {
-    const { renderer, dispatch, settle, cleanup } = mountSelect();
-    await nextTick();
-    dispatch(key("s"));
-    dispatch(key("a"));
-    await settle();
-    const screen = allGlyphs(renderer);
-    expect(screen).toContain("SaveAs");
-    expect(screen).not.toContain("CloseFile");
-    cleanup();
-  });
+describe('VuiDialogSelect', () => {
+  test('typing filters the list (fuzzy)', async () => {
+    const { renderer, dispatch, settle, cleanup } = mountSelect()
+    await nextTick()
+    dispatch(key('s'))
+    dispatch(key('a'))
+    await settle()
+    const screen = allGlyphs(renderer)
+    expect(screen).toContain('SaveAs')
+    expect(screen).not.toContain('CloseFile')
+    cleanup()
+  })
 
-  test("Down moves the active row and Enter selects it", async () => {
-    const { dispatch, selected, cleanup } = mountSelect();
-    await nextTick();
-    dispatch(key("down")); // active 0 -> 1 (Close File)
-    dispatch(key("enter"));
-    expect(selected).toEqual(["Close File"]);
-    cleanup();
-  });
+  test('Down moves the active row and Enter selects it', async () => {
+    const { dispatch, selected, cleanup } = mountSelect()
+    await nextTick()
+    dispatch(key('down')) // active 0 -> 1 (Close File)
+    dispatch(key('enter'))
+    expect(selected).toEqual(['Close File'])
+    cleanup()
+  })
 
-  test("Enter on a filtered list selects the match", async () => {
-    const { dispatch, selected, cleanup } = mountSelect();
-    await nextTick();
-    dispatch(key("s"));
-    dispatch(key("a"));
-    dispatch(key("enter"));
-    expect(selected).toEqual(["Save As"]);
-    cleanup();
-  });
+  test('Enter on a filtered list selects the match', async () => {
+    const { dispatch, selected, cleanup } = mountSelect()
+    await nextTick()
+    dispatch(key('s'))
+    dispatch(key('a'))
+    dispatch(key('enter'))
+    expect(selected).toEqual(['Save As'])
+    cleanup()
+  })
 
-  test("the search input paints the typed query (not just filters)", async () => {
-    const { renderer, dispatch, settle, cleanup } = mountSelect();
-    await nextTick();
+  test('the search input paints the typed query (not just filters)', async () => {
+    const { renderer, dispatch, settle, cleanup } = mountSelect()
+    await nextTick()
     // 'zz' matches nothing, so it can only appear if the input itself is painted.
-    dispatch(key("z"));
-    dispatch(key("z"));
-    await settle();
-    expect(allGlyphs(renderer)).toContain("zz");
-    cleanup();
-  });
+    dispatch(key('z'))
+    dispatch(key('z'))
+    await settle()
+    expect(allGlyphs(renderer)).toContain('zz')
+    cleanup()
+  })
 
-  test("Esc closes without selecting", async () => {
-    const { dispatch, selected, open, cleanup } = mountSelect();
-    await nextTick();
-    dispatch(key("escape"));
-    expect(open.value).toBe(false);
-    expect(selected).toEqual([]);
-    cleanup();
-  });
-});
+  test('Esc closes without selecting', async () => {
+    const { dispatch, selected, open, cleanup } = mountSelect()
+    await nextTick()
+    dispatch(key('escape'))
+    expect(open.value).toBe(false)
+    expect(selected).toEqual([])
+    cleanup()
+  })
+})

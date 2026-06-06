@@ -1,4 +1,4 @@
-import { loadNativeLib } from "./native/load-native-lib.ts";
+import { loadNativeLib } from './native/load-native-lib.ts'
 
 export {
   Attr,
@@ -13,12 +13,12 @@ export {
   Status,
   STYLE_FFI_BYTES,
   symbols,
-} from "./native/load-native-lib.ts";
-export type { NativeLib } from "./native/load-native-lib.ts";
-export { parseColor } from "./color.ts";
-export { NAMED_COLORS, parseHex } from "./named-colors.ts";
-export { Renderer, rgba, type TextStyle, type ClipRect } from "./renderer.ts";
-export { OffscreenBuffer } from "./offscreen-buffer.ts";
+} from './native/load-native-lib.ts'
+export type { NativeLib } from './native/load-native-lib.ts'
+export { parseColor } from './color.ts'
+export { NAMED_COLORS, parseHex } from './named-colors.ts'
+export { Renderer, rgba, type TextStyle, type ClipRect } from './renderer.ts'
+export { OffscreenBuffer } from './offscreen-buffer.ts'
 export {
   TextBuffer,
   TextBufferView,
@@ -27,9 +27,9 @@ export {
   wrapCode,
   type TextMeasure,
   type TextWrapMode,
-} from "./text/index.ts";
-export { charWidth, strWidth } from "./char-width.ts";
-export { decodeImage, decodeImageBytes, type DecodedImage } from "./image-decode.ts";
+} from './text/index.ts'
+export { charWidth, strWidth } from './char-width.ts'
+export { decodeImage, decodeImageBytes, type DecodedImage } from './image-decode.ts'
 export {
   parseKeys,
   createKeyDecoder,
@@ -41,33 +41,15 @@ export {
   type MouseEvent,
   type PasteEvent,
   type InputEvent,
-} from "./keys.ts";
-export {
-  createTerminalSession,
-  type TerminalSession,
-  type TerminalSessionOptions,
-} from "./terminal-session.ts";
-export {
-  hostTreeHash,
-  VuiNode,
-  type LayoutRect,
-  type RectEdges,
-  type TextRun,
-  type TextWrapName,
-} from "./node.ts";
-export {
-  packStyle,
-  type AlignValue,
-  type Dim,
-  type JustifyValue,
-  type Sides,
-  type VuiStyle,
-} from "./style.ts";
+} from './keys.ts'
+export { createTerminalSession, type TerminalSession, type TerminalSessionOptions } from './terminal-session.ts'
+export { hostTreeHash, VuiNode, type LayoutRect, type RectEdges, type TextRun, type TextWrapName } from './node.ts'
+export { packStyle, type AlignValue, type Dim, type JustifyValue, type Sides, type VuiStyle } from './style.ts'
 
 /**
  * Memoized handle to the loaded vui-core native library. The first call
  * resolves, opens, and ABI-checks the library; subsequent calls reuse it.
  */
 export function getNativeLib() {
-  return loadNativeLib();
+  return loadNativeLib()
 }

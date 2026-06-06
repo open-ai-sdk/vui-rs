@@ -9,8 +9,8 @@
   >
     <text :fg="BLUE" bold>vui-rs · scroll + stick-to-bottom demo</text>
     <text :fg="SUBTLE">
-      <b :fg="GREEN">a</b> add line · <b :fg="GREEN">↑/↓ PgUp/PgDn</b> scroll ·
-      <b :fg="GREEN">Home</b> top · <b :fg="GREEN">End</b> bottom · <b :fg="RED">Esc</b> quit
+      <b :fg="GREEN">a</b> add line · <b :fg="GREEN">↑/↓ PgUp/PgDn</b> scroll · <b :fg="GREEN">Home</b> top ·
+      <b :fg="GREEN">End</b> bottom · <b :fg="RED">Esc</b> quit
     </text>
     <text> </text>
 
@@ -37,45 +37,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "@vui-rs/vue";
-import type { DispatchableEvent } from "@vui-rs/vue";
+import { ref } from '@vui-rs/vue'
+import type { DispatchableEvent } from '@vui-rs/vue'
 
-const BASE = "#111827";
-const TEXT = "#e5e7eb";
-const BLUE = "#60a5fa";
-const GREEN = "#34d399";
-const RED = "#f87171";
-const SUBTLE = "#9ca3af";
-const BORDER = "#374151";
+const BASE = '#111827'
+const TEXT = '#e5e7eb'
+const BLUE = '#60a5fa'
+const GREEN = '#34d399'
+const RED = '#f87171'
+const SUBTLE = '#9ca3af'
+const BORDER = '#374151'
 
 interface Line {
-  id: number;
-  text: string;
-  fg: string;
+  id: number
+  text: string
+  fg: string
 }
 
-let next = 0;
+let next = 0
 function makeLine(): Line {
-  next += 1;
-  const role = next % 3 === 0 ? "you" : "agent";
+  next += 1
+  const role = next % 3 === 0 ? 'you' : 'agent'
   return {
     id: next,
-    text: `${String(next).padStart(3, " ")} · ${role}: line of transcript content here`,
-    fg: role === "you" ? GREEN : TEXT,
-  };
+    text: `${String(next).padStart(3, ' ')} · ${role}: line of transcript content here`,
+    fg: role === 'you' ? GREEN : TEXT,
+  }
 }
 
 // Seed enough rows to overflow the 10-row viewport so scrolling is visible.
-const lines = ref<Line[]>(Array.from({ length: 24 }, makeLine));
+const lines = ref<Line[]>(Array.from({ length: 24 }, makeLine))
 
 function onKey(ev: DispatchableEvent): void {
-  if (ev.type !== "key") return;
-  if (ev.name === "a") {
-    ev.preventDefault();
-    lines.value = [...lines.value, makeLine()];
-  } else if (ev.name === "escape") {
-    ev.preventDefault();
-    process.exit(0);
+  if (ev.type !== 'key') return
+  if (ev.name === 'a') {
+    ev.preventDefault()
+    lines.value = [...lines.value, makeLine()]
+  } else if (ev.name === 'escape') {
+    ev.preventDefault()
+    process.exit(0)
   }
 }
 </script>

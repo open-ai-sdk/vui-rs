@@ -47,30 +47,28 @@
       >!</text
     >
     <text v-if="values.notes" :fg="SUBTLE">Notes: {{ values.notes }}</text>
-    <text :fg="SUBTLE"
-      >Tab to switch · Enter inserts newline · Ctrl-Z undo · Ctrl-C quit</text
-    >
+    <text :fg="SUBTLE">Tab to switch · Enter inserts newline · Ctrl-Z undo · Ctrl-C quit</text>
   </box>
 </template>
 
 <script setup lang="ts">
-import { reactive } from "@vui-rs/vue";
+import { reactive } from '@vui-rs/vue'
 
-const BASE = "#1e1e2e";
-const SURFACE = "#313244";
-const TEXT = "#cdd6f4";
-const BLUE = "#89b4fa";
-const GREEN = "#a6e3a1";
-const SUBTLE = "#7f849c";
+const BASE = '#1e1e2e'
+const SURFACE = '#313244'
+const TEXT = '#cdd6f4'
+const BLUE = '#89b4fa'
+const GREEN = '#a6e3a1'
+const SUBTLE = '#7f849c'
 
 const fields = [
-  { key: "name", label: "Name", placeholder: "your name" },
-  { key: "email", label: "Email", placeholder: "you@example.com" },
-] as const;
+  { key: 'name', label: 'Name', placeholder: 'your name' },
+  { key: 'email', label: 'Email', placeholder: 'you@example.com' },
+] as const
 
 const values = reactive<Record<string, string>>({
-  name: "",
-  email: "",
-  notes: "",
-});
+  name: '',
+  email: '',
+  notes: '',
+})
 </script>

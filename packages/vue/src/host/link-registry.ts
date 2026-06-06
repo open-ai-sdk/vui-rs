@@ -7,25 +7,25 @@
 // reserved for "no link"; the 256th distinct URI and beyond fall back to 0 (the
 // link is simply not rendered) rather than colliding with an existing id.
 export class LinkRegistry {
-  #byUri = new Map<string, number>();
-  #next = 1;
+  #byUri = new Map<string, number>()
+  #next = 1
 
   /** Stable id for `uri` (assigning one on first sight). 0 if the table is full. */
   idFor(uri: string): number {
-    const existing = this.#byUri.get(uri);
-    if (existing !== undefined) return existing;
-    if (this.#next > 255) return 0; // one-byte id space exhausted: render unlinked
-    const id = this.#next++;
-    this.#byUri.set(uri, id);
-    return id;
+    const existing = this.#byUri.get(uri)
+    if (existing !== undefined) return existing
+    if (this.#next > 255) return 0 // one-byte id space exhausted: render unlinked
+    const id = this.#next++
+    this.#byUri.set(uri, id)
+    return id
   }
 
   /** All `(id, uri)` entries, for staging the renderer's link table each frame. */
   entries(): Array<[number, string]> {
-    return Array.from(this.#byUri, ([uri, id]) => [id, uri]);
+    return Array.from(this.#byUri, ([uri, id]) => [id, uri])
   }
 
   get size(): number {
-    return this.#byUri.size;
+    return this.#byUri.size
   }
 }

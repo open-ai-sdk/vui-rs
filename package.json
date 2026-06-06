@@ -2,7 +2,12 @@
   "name": "vui-rs",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "license": "MIT",
+  "author": "evann <dacsang97@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-ai-sdk/vui-rs.git"
+  },
   "workspaces": {
     "packages": [
       "packages/*",
@@ -14,11 +19,15 @@
       "@vue/compiler-sfc": "3.5.35",
       "@vue/reactivity": "3.5.35",
       "@vue/runtime-core": "3.5.35",
-      "vite": "^8.0.0"
+      "vite": "^8.0.0",
+      "vite-plus": "^0.1.24"
     }
   },
+  "type": "module",
   "scripts": {
+    "build": "vp run --filter './packages/*' build",
     "build:native": "bun run scripts/build-native.ts",
+    "build:native:all": "bun run scripts/build-native.ts --all",
     "build:packages": "bun run --filter './packages/*' build",
     "build:examples": "bun run --filter '@vui-rs/example-*' build",
     "dev:form": "bun run --filter @vui-rs/example-form build && bun examples/form/dist/app.js",
@@ -38,9 +47,18 @@
     "dev": "bun run scripts/abi-probe.ts",
     "typecheck:sfc": "vue-tsc --noEmit",
     "bench": "bun run examples/paint-bench.ts >/dev/null",
-    "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test packages/ui/test && bun run scripts/abi-probe.ts"
+    "test": "cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test packages/ui/test && bun run scripts/abi-probe.ts",
+    "changeset": "changeset",
+    "ci:version": "changeset version && bun install --lockfile-only",
+    "ci:publish": "bun run build:native:all && bun run build:packages && bun run scripts/publish-packages.ts && changeset tag",
+    "lint": "vp lint",
+    "lint:fix": "vp lint --fix",
+    "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check",
+    "prepare": "vp config"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
     "@types/bun": "^1.3.0",
     "@vue/compiler-sfc": "catalog:",
     "@vue/runtime-core": "catalog:",
@@ -49,6 +67,8 @@
     "tsdown": "^0.22.1",
     "typescript": "^5.9.0",
     "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vue-tsc": "^2.2.0"
-  }
+  },
+  "packageManager": "bun@1.3.14"
 }

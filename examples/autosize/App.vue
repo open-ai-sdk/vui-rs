@@ -23,7 +23,15 @@
       <box :width="20" border="single" :borderColor="GREEN" :bg="SURFACE" :padding="1" title=" wrap " titleAlign="left">
         <text :fg="TEXT">{{ SENTENCE }}</text>
       </box>
-      <box :width="20" border="single" :borderColor="PINK" :bg="SURFACE" :padding="1" title=" nowrap " titleAlign="left">
+      <box
+        :width="20"
+        border="single"
+        :borderColor="PINK"
+        :bg="SURFACE"
+        :padding="1"
+        title=" nowrap "
+        titleAlign="left"
+      >
         <text :fg="TEXT" wrap="nowrap">{{ SENTENCE }}</text>
       </box>
     </box>
@@ -38,14 +46,14 @@
 </template>
 
 <script setup lang="ts">
-const BASE = "#1e1e2e";
-const SURFACE = "#313244";
-const ACCENT = "#89b4fa";
-const GREEN = "#a6e3a1";
-const PINK = "#f5c2e7";
-const TEXT = "#cdd6f4";
-const SUBTLE = "#7f849c";
+const BASE = '#1e1e2e'
+const SURFACE = '#313244'
+const ACCENT = '#89b4fa'
+const GREEN = '#a6e3a1'
+const PINK = '#f5c2e7'
+const TEXT = '#cdd6f4'
+const SUBTLE = '#7f849c'
 
-const SENTENCE = "the quick brown fox jumps over the lazy dog";
-const NOTES = "first line\nthis second line is long enough to wrap onto more rows\nlast";
+const SENTENCE = 'the quick brown fox jumps over the lazy dog'
+const NOTES = 'first line\nthis second line is long enough to wrap onto more rows\nlast'
 </script>

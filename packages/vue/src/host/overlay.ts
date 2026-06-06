@@ -10,8 +10,8 @@
 // Backdrop dim is OPAQUE color-quantization: terminals have no real alpha, so a
 // "dim" backdrop reads each covered cell and rewrites it darker (keeping its
 // glyph). No ABI change, no per-subtree alpha — that is the deferred 01b work.
-import { Attr, charWidth } from "@vui-rs/core";
-import { BoxRenderable } from "./box-renderable.ts";
+import { Attr, charWidth } from '@vui-rs/core'
+import { BoxRenderable } from './box-renderable.ts'
 import {
   type Backdrop,
   type CellUnder,
@@ -19,7 +19,7 @@ import {
   type HostContext,
   type PaintBuffer,
   type Renderable,
-} from "./renderable.ts";
+} from './renderable.ts'
 
 /**
  * An `<overlay>` host node: a top-layer box laid out absolute over the whole
@@ -29,39 +29,39 @@ import {
  */
 export class OverlayRenderable extends BoxRenderable {
   constructor(ctx: HostContext, tag: string) {
-    super(ctx, tag);
-    this.isOverlay = true;
+    super(ctx, tag)
+    this.isOverlay = true
     // Fill the terminal by default; modals center their content inside this.
-    this.style.position = "absolute";
-    (this.style as Record<string, unknown>).inset = 0;
+    this.style.position = 'absolute'
+    ;(this.style as Record<string, unknown>).inset = 0
   }
 }
 
 /** Track an overlay root so the paint walk's overlay pass draws it. */
 export function registerOverlay(ctx: HostContext, node: Renderable): void {
-  if (!ctx.overlays.includes(node)) ctx.overlays.push(node);
+  if (!ctx.overlays.includes(node)) ctx.overlays.push(node)
 }
 
 /** Drop an overlay root from the registry (on unmount). */
 export function unregisterOverlay(ctx: HostContext, node: Renderable): void {
-  const at = ctx.overlays.indexOf(node);
-  if (at >= 0) ctx.overlays.splice(at, 1);
+  const at = ctx.overlays.indexOf(node)
+  if (at >= 0) ctx.overlays.splice(at, 1)
 }
 
 /** Overlays in paint order: low `zIndex` first, ties keep registration order. */
 export function overlaysInPaintOrder(ctx: HostContext): Renderable[] {
   // Stable sort (Array.prototype.sort is stable) keyed only on zIndex, so the
   // common all-default case preserves mount order exactly.
-  return [...ctx.overlays].sort((a, b) => a.paint.zIndex - b.paint.zIndex);
+  return [...ctx.overlays].sort((a, b) => a.paint.zIndex - b.paint.zIndex)
 }
 
 /** Scale a packed `0xRRGGBBAA` color's RGB toward black by `f` (0..1); alpha kept. */
 function darken(packed: number, f: number): number {
-  const r = Math.round(((packed >>> 24) & 0xff) * f);
-  const g = Math.round(((packed >>> 16) & 0xff) * f);
-  const b = Math.round(((packed >>> 8) & 0xff) * f);
-  const a = packed & 0xff;
-  return (((r << 24) | (g << 16) | (b << 8) | a) >>> 0);
+  const r = Math.round(((packed >>> 24) & 0xff) * f)
+  const g = Math.round(((packed >>> 16) & 0xff) * f)
+  const b = Math.round(((packed >>> 8) & 0xff) * f)
+  const a = packed & 0xff
+  return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0
 }
 
 /**
@@ -89,28 +89,28 @@ export function drawBackdrop(
   y1: number,
   backdrop: Backdrop,
 ): void {
-  const f = Math.max(0, Math.min(1, backdrop.darken));
-  const lo = Math.max(x0, clip.x0);
-  const hi = Math.min(x1, clip.x1);
-  const top = Math.max(y0, clip.y0);
-  const bot = Math.min(y1, clip.y1);
+  const f = Math.max(0, Math.min(1, backdrop.darken))
+  const lo = Math.max(x0, clip.x0)
+  const hi = Math.min(x1, clip.x1)
+  const top = Math.max(y0, clip.y0)
+  const bot = Math.min(y1, clip.y1)
   const dim = (buf2: PaintBuffer, x: number, y: number, c: CellUnder): void =>
-    buf2.setCell(x, y, c.ch, darken(c.fg, f), darken(c.bg, f), c.attrs, clip);
+    buf2.setCell(x, y, c.ch, darken(c.fg, f), darken(c.bg, f), c.attrs, clip)
   for (let y = top; y < bot; y++) {
     for (let x = lo; x < hi; x++) {
-      const cell = buf.cellUnder(x, y);
+      const cell = buf.cellUnder(x, y)
       // A wide leader still inside the region: darken it with its continuation in
       // one leader→continuation pass so the pair survives `setCell`'s defuse.
       if (!(cell.attrs & Attr.WIDE_CONTINUATION) && charWidth(cell.ch) === 2 && x + 1 < hi) {
-        const cont = buf.cellUnder(x + 1, y);
-        dim(buf, x, y, cell);
-        dim(buf, x + 1, y, cont);
-        x++; // skip the continuation just handled
-        continue;
+        const cont = buf.cellUnder(x + 1, y)
+        dim(buf, x, y, cell)
+        dim(buf, x + 1, y, cont)
+        x++ // skip the continuation just handled
+        continue
       }
       // Narrow cell, or a continuation whose leader is outside the region:
       // rewrite in place (keeping ch/attrs so a lone half stays a clean half).
-      dim(buf, x, y, cell);
+      dim(buf, x, y, cell)
     }
   }
 }

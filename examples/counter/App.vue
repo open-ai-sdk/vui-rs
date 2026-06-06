@@ -13,24 +13,26 @@
     title=" vui counter "
     titleAlign="center"
   >
-    <text :fg="TEXT">count: <b :fg="GREEN">{{ count }}</b></text>
+    <text :fg="TEXT"
+      >count: <b :fg="GREEN">{{ count }}</b></text
+    >
     <text :fg="SUBTLE">a ref ticking once a second · Ctrl-C to quit</text>
   </box>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "@vui-rs/vue";
+import { onMounted, onUnmounted, ref } from '@vui-rs/vue'
 
-const BASE = "#1e1e2e";
-const TEXT = "#cdd6f4";
-const GREEN = "#a6e3a1";
-const BLUE = "#89b4fa";
-const SUBTLE = "#7f849c";
+const BASE = '#1e1e2e'
+const TEXT = '#cdd6f4'
+const GREEN = '#a6e3a1'
+const BLUE = '#89b4fa'
+const SUBTLE = '#7f849c'
 
-const count = ref(0);
-let timer: ReturnType<typeof setInterval> | undefined;
+const count = ref(0)
+let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
-  timer = setInterval(() => count.value++, 1000);
-});
-onUnmounted(() => clearInterval(timer));
+  timer = setInterval(() => count.value++, 1000)
+})
+onUnmounted(() => clearInterval(timer))
 </script>

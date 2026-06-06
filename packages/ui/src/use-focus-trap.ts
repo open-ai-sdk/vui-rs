@@ -9,8 +9,8 @@
 // so dismissing a dialog returns the user to wherever they were. Autofocus *into*
 // the modal is each dialog's own job (its primary control renders `focused`), which
 // is more precise than guessing a first-focusable here.
-import { inject, onUnmounted, watch } from "@vue/runtime-core";
-import { HostContextSymbol, type Renderable } from "@vui-rs/vue";
+import { inject, onUnmounted, watch } from '@vue/runtime-core'
+import { HostContextSymbol, type Renderable } from '@vui-rs/vue'
 
 /**
  * Capture/restore focus around a modal's open state. Pass a reactive getter for
@@ -18,32 +18,32 @@ import { HostContextSymbol, type Renderable } from "@vui-rs/vue";
  * previously focused node is re-focused.
  */
 export function useFocusTrap(isOpen: () => boolean): void {
-  const ctx = inject(HostContextSymbol, null);
-  let previouslyFocused: Renderable | null = null;
+  const ctx = inject(HostContextSymbol, null)
+  let previouslyFocused: Renderable | null = null
 
   function restore(): void {
-    const fm = ctx?.focusManager;
+    const fm = ctx?.focusManager
     if (fm) {
       // Re-focus the prior node, or — if the modal opened with nothing focused —
       // blur, so the manager's `current` doesn't dangle on the modal's now-
       // unmounted control (it isn't released elsewhere on teardown).
-      if (previouslyFocused) fm.focus(previouslyFocused);
-      else fm.blur();
+      if (previouslyFocused) fm.focus(previouslyFocused)
+      else fm.blur()
     }
-    previouslyFocused = null;
+    previouslyFocused = null
   }
 
   watch(
     isOpen,
     (open, wasOpen) => {
       if (open && !wasOpen) {
-        previouslyFocused = ctx?.focusManager?.current() ?? null;
+        previouslyFocused = ctx?.focusManager?.current() ?? null
       } else if (!open && wasOpen) {
-        restore();
+        restore()
       }
     },
     { immediate: true },
-  );
+  )
 
-  onUnmounted(restore);
+  onUnmounted(restore)
 }
