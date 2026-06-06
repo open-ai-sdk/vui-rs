@@ -219,6 +219,9 @@ export interface OverlayProps extends LayoutProps, PaintProps, FocusProps {
   /** Opaque dim layer behind the overlay: `true` (default dim), a `0..1`
    * brightness multiplier, or `{ darken }`. Omit for no backdrop. */
   backdrop?: boolean | number | { darken?: number };
+  /** Confine Tab/Shift-Tab focus to this overlay's subtree while open (modal).
+   * Default `false`; non-trapping overlays (toasts/popups) keep the tab order. */
+  trapFocus?: boolean;
 }
 
 export type SelectItemValue = string | number;

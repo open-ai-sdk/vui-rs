@@ -18,6 +18,7 @@ export {
 } from "./host/catalogue.ts";
 export {
   Renderable,
+  HostContextSymbol,
   type HostContext,
   type RenderableKind,
 } from "./host/renderable.ts";

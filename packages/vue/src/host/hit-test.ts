@@ -22,8 +22,12 @@ export function hitTest(root: Renderable | null, x: number, y: number): Renderab
  * Hit-test honoring the overlay layer: the topmost overlay is checked first, so a
  * modal "eats" the click before the tree underneath. A backdrop overlay is modal
  * — it captures clicks even outside its content box (they don't fall through to
- * the dimmed layer behind). Falls through to the main tree when no overlay claims
- * the cell. The plain `hitTest(root, …)` is kept for tree-only callers.
+ * the dimmed layer behind). A *non-backdrop* overlay (toast host, popup) is
+ * transparent to the cells its actual content doesn't cover: a screen-filling
+ * toast overlay must not swallow wheel/clicks meant for the tree underneath — only
+ * the toast boxes themselves are interactive. Falls through to the main tree when
+ * no overlay claims the cell. The plain `hitTest(root, …)` is kept for tree-only
+ * callers.
  */
 export function hitTestTopmost(ctx: HostContext, x: number, y: number): Renderable | null {
   const overlays = overlaysInPaintOrder(ctx);
@@ -31,8 +35,12 @@ export function hitTestTopmost(ctx: HostContext, x: number, y: number): Renderab
     const ov = overlays[i]!;
     if (!ov.paint.visible) continue;
     const hit = hitTest(ov, x, y);
-    if (hit) return hit;
-    if (ov.paint.backdrop) return ov; // modal capture
+    // A real descendant of the overlay was hit → it claims the cell. The overlay
+    // *container* itself (the `hit === ov` fallback over its empty area) only
+    // claims the cell when it's a modal backdrop; otherwise the event falls
+    // through to whatever is underneath.
+    if (hit && hit !== ov) return hit;
+    if (ov.paint.backdrop) return ov; // modal capture over its whole inset
   }
   return hitTest(ctx.root, x, y);
 }

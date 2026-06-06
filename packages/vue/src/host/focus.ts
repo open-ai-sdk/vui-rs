@@ -43,7 +43,24 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
   let current: Renderable | null = null;
   let captured: Renderable | null = null;
 
-  /** Focusable nodes in DFS (tab) order, walked from the app root. */
+  /**
+   * The topmost focus-trapping overlay (a modal), or null if none is open. Picks
+   * the highest `zIndex`, ties broken by registration order (last wins) — the same
+   * "on top" rule the overlay paint pass uses.
+   */
+  function trapRoot(): Renderable | null {
+    let trap: Renderable | null = null;
+    for (const ov of ctx.overlays) {
+      if (ov.trapFocus && (!trap || ov.paint.zIndex >= trap.paint.zIndex)) trap = ov;
+    }
+    return trap;
+  }
+
+  /**
+   * Focusable nodes in DFS (tab) order. While a focus-trapping overlay (modal) is
+   * open, the order is confined to that overlay's subtree — Tab/Shift-Tab cycle
+   * only within the modal — otherwise it walks the whole app root.
+   */
   function order(): Renderable[] {
     const out: Renderable[] = [];
     const visit = (node: Renderable | null): void => {
@@ -51,7 +68,7 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
       if (node.focusable) out.push(node);
       for (const child of node.children) visit(child);
     };
-    visit(ctx.root);
+    visit(trapRoot() ?? ctx.root);
     return out;
   }
 
@@ -84,9 +101,24 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
     focus(next);
   }
 
-  function findFocusable(node: Renderable | null): Renderable | null {
+  /** Is `node` inside `root`'s subtree (or is `root`)? */
+  function within(node: Renderable | null, root: Renderable): boolean {
     for (let n = node; n; n = n.parent) {
-      if (n.focusable) return n;
+      if (n === root) return true;
+    }
+    return false;
+  }
+
+  function findFocusable(node: Renderable | null): Renderable | null {
+    const trap = trapRoot();
+    for (let n = node; n; n = n.parent) {
+      if (n.focusable) {
+        // While a modal traps focus, a click outside it must not focus a node
+        // behind it — even with no backdrop intercepting the click. Confine the
+        // focus target to the trapped subtree (mirrors `order()`'s Tab scoping).
+        if (trap && !within(n, trap)) return null;
+        return n;
+      }
     }
     return null;
   }

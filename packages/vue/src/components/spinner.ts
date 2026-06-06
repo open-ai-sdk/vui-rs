@@ -25,6 +25,12 @@ export const SPINNER_PRESETS = {
   braille: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
   dots: ["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"],
   line: ["-", "\\", "|", "/"],
+  bounce: ["⠁", "⠂", "⠄", "⠂"],
+  arc: ["◜", "◠", "◝", "◞", "◡", "◟"],
+  circle: ["◐", "◓", "◑", "◒"],
+  arrow: ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
+  toggle: ["▰▱▱", "▱▰▱", "▱▱▰", "▱▰▱"],
+  pulse: ["·", "•", "●", "•"],
 } as const;
 
 export type SpinnerPreset = keyof typeof SPINNER_PRESETS;

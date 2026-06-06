@@ -61,6 +61,11 @@ function applyProp(
     el.ctx.scheduleRender();
     return;
   }
+  if (key === "trapFocus") {
+    el.trapFocus = next !== false && next != null;
+    el.ctx.scheduleRender();
+    return;
+  }
   if (key === "focused") {
     const on = next !== false && next != null;
     const fm = el.ctx.focusManager;

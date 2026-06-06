@@ -1,0 +1,21 @@
+{
+  "name": "@vui-rs/example-dialogs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "start": "bun dist/app.js",
+    "dev": "vite build && bun dist/app.js"
+  },
+  "dependencies": {
+    "@vue/runtime-core": "catalog:",
+    "@vui-rs/core": "workspace:*",
+    "@vui-rs/vue": "workspace:*",
+    "@vui-rs/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@vui-rs/vite-plugin": "workspace:*",
+    "vite": "catalog:"
+  }
+}

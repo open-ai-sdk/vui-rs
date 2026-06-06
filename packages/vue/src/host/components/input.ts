@@ -121,6 +121,11 @@ export const VuiHostInput = defineComponent({
     return () =>
       h("input", {
         ref: el,
+        // Sensible defaults so a bare `<VuiInput>` is visible without the caller
+        // sizing it (the `<input>` element has no intrinsic size — like `<text>`).
+        // A caller's fallthrough width/height is merged on top and overrides these.
+        width: { pct: 1 },
+        height: 1,
         focusable: true,
         placeholder: props.placeholder,
         placeholderColor: props.placeholderColor,

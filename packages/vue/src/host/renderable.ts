@@ -253,6 +253,12 @@ export class Renderable {
    * by the separate overlay pass on top of the tree. Set by `OverlayRenderable`.
    */
   isOverlay = false;
+  /**
+   * A focus-trapping overlay: while mounted, Tab/Shift-Tab focus is confined to
+   * this overlay's subtree (the active modal). Non-trapping overlays (toasts,
+   * popups) leave the underlying tab order intact. Set via the `trapFocus` prop.
+   */
+  trapFocus = false;
   /** Dirty since the last paint walk (drives dirty-subtree skipping in Phase 06). */
   dirty = true;
 

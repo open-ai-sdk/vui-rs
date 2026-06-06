@@ -29,6 +29,20 @@
         "vite": "catalog:",
       },
     },
+    "examples/autocomplete": {
+      "name": "@vui-rs/example-autocomplete",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "examples/autosize": {
       "name": "@vui-rs/example-autosize",
       "version": "0.1.0",
@@ -42,12 +56,54 @@
         "vite": "catalog:",
       },
     },
+    "examples/command-palette": {
+      "name": "@vui-rs/example-command-palette",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/component-gallery": {
+      "name": "@vui-rs/example-component-gallery",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "examples/counter": {
       "name": "@vui-rs/example-counter",
       "version": "0.1.0",
       "dependencies": {
         "@vue/runtime-core": "catalog:",
         "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/dialogs": {
+      "name": "@vui-rs/example-dialogs",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
         "@vui-rs/vue": "workspace:*",
       },
       "devDependencies": {
@@ -224,9 +280,46 @@
         "vite": "catalog:",
       },
     },
+    "examples/toast": {
+      "name": "@vui-rs/example-toast",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/virtual-list": {
+      "name": "@vui-rs/example-virtual-list",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@vui-rs/core",
       "version": "0.1.0",
+    },
+    "packages/ui": {
+      "name": "@vui-rs/ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
     },
     "packages/vite-plugin": {
       "name": "@vui-rs/vite-plugin",
@@ -367,9 +460,17 @@
 
     "@vui-rs/example-animation": ["@vui-rs/example-animation@workspace:examples/animation"],
 
+    "@vui-rs/example-autocomplete": ["@vui-rs/example-autocomplete@workspace:examples/autocomplete"],
+
     "@vui-rs/example-autosize": ["@vui-rs/example-autosize@workspace:examples/autosize"],
 
+    "@vui-rs/example-command-palette": ["@vui-rs/example-command-palette@workspace:examples/command-palette"],
+
+    "@vui-rs/example-component-gallery": ["@vui-rs/example-component-gallery@workspace:examples/component-gallery"],
+
     "@vui-rs/example-counter": ["@vui-rs/example-counter@workspace:examples/counter"],
+
+    "@vui-rs/example-dialogs": ["@vui-rs/example-dialogs@workspace:examples/dialogs"],
 
     "@vui-rs/example-diff": ["@vui-rs/example-diff@workspace:examples/diff"],
 
@@ -396,6 +497,12 @@
     "@vui-rs/example-textarea": ["@vui-rs/example-textarea@workspace:examples/textarea"],
 
     "@vui-rs/example-theme-switch": ["@vui-rs/example-theme-switch@workspace:examples/theme-switch"],
+
+    "@vui-rs/example-toast": ["@vui-rs/example-toast@workspace:examples/toast"],
+
+    "@vui-rs/example-virtual-list": ["@vui-rs/example-virtual-list@workspace:examples/virtual-list"],
+
+    "@vui-rs/ui": ["@vui-rs/ui@workspace:packages/ui"],
 
     "@vui-rs/vite-plugin": ["@vui-rs/vite-plugin@workspace:packages/vite-plugin"],
 
