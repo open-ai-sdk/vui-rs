@@ -50,6 +50,31 @@ describe("key parser", () => {
     expect(one("\x1bOB")).toMatchObject({ name: "down" });
   });
 
+  test("Kitty keyboard CSI-u: named keys, modifiers, Shift+Enter", () => {
+    // The protocol's headline win: legacy can't encode Shift+Enter; CSI-u can.
+    expect(one("\x1b[13;2u")).toMatchObject({ name: "enter", shift: true });
+    expect(one("\x1b[27u")).toMatchObject({ name: "escape" });
+    expect(one("\x1b[9;3u")).toMatchObject({ name: "tab", alt: true });
+    // Ctrl+a as a disambiguated codepoint (a = 97, ctrl mod = 4+1 = 5).
+    expect(one("\x1b[97;5u")).toMatchObject({ name: "a", ctrl: true });
+    // Printable codepoint with no modifier (mods field absent).
+    expect(one("\x1b[97u")).toMatchObject({ name: "a", ctrl: false, shift: false });
+    // super/meta bit (8) folds to meta.
+    expect(one("\x1b[97;9u")).toMatchObject({ name: "a", meta: true });
+  });
+
+  test("Kitty keyboard CSI-u: key release is ignored, repeat fires", () => {
+    // event type 3 = release → no event; 2 = repeat → fires as a press.
+    expect(parseKeys("\x1b[97;1:3u")).toEqual([]);
+    expect(one("\x1b[97;1:2u")).toMatchObject({ name: "a" });
+  });
+
+  test("Kitty keyboard CSI-u survives split reads via the live decoder", () => {
+    const dec = createKeyDecoder();
+    expect(dec.feed("\x1b[13;")).toEqual([]); // truncated tail buffered
+    expect(dec.feed("2u")).toMatchObject([{ name: "enter", shift: true }]);
+  });
+
   test("alt-letter and lone escape", () => {
     expect(one("\x1bb")).toMatchObject({ name: "b", alt: true });
     expect(one("\x1b")).toMatchObject({ name: "escape" });

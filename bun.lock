@@ -94,6 +94,19 @@
         "vite": "catalog:",
       },
     },
+    "examples/images": {
+      "name": "@vui-rs/example-images",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "examples/layout": {
       "name": "@vui-rs/example-layout",
       "version": "0.1.0",
@@ -161,6 +174,19 @@
     },
     "examples/select": {
       "name": "@vui-rs/example-select",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
+    "examples/selection": {
+      "name": "@vui-rs/example-selection",
       "version": "0.1.0",
       "dependencies": {
         "@vue/runtime-core": "catalog:",
@@ -351,6 +377,8 @@
 
     "@vui-rs/example-form": ["@vui-rs/example-form@workspace:examples/form"],
 
+    "@vui-rs/example-images": ["@vui-rs/example-images@workspace:examples/images"],
+
     "@vui-rs/example-layout": ["@vui-rs/example-layout@workspace:examples/layout"],
 
     "@vui-rs/example-markdown": ["@vui-rs/example-markdown@workspace:examples/markdown"],
@@ -362,6 +390,8 @@
     "@vui-rs/example-scroll": ["@vui-rs/example-scroll@workspace:examples/scroll"],
 
     "@vui-rs/example-select": ["@vui-rs/example-select@workspace:examples/select"],
+
+    "@vui-rs/example-selection": ["@vui-rs/example-selection@workspace:examples/selection"],
 
     "@vui-rs/example-textarea": ["@vui-rs/example-textarea@workspace:examples/textarea"],
 

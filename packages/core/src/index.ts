@@ -6,6 +6,7 @@ export {
   EditMotion,
   type EditMotionCode,
   EXPECTED_ABI_VERSION,
+  LINK_SHIFT,
   NativeTextWrap,
   type NativeTextWrapCode,
   NodeKindCode,
@@ -28,6 +29,7 @@ export {
   type TextWrapMode,
 } from "./text/index.ts";
 export { charWidth, strWidth } from "./char-width.ts";
+export { decodeImage, decodeImageBytes, type DecodedImage } from "./image-decode.ts";
 export {
   parseKeys,
   createKeyDecoder,

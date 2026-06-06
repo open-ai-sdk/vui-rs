@@ -196,6 +196,93 @@ pub extern "C" fn vui_renderer_flush(r: *mut Renderer) -> u32 {
     })
 }
 
+/// Stage one OSC 8 link table entry (`id` → UTF-8 URI at `ptr`/`len`). The host
+/// calls `vui_renderer_clear_links` then this per linked URI each frame; the
+/// emitter wraps cells whose `attrs` high byte equals `id` in the hyperlink.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_stage_link(
+    r: *mut Renderer,
+    id: u16,
+    ptr: *const u8,
+    len: usize,
+) -> u32 {
+    with_renderer(r, |rr| {
+        if len > 0 && ptr.is_null() {
+            return status::NULL_PTR;
+        }
+        // Safety: caller guarantees `ptr` points to `len` valid bytes.
+        let bytes = if len == 0 {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(ptr, len) }
+        };
+        match std::str::from_utf8(bytes) {
+            Ok(uri) => {
+                rr.stage_link(id, uri.to_owned());
+                status::OK
+            }
+            Err(_) => status::BAD_ARG,
+        }
+    })
+}
+
+/// Drop every staged OSC 8 link (host calls this before re-staging a frame).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_clear_links(r: *mut Renderer) -> u32 {
+    with_renderer(r, |rr| {
+        rr.clear_links();
+        status::OK
+    })
+}
+
+/// Stage raw escape bytes (`ptr`/`len`) to emit out-of-band on the next frame
+/// (image transmit, OSC 52 clipboard). Host-built sequences ONLY — never user
+/// text. Multiple stages concatenate in call order; the channel clears after each
+/// frame and forces a frame even when no cell changed.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_stage_passthrough(
+    r: *mut Renderer,
+    ptr: *const u8,
+    len: usize,
+) -> u32 {
+    with_renderer(r, |rr| {
+        if len == 0 {
+            return status::OK;
+        }
+        if ptr.is_null() {
+            return status::NULL_PTR;
+        }
+        // Safety: caller guarantees `ptr` points to `len` valid bytes.
+        let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+        rr.stage_passthrough(bytes);
+        status::OK
+    })
+}
+
+/// Register the on-screen top-left `(x0, y0)` of image `id`'s Kitty placeholder
+/// block, so the emitter can derive each placeholder cell's image row/column.
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_stage_image_placement(
+    r: *mut Renderer,
+    id: u32,
+    x0: i32,
+    y0: i32,
+) -> u32 {
+    with_renderer(r, |rr| {
+        rr.stage_image_placement(id, x0, y0);
+        status::OK
+    })
+}
+
+/// Drop every staged image placement (host calls this before re-staging a frame).
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_renderer_clear_image_placements(r: *mut Renderer) -> u32 {
+    with_renderer(r, |rr| {
+        rr.clear_image_placements();
+        status::OK
+    })
+}
+
 // --- Clip-aware back-buffer primitives (the JS paint walk's draw surface) ---
 //
 // Signed coords + an explicit clip rect let the JS host hand a node's content

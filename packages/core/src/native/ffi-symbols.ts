@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 11;
+export const EXPECTED_ABI_VERSION = 12;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -34,6 +34,14 @@ export const Attr = {
   INVERSE: 1 << 5,
   WIDE_CONTINUATION: 1 << 6,
 } as const;
+
+/**
+ * Bit position of the OSC 8 link id within a cell's `attrs` (mirrors
+ * `buffer::attr::LINK_SHIFT`). The high byte holds the id (1..255, 0 = no link);
+ * the host ORs `id << LINK_SHIFT` into a run's attrs and the emitter wraps those
+ * cells in a hyperlink. Not an SGR flag — kept out of the low byte deliberately.
+ */
+export const LINK_SHIFT = 8;
 
 /**
  * Size of one packed `StyleFfi` in bytes (7 u32 enums + 2 f32 + 25 DimFfi at 8
@@ -131,6 +139,64 @@ export const symbols = {
   vui_renderer_render: { args: [FFIType.ptr], returns: FFIType.u32 },
   // JS-host emit: diff/write the back buffer without composing the node tree.
   vui_renderer_flush: { args: [FFIType.ptr], returns: FFIType.u32 },
+
+  // OSC 8 hyperlink table: cleared + re-staged each frame; the emitter wraps cells
+  // whose `attrs` high byte equals `id` in the hyperlink. URI crosses as UTF-8
+  // bytes (ptr/len); host data only, never user text.
+  vui_renderer_clear_links: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_renderer_stage_link: {
+    args: [
+      FFIType.ptr, // renderer
+      FFIType.u16, // link id (1..255)
+      FFIType.ptr, // utf-8 URI bytes
+      "usize", // byte length
+    ],
+    returns: FFIType.u32,
+  },
+
+  // Raw-emit passthrough: host-built escape bytes emitted out-of-band next frame
+  // (image transmit, OSC 52 clipboard). Forces a frame; cleared after emit.
+  vui_renderer_stage_passthrough: {
+    args: [
+      FFIType.ptr, // renderer
+      FFIType.ptr, // raw bytes
+      "usize", // byte length
+    ],
+    returns: FFIType.u32,
+  },
+
+  // Inline-image decode: path → fitted RGBA8 handle (free with vui_image_free).
+  vui_image_decode: {
+    args: [
+      FFIType.ptr, // utf-8 path bytes
+      "usize", // path byte length
+      FFIType.u32, // max width px (0 = no resize)
+      FFIType.u32, // max height px
+    ],
+    returns: FFIType.ptr, // *mut DecodedImage (null on error)
+  },
+  // Kitty Unicode-placeholder placement: image id → on-screen top-left cell, so
+  // the emitter can expand each U+10EEEE cell into placeholder + row/col diacritics.
+  vui_renderer_stage_image_placement: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.i32, FFIType.i32],
+    returns: FFIType.u32,
+  },
+  vui_renderer_clear_image_placements: { args: [FFIType.ptr], returns: FFIType.u32 },
+
+  vui_image_decode_bytes: {
+    args: [
+      FFIType.ptr, // image bytes
+      "usize", // byte length
+      FFIType.u32, // max width px (0 = no resize)
+      FFIType.u32, // max height px
+    ],
+    returns: FFIType.ptr, // *mut DecodedImage (null on error)
+  },
+  vui_image_width: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_image_height: { args: [FFIType.ptr], returns: FFIType.u32 },
+  vui_image_rgba_ptr: { args: [FFIType.ptr], returns: FFIType.ptr },
+  vui_image_rgba_len: { args: [FFIType.ptr], returns: "usize" },
+  vui_image_free: { args: [FFIType.ptr], returns: FFIType.void },
 
   // Clip-aware back-buffer prims for the JS paint walk. Signed coords; the clip
   // rect crosses as a pointer to a 4-i32 buffer (one 8-byte slot — avoids the

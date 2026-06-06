@@ -273,6 +273,52 @@ export class Renderer {
     check(this.#lib.symbols.vui_renderer_flush(this.#ptr), "flush");
   }
 
+  /** Drop all staged OSC 8 links; call before re-staging a frame's link table. */
+  clearLinks(): void {
+    check(this.#lib.symbols.vui_renderer_clear_links(this.#ptr), "clear_links");
+  }
+
+  /**
+   * Stage raw escape bytes to emit out-of-band on the next frame (image transmit,
+   * OSC 52 clipboard). Host-built sequences ONLY — never user text. A non-empty
+   * channel forces a frame; it clears after emit. Multiple calls concatenate.
+   */
+  stagePassthrough(bytes: Uint8Array): void {
+    if (bytes.byteLength === 0) return;
+    check(
+      this.#lib.symbols.vui_renderer_stage_passthrough(this.#ptr, bytes, bytes.byteLength),
+      "stage_passthrough",
+    );
+  }
+
+  /** Drop all Kitty image placements; call before re-staging a frame's placements. */
+  clearImagePlacements(): void {
+    check(
+      this.#lib.symbols.vui_renderer_clear_image_placements(this.#ptr),
+      "clear_image_placements",
+    );
+  }
+
+  /** Register image `id`'s on-screen top-left cell for placeholder placement. */
+  stageImagePlacement(id: number, x0: number, y0: number): void {
+    check(
+      this.#lib.symbols.vui_renderer_stage_image_placement(this.#ptr, id, x0, y0),
+      "stage_image_placement",
+    );
+  }
+
+  /**
+   * Stage one OSC 8 link table entry (`id` → URI). The emitter wraps cells whose
+   * `attrs` high byte equals `id` in the hyperlink. `id` 0 is "no link" (ignored).
+   */
+  stageLink(id: number, uri: string): void {
+    const bytes = encoder.encode(uri);
+    check(
+      this.#lib.symbols.vui_renderer_stage_link(this.#ptr, id, bytes, bytes.byteLength),
+      "stage_link",
+    );
+  }
+
   /**
    * The implicit root node, created with the renderer and sized to the terminal.
    * Build the UI as its descendants; `render()` lays out and paints the tree.

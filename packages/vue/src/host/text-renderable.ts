@@ -41,7 +41,7 @@ export class TextRenderable extends Renderable {
 
   syncTextBuffer(): void {
     if (this.#synced && !this.ctx.dirtyText.has(this)) return;
-    this.textBuffer.setRuns(flattenRuns(this));
+    this.textBuffer.setRuns(flattenRuns(this, this.ctx.links));
     this.#synced = true;
   }
 

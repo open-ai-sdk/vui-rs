@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { MouseEvent } from "@vui-rs/core";
 import { createHostFocusManager } from "../src/host/focus.ts";
+import { LinkRegistry } from "../src/host/link-registry.ts";
 import { type HostContext, Renderable } from "../src/host/renderable.ts";
 import { createHostScheduler } from "../src/host/scheduler.ts";
+import { HostSelection } from "../src/host/selection.ts";
 
 function mouse(partial: Partial<MouseEvent> = {}): MouseEvent {
   return {
@@ -28,6 +30,8 @@ function context(): HostContext {
     theme: {} as HostContext["theme"],
     dirtyLayout: new Set<Renderable>(),
     dirtyText: new Set<Renderable>(),
+    links: new LinkRegistry(),
+    selection: new HostSelection(),
     layoutW: -1,
     layoutH: -1,
     scheduleRender: () => {},

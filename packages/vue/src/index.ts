@@ -35,6 +35,11 @@ export {
 export { OverlayRenderable } from "./host/overlay.ts";
 export { type Backdrop } from "./host/renderable.ts";
 
+// Inline images: the `<image>` element plus the encoding picker so apps can show
+// which tier (kitty / iterm2 / halfblock) is active.
+export { ImageRenderable } from "./host/image-renderable.ts";
+export { selectImageEncoding, type ImageEncoding } from "./host/image-encode.ts";
+
 // Editable input + keyboard/focus.
 export { EditRenderable, type EditState } from "./host/edit-renderable.ts";
 export { VuiHostInput, VuiHostInput as VuiInput } from "./host/components/input.ts";

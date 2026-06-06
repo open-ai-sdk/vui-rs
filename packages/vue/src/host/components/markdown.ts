@@ -191,6 +191,7 @@ function spanNodes(spans: MdSpan[], theme: Theme): (VNode | string)[] {
     if (s.href !== undefined) {
       props.underline = true;
       props.fg = theme.markdownLink;
+      props.link = s.href; // OSC 8 hyperlink target (clickable in supporting terminals)
     }
     return h("span", props, s.text);
   });

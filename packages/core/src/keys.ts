@@ -8,7 +8,9 @@
 // and SS3 F1–F4. `parseKeys` is stateless (one chunk in, events out). For live
 // input where an escape sequence or a large bracketed paste can split across
 // reads, use `createKeyDecoder`, which buffers a partial trailing sequence until
-// the rest arrives. The kitty keyboard protocol is a documented later add.
+// the rest arrives. Kitty keyboard protocol (`CSI <code>;<mods> u`) is decoded
+// alongside the legacy set, so disambiguated keys (e.g. Shift+Enter) parse when
+// the terminal enables the protocol; terminals without it never emit CSI-u.
 
 const decoder = new TextDecoder();
 
@@ -85,6 +87,62 @@ function key(name: string, opts: Mods = {}): KeyEvent {
 function decodeMod(param?: string): Mods {
   const m = param ? Number.parseInt(param, 10) - 1 : 0;
   return { shift: !!(m & 1), alt: !!(m & 2), ctrl: !!(m & 4), meta: !!(m & 8) };
+}
+
+/**
+ * Kitty keyboard protocol functional keycodes that map to a named key. The
+ * protocol reports most printable keys by their Unicode codepoint (handled
+ * below) and reserves these specific codepoints for named keys. Arrows, Home/
+ * End, etc. keep their legacy `CSI letter`/`CSI ~` encodings even in Kitty mode,
+ * so they continue through the existing decoder and aren't listed here.
+ */
+const KITTY_NAMED: Record<number, string> = {
+  13: "enter",
+  27: "escape",
+  9: "tab",
+  127: "backspace",
+  32: "space",
+};
+
+/**
+ * Decode a Kitty modifier+event field (`mods` or `mods:event-type`). The modifier
+ * bitfield is value-minus-1; bit layout: shift1 alt2 ctrl4 super8 hyper16 meta32.
+ * `super`/`meta` both fold to our `meta` flag. Event type: 1 press, 2 repeat, 3
+ * release (default 1 when absent).
+ */
+function decodeKittyMod(param?: string): { mods: Mods; eventType: number } {
+  const [modStr, evStr] = (param ?? "").split(":");
+  const m = modStr ? Number.parseInt(modStr, 10) - 1 : 0;
+  const eventType = evStr ? Number.parseInt(evStr, 10) : 1;
+  return {
+    mods: {
+      shift: !!(m & 1),
+      alt: !!(m & 2),
+      ctrl: !!(m & 4),
+      meta: !!(m & 8) || !!(m & 32),
+    },
+    eventType,
+  };
+}
+
+/**
+ * Decode a Kitty keyboard `CSI <code>[:alt:base] ; <mods>[:event] u` sequence into
+ * a KeyEvent. Key releases (event type 3) are dropped in v0; repeats (2) fire as a
+ * normal press. Malformed/unmapped control keycodes are consumed silently.
+ */
+function parseCsiU(params: string, raw: string, consumed: number, out: InputEvent[]): number {
+  const parts = params.split(";");
+  const keycode = Number.parseInt(parts[0]!.split(":")[0] ?? "", 10);
+  if (!Number.isFinite(keycode)) return consumed; // malformed: consume, emit nothing
+  const { mods, eventType } = decodeKittyMod(parts[1]);
+  if (eventType === 3) return consumed; // key release: ignore in v0
+  let name = KITTY_NAMED[keycode];
+  if (name === undefined) {
+    if (keycode >= 0x20 && keycode !== 0x7f) name = String.fromCodePoint(keycode);
+    else return consumed; // unmapped control keycode
+  }
+  out.push(key(name, { ...mods, raw }));
+  return consumed;
 }
 
 /**
@@ -237,7 +295,12 @@ function parseCSI(s: string, i: number, out: InputEvent[], mouse: MouseState): n
   if (s[i + 2] === "M") return parseX10Mouse(s, i, out, mouse);
   let j = i + 2;
   let params = "";
-  while (j < s.length && (s[j]! === ";" || (s[j]! >= "0" && s[j]! <= "9"))) {
+  // `:` is accepted so the Kitty CSI-u sub-parameter form (`code;mods:event`) is
+  // captured whole; legacy sequences below never carry a `:` so this is inert there.
+  while (
+    j < s.length &&
+    (s[j]! === ";" || s[j]! === ":" || (s[j]! >= "0" && s[j]! <= "9"))
+  ) {
     params += s[j];
     j += 1;
   }
@@ -255,6 +318,7 @@ function parseCSI(s: string, i: number, out: InputEvent[], mouse: MouseState): n
 
   const raw = s.slice(i, j + 1);
   const consumed = j + 1 - i;
+  if (final === "u") return parseCsiU(params, raw, consumed, out);
   if (final === "Z") {
     out.push(key("tab", { shift: true, raw }));
     return consumed;

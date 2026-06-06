@@ -15,3 +15,7 @@ unicode-segmentation = "=1.13.3"
 # Flexbox layout engine. Pinned exact; all taffy calls are isolated to
 # layout.rs + style.rs so a version bump touches only those two files.
 taffy = { version = "=0.10.1", default-features = false, features = ["std", "taffy_tree", "flexbox", "content_size"] }
+# Inline-image decode (png/jpeg/gif/webp) + aspect-preserving resize. Default
+# features off to keep only the codecs we render; all `image` calls are isolated
+# to image.rs so a version bump touches one file.
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }

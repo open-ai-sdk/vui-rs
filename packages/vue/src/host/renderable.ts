@@ -23,6 +23,8 @@ export interface RunStyle {
   fg?: number;
   bg?: number;
   attrs: number;
+  /** OSC 8 link target; resolved to a link id and ORed into the run's attrs. */
+  link?: string;
 }
 
 /**
@@ -297,6 +299,10 @@ export interface HostContext {
   dirtyLayout: Set<Renderable>;
   /** Renderables whose text runs changed (re-flattened on paint). */
   dirtyText: Set<Renderable>;
+  /** URI → stable OSC 8 link id, staged to the renderer each frame before flush. */
+  links: import("./link-registry.ts").LinkRegistry;
+  /** Active drag-selection over static `<text>`/`<markdown>` (highlight + copy). */
+  selection: import("./selection.ts").HostSelection;
   /** Renderer size at the last layout pass; a change (resize) forces a relayout. */
   layoutW: number;
   layoutH: number;

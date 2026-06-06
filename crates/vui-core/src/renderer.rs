@@ -15,9 +15,10 @@
 //! handed to Bun for the zero-copy typed-array view stays valid across frames.
 
 use crate::ansi;
-use crate::buffer::{Cell, CellBuffer};
+use crate::buffer::{Cell, CellBuffer, attr};
 use crate::color::Rgba;
 use crate::node::{NodeId, NodeTree};
+use std::collections::HashMap;
 use std::io::Write;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -55,6 +56,22 @@ pub struct Renderer {
     /// runs `layout::compute`, and reads each node's box back — it does not paint
     /// the tree (painting lives in the JS host, emitted via `flush_only`).
     tree: NodeTree,
+    /// OSC 8 link id → URI, staged by the host each frame. The emitter wraps runs
+    /// of equal-link-id cells in a hyperlink. Host-owned data only (never user
+    /// text), so it can't break the cell-text injection-safety invariant.
+    links: HashMap<u16, String>,
+    /// Raw escape bytes the host stages to emit out-of-band this frame (image
+    /// transmit, OSC 52 clipboard). Written verbatim inside the synchronized-output
+    /// wrapper before the cell diff, then cleared. Host-built sequences ONLY — user
+    /// text never enters this channel, so the cell injection-safety invariant holds.
+    /// A non-empty channel forces a frame even when no cell changed, so a one-shot
+    /// sequence (e.g. a clipboard write) always lands.
+    passthrough: Vec<u8>,
+    /// Image id → on-screen top-left cell `(x0, y0)` for Kitty Unicode-placeholder
+    /// placement. The emitter expands a `U+10EEEE` cell into the placeholder char +
+    /// row/col diacritics from the cell's offset to this origin; the image id is
+    /// decoded from the cell's foreground color. Host-staged each frame.
+    image_placements: HashMap<u32, (i32, i32)>,
 }
 
 impl Renderer {
@@ -67,7 +84,41 @@ impl Renderer {
             out: Vec::with_capacity(64 * 1024),
             force: true,
             tree: NodeTree::new(width, height),
+            links: HashMap::new(),
+            passthrough: Vec::new(),
+            image_placements: HashMap::new(),
         }
+    }
+
+    /// Append raw escape bytes to emit out-of-band on the next frame (image
+    /// transmit, OSC 52). Host-built sequences only — never user text. Multiple
+    /// stages in one frame concatenate in call order.
+    pub fn stage_passthrough(&mut self, bytes: &[u8]) {
+        self.passthrough.extend_from_slice(bytes);
+    }
+
+    /// Register the on-screen top-left of an image's Unicode-placeholder block, so
+    /// the emitter can compute each placeholder cell's image row/column.
+    pub fn stage_image_placement(&mut self, id: u32, x0: i32, y0: i32) {
+        self.image_placements.insert(id, (x0, y0));
+    }
+
+    /// Drop all image placements (host calls this before re-staging a frame).
+    pub fn clear_image_placements(&mut self) {
+        self.image_placements.clear();
+    }
+
+    /// Replace the OSC 8 link table entry for `id` (host stages this each frame
+    /// before flush). `id` 0 is reserved for "no link" and ignored.
+    pub fn stage_link(&mut self, id: u16, uri: String) {
+        if id != 0 {
+            self.links.insert(id, uri);
+        }
+    }
+
+    /// Drop all staged OSC 8 links (host calls this before re-staging a frame).
+    pub fn clear_links(&mut self) {
+        self.links.clear();
     }
 
     pub fn tree(&self) -> &NodeTree {
@@ -118,7 +169,22 @@ impl Renderer {
 
         let mut frame_started = false;
         let mut pen: Option<Pen> = None;
+        // The OSC 8 link currently open in the byte stream (0 = none). Links never
+        // span a cursor jump or a row boundary — both reset it via a close.
+        let mut cur_link: u16 = 0;
         let mut utf8 = [0u8; 4];
+
+        // Out-of-band passthrough: emit host-staged raw escapes first, inside the
+        // sync wrapper. Forces a frame even with no cell change so a one-shot
+        // sequence (clipboard write, image transmit) is never dropped.
+        if !self.passthrough.is_empty() {
+            ansi::sync_begin(&mut self.out);
+            ansi::hide_cursor(&mut self.out);
+            frame_started = true;
+            // Disjoint fields: `out` borrowed mut, `passthrough` borrowed read.
+            self.out.extend_from_slice(&self.passthrough);
+            self.passthrough.clear();
+        }
 
         for y in 0..h {
             // Column the cursor sits at after the last write this row; -1 means
@@ -151,13 +217,21 @@ impl Renderer {
                 }
 
                 if cursor_col != x as i64 {
+                    // A hyperlink must not span a cursor jump (it would underline
+                    // the gap): close it before moving, reopen on the next cell.
+                    if cur_link != 0 {
+                        ansi::osc8_close(&mut self.out);
+                        cur_link = 0;
+                    }
                     ansi::move_to(&mut self.out, x, y);
                 }
 
                 let want = Pen {
                     fg: back.fg,
                     bg: back.bg,
-                    attrs: back.attrs,
+                    // Mask out the link id (high byte): it's not SGR, so a link
+                    // boundary alone must not force a color re-emit.
+                    attrs: back.attrs & attr::SGR_MASK,
                 };
                 if pen != Some(want) {
                     ansi::reset(&mut self.out);
@@ -165,6 +239,53 @@ impl Renderer {
                     ansi::bg(&mut self.out, want.bg);
                     ansi::attributes(&mut self.out, want.attrs);
                     pen = Some(want);
+                }
+
+                // OSC 8 hyperlink boundary: open/close around runs of equal link id.
+                let link = attr::link_id(back.attrs);
+                if link != cur_link {
+                    if cur_link != 0 {
+                        ansi::osc8_close(&mut self.out);
+                    }
+                    // Only enter the "open" state if a link actually opened — an id
+                    // with no staged URI emits nothing, so it must not later trigger
+                    // an unbalanced close.
+                    let mut opened = 0;
+                    if link != 0 {
+                        if let Some(uri) = self.links.get(&link) {
+                            ansi::osc8_open(&mut self.out, uri);
+                            opened = link;
+                        }
+                    }
+                    cur_link = opened;
+                }
+
+                // Kitty image placeholder: expand the cell into the placeholder
+                // char + row/col diacritics. The foreground (already emitted by the
+                // pen) carries the image id; the placement registry gives the
+                // image's on-screen origin so we can derive this cell's row/col.
+                if back.ch == ansi::KITTY_PLACEHOLDER {
+                    let id = (((back.fg.r as u32) << 16)
+                        | ((back.fg.g as u32) << 8)
+                        | (back.fg.b as u32))
+                        & 0x00ff_ffff;
+                    if let Some(&(px0, py0)) = self.image_placements.get(&id) {
+                        let row = (y as i64 - py0 as i64).max(0) as usize;
+                        let col = (x as i64 - px0 as i64).max(0) as usize;
+                        ansi::kitty_placeholder(&mut self.out, row, col);
+                    } else {
+                        // No placement staged: emit the bare placeholder (renders
+                        // as nothing) rather than a stray glyph.
+                        let mut u = [0u8; 4];
+                        self.out.extend_from_slice(
+                            char::from_u32(ansi::KITTY_PLACEHOLDER)
+                                .unwrap()
+                                .encode_utf8(&mut u)
+                                .as_bytes(),
+                        );
+                    }
+                    cursor_col = x as i64 + 1;
+                    continue;
                 }
 
                 let ch = safe_glyph(back.ch);
@@ -186,6 +307,9 @@ impl Renderer {
         }
 
         if frame_started {
+            if cur_link != 0 {
+                ansi::osc8_close(&mut self.out);
+            }
             ansi::reset(&mut self.out);
             ansi::sync_end(&mut self.out);
         }
@@ -364,6 +488,92 @@ mod tests {
             "user escape sequence leaked to the terminal"
         );
         assert!(body.contains("[2Jx"), "printable text should still render");
+    }
+
+    #[test]
+    fn passthrough_emits_inside_sync_wrapper_and_clears() {
+        let mut r = Renderer::new(4, 1);
+        r.back_mut().draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
+        r.paint(); // first paint syncs front, drains nothing staged
+        // Stage a raw sequence with NO cell change: it must still emit, forced.
+        r.stage_passthrough(b"\x1b]52;c;Zm9v\x07");
+        r.paint();
+        let s = String::from_utf8_lossy(&r.out);
+        assert!(s.starts_with("\x1b[?2026h"), "frame opens with sync begin");
+        assert!(s.contains("\x1b]52;c;Zm9v\x07"), "staged bytes are emitted");
+        assert!(s.ends_with("\x1b[?2026l"), "frame closes with sync end");
+        // Channel cleared: a following paint with nothing staged emits nothing.
+        r.paint();
+        assert!(r.out.is_empty(), "passthrough must not persist across frames");
+    }
+
+    #[test]
+    fn kitty_placeholder_cell_expands_with_diacritics() {
+        let mut r = Renderer::new(3, 2);
+        // Image id 7 placed at top-left (0,0). fg encodes the id as RGB (0,0,7).
+        r.stage_image_placement(7, 0, 0);
+        let id_fg = Rgba::new(0, 0, 7, 255);
+        // A placeholder cell at (2,1): image row 1, col 2.
+        r.back_mut()
+            .set_cell(2, 1, ansi::KITTY_PLACEHOLDER, id_fg, DEFAULT_BG, 0);
+        r.paint();
+        let s = String::from_utf8_lossy(&r.out);
+        // The placeholder base char is emitted…
+        assert!(s.contains('\u{10EEEE}'), "placeholder char missing");
+        // …followed by the row(1) then col(2) diacritics for this cell.
+        assert!(s.contains('\u{030D}'), "row diacritic (index 1) missing"); // DIACRITICS[1]
+        assert!(s.contains('\u{030E}'), "col diacritic (index 2) missing"); // DIACRITICS[2]
+        // The id is carried as a truecolor foreground.
+        assert!(s.contains("\x1b[38;2;0;0;7m"), "image-id fg color missing");
+    }
+
+    #[test]
+    fn osc8_link_wraps_linked_cells() {
+        let mut r = Renderer::new(6, 1);
+        r.stage_link(1, "https://x.io".into());
+        // Two cells carrying link id 1 (high byte), then a plain cell.
+        let linked = (1u16 << attr::LINK_SHIFT) | 0;
+        r.back_mut().set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut().set_cell(1, 0, 'b' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut().set_cell(2, 0, 'c' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.paint();
+        let s = String::from_utf8_lossy(&r.out);
+        // Exactly one open (run of 2 linked cells) + one close, URI present.
+        assert_eq!(s.matches("\x1b]8;;https://x.io\x1b\\").count(), 1);
+        assert_eq!(s.matches("\x1b]8;;\x1b\\").count(), 1);
+        // The link closes before the plain cell 'c'.
+        let open_at = s.find("https://x.io").unwrap();
+        let close_at = s.find("\x1b]8;;\x1b\\").unwrap();
+        let c_at = s.rfind('c').unwrap();
+        assert!(open_at < close_at && close_at < c_at);
+    }
+
+    #[test]
+    fn osc8_link_id_without_staged_uri_emits_no_unbalanced_close() {
+        let mut r = Renderer::new(3, 1);
+        // No URI staged for id 1: the linked cells must emit NEITHER an open nor a
+        // close (an unbalanced close would corrupt link state on the terminal).
+        let linked = 1u16 << attr::LINK_SHIFT;
+        r.back_mut().set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut().set_cell(1, 0, 'b' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.paint();
+        let s = String::from_utf8_lossy(&r.out);
+        assert!(!s.contains("\x1b]8;;"), "no OSC 8 sequence for an unstaged link id");
+    }
+
+    #[test]
+    fn osc8_uri_strips_control_bytes() {
+        let mut r = Renderer::new(2, 1);
+        // A malicious href with an embedded clear-screen escape must be neutered.
+        r.stage_link(1, "h\x1b[2Jp".into());
+        let linked = 1u16 << attr::LINK_SHIFT;
+        r.back_mut().set_cell(0, 0, 'x' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.paint();
+        let s = String::from_utf8_lossy(&r.out);
+        // The ESC is stripped, breaking the contiguous clear-screen sequence; the
+        // printable tail survives as harmless URI text (same rule as `safe_glyph`).
+        assert!(!s.contains("\x1b[2J"), "control bytes leaked through OSC 8 URI");
+        assert!(s.contains("h[2Jp"), "printable URI chars should survive");
     }
 
     #[test]

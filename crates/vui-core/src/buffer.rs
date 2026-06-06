@@ -18,6 +18,22 @@ pub mod attr {
     /// Marks the trailing cell of a width-2 glyph. The differ never emits these
     /// directly; the leading cell's glyph advances the cursor across both.
     pub const WIDE_CONTINUATION: u16 = 1 << 6;
+
+    /// Low byte (bits 0-7) is the SGR/visual state the differ tracks as the pen.
+    /// Bits 0-6 are real SGR/continuation flags; bit 7 is spare.
+    pub const SGR_MASK: u16 = 0x00ff;
+    /// A cell's OSC 8 link id lives in the HIGH byte (bits 8-15); 0 = no link.
+    /// It is NOT an SGR attribute — `attributes()` ignores it and the differ masks
+    /// it out of the pen, so a link boundary alone never re-emits color. The host
+    /// stages an id→URI table; the emitter wraps each run of equal-id cells in an
+    /// `ESC]8` hyperlink. Max 255 distinct links per app (id is one byte).
+    pub const LINK_SHIFT: u16 = 8;
+
+    /// Extract the OSC 8 link id from a packed `attrs` value.
+    #[inline]
+    pub const fn link_id(attrs: u16) -> u16 {
+        attrs >> LINK_SHIFT
+    }
 }
 
 /// One terminal cell. `ch` is a single codepoint (the leading codepoint of a

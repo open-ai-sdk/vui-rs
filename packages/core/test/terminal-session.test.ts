@@ -74,7 +74,29 @@ describe("terminal session", () => {
     expect(all).toContain("\x1b[?1006h"); // SGR mouse on
     expect(all).toContain("\x1b[?1000h"); // button mouse on
     expect(all).toContain("\x1b[?1002h"); // drag mouse on
+    expect(all).toContain("\x1b[>1u"); // kitty keyboard push (disambiguate)
     s.stop();
+  });
+
+  test("kitty keyboard is popped on stop, and skipped when disabled", () => {
+    const { s, output } = session();
+    s.start();
+    s.stop();
+    expect(output.writes.join("")).toContain("\x1b[<u"); // pop on teardown
+
+    const input2 = mockInput();
+    const output2 = mockOutput();
+    const s2 = createTerminalSession({
+      input: input2,
+      output: output2,
+      installSignalHandlers: false,
+      kittyKeyboard: false,
+    });
+    s2.start();
+    s2.stop();
+    const all2 = output2.writes.join("");
+    expect(all2).not.toContain("\x1b[>1u");
+    expect(all2).not.toContain("\x1b[<u");
   });
 
   test("data + resize are surfaced to callbacks", () => {

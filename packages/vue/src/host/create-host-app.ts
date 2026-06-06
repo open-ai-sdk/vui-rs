@@ -26,7 +26,10 @@ import { VuiScrollBox } from "./components/scroll-box.ts";
 import { VuiSelectList } from "./components/select-list.ts";
 import { VuiHostTextarea } from "./components/textarea.ts";
 import { createHostFocusManager } from "./focus.ts";
+import { hitTestTopmost } from "./hit-test.ts";
+import { LinkRegistry } from "./link-registry.ts";
 import { createHostScheduler } from "./scheduler.ts";
+import { HostSelection, selectionText } from "./selection.ts";
 import { createNodeOps } from "./node-ops.ts";
 import { runLayout } from "./layout.ts";
 import { runPaint } from "./paint-walk.ts";
@@ -66,6 +69,8 @@ function newHostContext(): HostContext {
     theme: reactive({ ...darkTheme }),
     dirtyLayout: new Set(),
     dirtyText: new Set(),
+    links: new LinkRegistry(),
+    selection: new HostSelection(),
     layoutW: -1,
     layoutH: -1,
     scheduleRender: () => {},
@@ -174,8 +179,75 @@ export function createHostApp(
     },
   };
 
-  /** Route one decoded input event: Ctrl-C exit, Tab focus, else dispatch. */
+  /** True while a left-drag text selection is in progress (between down and up). */
+  let selecting = false;
+
+  /** Copy the active static-text selection to the system clipboard via OSC 52. */
+  function copySelection(): boolean {
+    const r = ctx.renderer;
+    if (!r || !ctx.selection.active) return false;
+    const text = selectionText(r, ctx.selection);
+    if (!text) return false;
+    const b64 = Buffer.from(text, "utf8").toString("base64");
+    // OSC 52 to the "c"(lipboard) selection; emitted via the passthrough channel,
+    // which forces the frame so the one-shot write lands even with no cell change.
+    r.stagePassthrough(new TextEncoder().encode(`\x1b]52;c;${b64}\x07`));
+    ctx.flushNow();
+    return true;
+  }
+
+  /** Drive drag-selection over static `<text>`/`<markdown>`. Returns true if consumed. */
+  function handleSelectionMouse(ev: import("@vui-rs/core").MouseEvent): boolean {
+    const sel = ctx.selection;
+    if (ev.kind === "down" && ev.button === "left") {
+      const hit = hitTestTopmost(ctx, ev.x, ev.y);
+      if (hit && hit.kind === "text" && hit.screenRect) {
+        sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1);
+        selecting = true;
+        ctx.scheduleRender();
+        return true;
+      }
+      // A click off any text region clears a prior selection, then falls through
+      // to normal focus handling.
+      if (sel.active) {
+        sel.clear();
+        ctx.scheduleRender();
+      }
+      selecting = false;
+      return false;
+    }
+    if (selecting && ev.kind === "drag") {
+      sel.update(ev.x, ev.y);
+      ctx.scheduleRender();
+      return true;
+    }
+    if (selecting && ev.kind === "up") {
+      sel.update(ev.x, ev.y);
+      if (!sel.active) sel.clear(); // a click with no drag selects nothing
+      selecting = false;
+      ctx.scheduleRender();
+      return true;
+    }
+    return false;
+  }
+
+  /** Route one decoded input event: selection, copy, Ctrl-C exit, Tab focus, else dispatch. */
   function handleInputEvent(ev: import("@vui-rs/core").InputEvent): void {
+    if (ev.type === "mouse") {
+      if (handleSelectionMouse(ev)) return;
+      ctx.focusManager?.dispatch(ev);
+      return;
+    }
+    // Ctrl-C / Cmd-C with an active static-text selection copies (OSC 52) rather
+    // than exiting / being ignored.
+    if (ev.type === "key" && (matchesKey(ev, "ctrl+c") || matchesKey(ev, "meta+c"))) {
+      if (copySelection()) return;
+    }
+    if (ev.type === "key" && ev.name === "escape" && ctx.selection.active) {
+      ctx.selection.clear();
+      ctx.scheduleRender();
+      return;
+    }
     if (ev.type === "key" && matchesKey(ev, "ctrl+c")) {
       const current = ctx.focusManager?.current();
       if (

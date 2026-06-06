@@ -105,6 +105,14 @@ function applyProp(
     el.ctx.scheduleRender();
     return;
   }
+  // `<image src>`: stored on props (the ImageRenderable reads it) and marks the
+  // node dirty so a reactive src change re-decodes + repaints.
+  if (key === "src" && el.kind === "box") {
+    el.props.src = typeof next === "string" ? next : undefined;
+    el.markDirty();
+    el.ctx.scheduleRender();
+    return;
+  }
   if (LAYOUT_KEYS.has(key) || INSET_SIDES.has(key)) {
     applyLayout(el, key, next);
     if (el.kind === "textarea") {
@@ -322,6 +330,10 @@ function applySpanStyle(el: Renderable, key: string, next: unknown): boolean {
       return true;
     case "attrs":
       s.attrs = typeof next === "number" ? next : 0;
+      return true;
+    case "link":
+      // OSC 8 hyperlink target; resolved to a link id at run-flatten time.
+      s.link = typeof next === "string" && next.length > 0 ? next : undefined;
       return true;
   }
   if (key in ATTR_FLAGS) {

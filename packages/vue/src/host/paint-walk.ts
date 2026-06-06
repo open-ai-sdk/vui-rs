@@ -8,6 +8,7 @@
 import { NativePaintBuffer } from "./paint-buffer.ts";
 import { drawBackdrop, overlaysInPaintOrder } from "./overlay.ts";
 import { type Clip, type HostContext, type PaintBuffer, type Renderable } from "./renderable.ts";
+import { paintSelection } from "./selection.ts";
 
 // Round half AWAY FROM ZERO, to match Rust `f32::round` exactly. `Math.round`
 // rounds half toward +∞ (`Math.round(-0.5) === 0`), which would diverge from the
@@ -61,10 +62,21 @@ export function runPaint(ctx: HostContext): void {
   // Clear to the base background (matches the Rust compose's `back.clear`); the
   // root Renderable's bg fill then paints the canvas over it.
   renderer.clear();
+  // Image placements are re-staged by each <image> during this walk; clear last
+  // frame's so a removed/moved image doesn't leave a stale placement registered.
+  renderer.clearImagePlacements();
   const buf = new NativePaintBuffer(renderer);
   const screen: Clip = { x0: 0, y0: 0, x1: renderer.width, y1: renderer.height };
   paintNode(buf, ctx.root, 0, 0, screen);
+  // Selection highlight sits over the content but under overlays (a modal should
+  // cover it), so stamp it between the main tree and the overlay pass.
+  paintSelection(renderer, ctx.selection);
   paintOverlays(buf, ctx, screen);
+  // Re-stage the OSC 8 link table so the emitter can resolve each linked cell run
+  // to its URI. The table is small (distinct links only) and ids are stable, so a
+  // full re-stage each frame is cheap and keeps cached runs coherent.
+  renderer.clearLinks();
+  for (const [id, uri] of ctx.links.entries()) renderer.stageLink(id, uri);
   renderer.flush();
 }
 

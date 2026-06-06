@@ -8,6 +8,7 @@ pub mod ansi;
 pub mod buffer;
 pub mod color;
 pub mod ffi;
+pub mod image;
 pub mod layout;
 pub mod node;
 pub mod renderer;
@@ -41,7 +42,11 @@ const VERSION: u32 = 0x00_01_00;
 ///      `vui_editbuf_*`, `vui_editor_*`) plus text-buffer/editor draw exports.
 /// v11: native text-buffer styled runs + transparent-bg draw, and `<text>` wrap
 ///      modes unified on the native TextBufferView.
-const ABI_VERSION: u32 = 11;
+/// v12: terminal-protocol polish — OSC 8 link table (`vui_renderer_stage_link`,
+///      `vui_renderer_clear_links`) with link id in the cell `attrs` high byte, the
+///      raw-emit passthrough channel (`vui_renderer_stage_passthrough`) for OSC 52
+///      + image transmit, and inline-image decode (`vui_image_*`).
+const ABI_VERSION: u32 = 12;
 
 /// Returns the packed semver of the native core.
 ///

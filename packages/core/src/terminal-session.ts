@@ -17,6 +17,14 @@ const PASTE_ON = "\x1b[?2004h";
 const PASTE_OFF = "\x1b[?2004l";
 const MOUSE_ON = "\x1b[?1006h\x1b[?1000h\x1b[?1002h";
 const MOUSE_OFF = "\x1b[?1002l\x1b[?1000l\x1b[?1006l";
+// Kitty keyboard protocol: push the "disambiguate escape codes" flag (1) so the
+// terminal reports keys that the legacy encoding can't (e.g. Shift+Enter, Ctrl+
+// Shift+letter) as `CSI <code> ; <mods> u`. Pushing is harmless on terminals that
+// don't support it — they ignore the unknown CSI and never emit CSI-u, so the
+// keys.ts CSI-u decoder branch simply never fires (automatic fallback). Popped on
+// stop so the terminal's keyboard mode is restored exactly as we found it.
+const KITTY_KBD_ON = "\x1b[>1u";
+const KITTY_KBD_OFF = "\x1b[<u";
 
 /** The slice of `process.stdin` this module needs (injectable for tests). */
 export interface InputStream {
@@ -44,6 +52,8 @@ export interface TerminalSessionOptions {
   altScreen?: boolean;
   /** Wire exit/signal/uncaught handlers for guaranteed restore. Default true. */
   installSignalHandlers?: boolean;
+  /** Push the Kitty keyboard protocol (disambiguate flag) on start. Default true. */
+  kittyKeyboard?: boolean;
 }
 
 export interface TerminalSession {
@@ -67,6 +77,7 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
   const output = options.output ?? (process.stdout as unknown as OutputStream);
   const altScreen = options.altScreen ?? true;
   const installSignals = options.installSignalHandlers ?? true;
+  const kittyKeyboard = options.kittyKeyboard ?? true;
 
   let started = false;
   let restored = false;
@@ -91,7 +102,13 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
     if (started) return;
     started = true;
     input.setRawMode?.(true);
-    output.write((altScreen ? ENTER_ALT : "") + HIDE_CURSOR + PASTE_ON + MOUSE_ON);
+    output.write(
+      (altScreen ? ENTER_ALT : "") +
+        HIDE_CURSOR +
+        PASTE_ON +
+        MOUSE_ON +
+        (kittyKeyboard ? KITTY_KBD_ON : ""),
+    );
     input.resume?.();
     input.on("data", onDataRaw);
     output.on("resize", onResizeRaw);
@@ -110,7 +127,13 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
     output.off("resize", onResizeRaw);
     input.setRawMode?.(false);
     input.pause?.();
-    output.write(MOUSE_OFF + PASTE_OFF + SHOW_CURSOR + (altScreen ? LEAVE_ALT : ""));
+    output.write(
+      (kittyKeyboard ? KITTY_KBD_OFF : "") +
+        MOUSE_OFF +
+        PASTE_OFF +
+        SHOW_CURSOR +
+        (altScreen ? LEAVE_ALT : ""),
+    );
     if (installSignals) {
       process.off("exit", stop);
       process.off("SIGINT", onSignal);

@@ -10,6 +10,7 @@ export {
   EditMotion,
   type EditMotionCode,
   EXPECTED_ABI_VERSION,
+  LINK_SHIFT,
   NativeTextWrap,
   type NativeTextWrapCode,
   NodeKindCode,
