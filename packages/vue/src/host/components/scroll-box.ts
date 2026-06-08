@@ -211,13 +211,44 @@ export const VuiScrollBox = defineComponent({
           slots.default?.(),
         )
       }
-      // Integrated scrollbar: the OUTER row owns the layout attrs (size/border/
-      // padding) so the frame wraps content + bar; the inner viewport flex-grows
-      // into the remaining width and keeps the scroll behaviour + focus.
+      // Integrated scrollbar. The outer box MUST stay a row (content | bar). Flow
+      // attrs (flexDirection/gap/padding/justify/…) describe the scrolling CONTENT,
+      // so they go on the inner viewport — not the wrapper. Only sizing/frame attrs
+      // (width/height/min/max/border/flex) size the outer frame. If a consumer's
+      // `flexDirection: 'column'` reached the wrapper it would stack the full-height
+      // bar BELOW the content, doubling the height and shoving the following
+      // siblings (composer, status bar, …) off-screen.
+      const {
+        width,
+        height,
+        minWidth,
+        minHeight,
+        maxWidth,
+        maxHeight,
+        border,
+        flexGrow,
+        flexShrink,
+        flexBasis,
+        ...flow
+      } = attrs as Record<string, unknown>
+      const frame: Record<string, unknown> = {
+        width,
+        height,
+        minWidth,
+        minHeight,
+        maxWidth,
+        maxHeight,
+        border,
+        flexGrow,
+        flexShrink,
+        flexBasis,
+      }
+      for (const key of Object.keys(frame)) if (frame[key] === undefined) delete frame[key]
       const content = h(
         'box',
         {
           flexDirection: 'column',
+          ...flow,
           alignItems: 'stretch',
           flexGrow: 1,
           ref: viewport,
@@ -231,7 +262,7 @@ export const VuiScrollBox = defineComponent({
         slots.default?.(),
       )
       const v = view.value
-      return h('box', { flexDirection: 'row', alignItems: 'stretch', ...attrs }, [
+      return h('box', { ...frame, flexDirection: 'row', alignItems: 'stretch' }, [
         content,
         h(VuiScrollBar, {
           scrollY: v.y,
