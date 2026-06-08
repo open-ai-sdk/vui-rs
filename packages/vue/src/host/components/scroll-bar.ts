@@ -97,16 +97,21 @@ export const VuiScrollBar = defineComponent({
           onMouseMove,
           onMouseUp,
         },
-        [
-          h('box', {
-            position: 'absolute',
-            top: thumbTop.value,
-            left: 0,
-            width: 1,
-            height: thumbHeight.value,
-            bg: props.thumbBg,
-          }),
-        ],
+        // No overflow → nothing to scroll → no thumb. Otherwise a content-fits
+        // viewport renders a full-track thumb (default bg `white`), i.e. a solid
+        // bright bar that also redraws on every content change (visible flicker).
+        maxScroll.value > 0
+          ? [
+              h('box', {
+                position: 'absolute',
+                top: thumbTop.value,
+                left: 0,
+                width: 1,
+                height: thumbHeight.value,
+                bg: props.thumbBg,
+              }),
+            ]
+          : [],
       )
   },
 })
