@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.1.3
+
+### Patch Changes
+
+- 45d0e6a: Fix scroll bar flicker
+
 ## 0.1.2
 
 ### Patch Changes
