@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.1.4
+
+### Patch Changes
+
+- 664d7a8: fix: ensure reactive focus management for input components
+
 ## 0.1.3
 
 ### Patch Changes
