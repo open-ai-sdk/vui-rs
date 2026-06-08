@@ -22,14 +22,13 @@ export function useFocusTrap(isOpen: () => boolean): void {
   let previouslyFocused: Renderable | null = null
 
   function restore(): void {
-    const fm = ctx?.focusManager
-    if (fm) {
-      // Re-focus the prior node, or — if the modal opened with nothing focused —
-      // blur, so the manager's `current` doesn't dangle on the modal's now-
-      // unmounted control (it isn't released elsewhere on teardown).
-      if (previouslyFocused) fm.focus(previouslyFocused)
-      else fm.blur()
-    }
+    // Re-focus the node that was focused before the modal opened. If there was
+    // none, do NOT blur: the modal's own focusable control is released on unmount
+    // (node-ops `remove` → focusManager.release), so `current` is already cleared.
+    // Blurring here would instead stomp a consumer that reactively re-focuses its
+    // own control as the modal closes (e.g. a composer whose `:focused` flips back
+    // to true in the same flush) — the dialog's unmount runs last and would undo it.
+    if (previouslyFocused) ctx?.focusManager?.focus(previouslyFocused)
     previouslyFocused = null
   }
 

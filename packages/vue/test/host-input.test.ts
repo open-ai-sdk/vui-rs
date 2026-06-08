@@ -141,6 +141,39 @@ describe('<input> typing (JS edit model + v-model)', () => {
   })
 })
 
+describe('controlled <input> focus is reactive (:focused prop)', () => {
+  test('flipping focused after mount focuses then blurs the input', async () => {
+    const focused = ref(false)
+    const value = ref('')
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostInput, {
+        value: value.value,
+        focused: focused.value,
+        'onUpdate:value': (v: string) => (value.value = v),
+      }),
+    )
+    await nextTick()
+    const fm = ctx.focusManager!
+    expect(fm.current()).toBeNull() // not focused at mount (focused=false)
+
+    // Regression: before forwarding `focused` to the host element, this stayed
+    // null — the prop was write-once, so an input could never regain focus after
+    // (e.g.) a dialog closed, leaving it dead until a manual click.
+    focused.value = true
+    await nextTick()
+    expect(fm.current()).not.toBeNull()
+    expect(fm.current()!.kind).toBe('edit')
+
+    fm.dispatch(key('x')) // focus is real: typing reaches the edit model
+    expect(value.value).toBe('x')
+
+    focused.value = false
+    await nextTick()
+    expect(fm.current()).toBeNull() // blurs reactively too
+    cleanup()
+  })
+})
+
 describe('form integration (Tab between two inputs + typing)', () => {
   test('Tab moves focus and each input edits independently', async () => {
     const a = ref('')

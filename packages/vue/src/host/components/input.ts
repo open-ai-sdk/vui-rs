@@ -29,12 +29,16 @@ export const VuiHostInput = defineComponent({
 
     const edit = (): EditRenderable | undefined => el.value
 
-    // Apply the initial value + focus once the host element exists.
+    // Apply the initial value once the host element exists. Focus is NOT set
+    // here — `focused` is forwarded to the host element below so the focus
+    // manager (via patch-prop) tracks it reactively, including later changes
+    // (e.g. a dialog closing and the input regaining focus). Setting it only on
+    // mount made `:focused` write-once, so re-focus after an overlay closed
+    // never happened and the input went dead until a manual click.
     watch(el, (node) => {
       if (!node) return
       node.setValue(props.value)
       lastEmitted = lastChanged = props.value
-      if (props.focused) node.ctx.focusManager?.focus(node)
     })
 
     // External v-model writes: push in only when they differ (skip our own echo).
@@ -127,6 +131,9 @@ export const VuiHostInput = defineComponent({
         width: { pct: 1 },
         height: 1,
         focusable: true,
+        // Forward `focused` so patch-prop drives the focus manager reactively
+        // (focus on true, blur on false) — not just once at mount.
+        focused: props.focused,
         placeholder: props.placeholder,
         placeholderColor: props.placeholderColor,
         cursorColor: props.cursorColor,

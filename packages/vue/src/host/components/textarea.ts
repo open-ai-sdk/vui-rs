@@ -41,11 +41,13 @@ export const VuiHostTextarea = defineComponent({
 
     const edit = (): TextareaRenderable | undefined => el.value
 
+    // Initial value only — `focused` is forwarded to the host element below so
+    // patch-prop tracks it reactively (focus on true, blur on false), including
+    // changes after mount. Focusing only here made `:focused` write-once.
     watch(el, (node) => {
       if (!node) return
       node.setValue(props.value)
       lastEmitted = lastChanged = props.value
-      if (props.focused) node.ctx.focusManager?.focus(node)
     })
 
     watch(
@@ -168,6 +170,9 @@ export const VuiHostTextarea = defineComponent({
       h('textarea-host', {
         ref: el,
         focusable: true,
+        // Forward `focused` so patch-prop drives the focus manager reactively
+        // (focus on true, blur on false) — not just once at mount.
+        focused: props.focused,
         value: props.value,
         placeholder: props.placeholder,
         placeholderColor: props.placeholderColor,
