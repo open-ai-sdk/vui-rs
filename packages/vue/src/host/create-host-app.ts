@@ -23,6 +23,7 @@ import { HostSelection, selectionText } from './selection.ts'
 import { createNodeOps } from './node-ops.ts'
 import { runLayout } from './layout.ts'
 import { runPaint } from './paint-walk.ts'
+import { type EditRenderable } from './edit-renderable.ts'
 import { type HostContext, HostContextSymbol, type Renderable } from './renderable.ts'
 import { type TextareaRenderable } from './textarea-renderable.ts'
 import { type Theme, ThemeSymbol, darkTheme } from '../theme.ts'
@@ -253,6 +254,13 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     if (ev.type === 'key' && ev.name === 'tab') {
       const current = ctx.focusManager?.current()
       if (current?.kind === 'textarea' && (current as TextareaRenderable).textarea.tabBehavior === 'indent') {
+        ctx.focusManager?.dispatch(ev)
+        return
+      }
+      // An input that opted in (`tabBehavior: 'capture'`) receives Tab instead of
+      // it driving focus traversal — its wrapper's keyDown handler can then drive
+      // an autocomplete completion. The input itself ignores Tab, so it bubbles.
+      if (current?.kind === 'edit' && (current as EditRenderable).edit.tabBehavior === 'capture') {
         ctx.focusManager?.dispatch(ev)
         return
       }

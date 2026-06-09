@@ -27,6 +27,14 @@ export interface AutocompleteOptions {
   query: () => string
   providers: SuggestionProvider[]
   onAccept: (s: Suggestion) => void
+  /**
+   * Tab handler — completes the active suggestion WITHOUT accepting it (typically
+   * "fill the input text" so the user can keep editing). Defaults to `onAccept`
+   * when omitted. Reaches the hook only if the focused input opts into receiving
+   * Tab (`<input tabBehavior="capture">`); the host otherwise eats Tab for focus
+   * traversal.
+   */
+  onComplete?: (s: Suggestion) => void
   /** Cap the merged suggestion list. */
   max?: number
 }
@@ -82,6 +90,11 @@ export function useAutocomplete(opts: AutocompleteOptions): AutocompleteApi {
     } else if (ev.name === 'down') {
       ev.preventDefault()
       move(1)
+    } else if (ev.name === 'tab') {
+      // Tab completes the active suggestion (fill text) rather than accepting it.
+      ev.preventDefault()
+      const s = suggestions.value[active.value]
+      if (s) (opts.onComplete ?? opts.onAccept)(s)
     }
   }
 

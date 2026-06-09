@@ -16,6 +16,12 @@ export interface EditState {
   maxLength?: number
   cursorColor?: number
   placeholderColor?: number
+  /**
+   * Tab handling: `'focus'` (default) lets the host consume Tab for focus
+   * traversal; `'capture'` dispatches Tab to this input instead, so a keyDown
+   * handler on its wrapper can drive an autocomplete completion.
+   */
+  tabBehavior?: 'focus' | 'capture'
 }
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
