@@ -1,5 +1,17 @@
 # @vui-rs/vue
 
+## 0.1.9
+
+### Patch Changes
+
+- 1182f65: `<input>` gains readline-style line editing (parity with opencode's prompt):
+
+  - **Ctrl+U** → delete to line start
+  - **Ctrl+W**, **Ctrl+Backspace**, **Alt+Backspace** → delete the previous word
+  - **Ctrl+K** → delete to line end
+
+  Backed by new `EditRenderable` ops `deleteToStart()`, `deleteWordLeft()`, `deleteToEnd()`. Plain `u`/`w`/`k` still type normally — the actions require the Ctrl modifier.
+
 ## 0.1.8
 
 ### Patch Changes

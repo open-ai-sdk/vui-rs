@@ -1,5 +1,12 @@
 # @vui-rs/ui
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [1182f65]
+  - @vui-rs/vue@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
