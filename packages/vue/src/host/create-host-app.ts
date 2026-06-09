@@ -176,12 +176,25 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     return true
   }
 
+  /**
+   * Does `node` or any ancestor carry a mouse handler? Text inside a clickable
+   * region (a `<box @mouseDown>` toggle, etc.) must activate that handler on
+   * click rather than start a text selection — otherwise the glyph cells swallow
+   * the click and only the box's bare cells remain interactive.
+   */
+  function hasInteractiveAncestor(node: Renderable): boolean {
+    for (let n: Renderable | null = node; n; n = n.parent) {
+      if (n.events.has('mousedown') || n.events.has('mouseup')) return true
+    }
+    return false
+  }
+
   /** Drive drag-selection over static `<text>`/`<markdown>`. Returns true if consumed. */
   function handleSelectionMouse(ev: import('@vui-rs/core').MouseEvent): boolean {
     const sel = ctx.selection
     if (ev.kind === 'down' && ev.button === 'left') {
       const hit = hitTestTopmost(ctx, ev.x, ev.y)
-      if (hit && hit.kind === 'text' && hit.screenRect) {
+      if (hit && hit.kind === 'text' && hit.screenRect && !hasInteractiveAncestor(hit)) {
         sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1)
         selecting = true
         ctx.scheduleRender()
