@@ -251,6 +251,11 @@ export const VuiScrollBox = defineComponent({
           ...flow,
           alignItems: 'stretch',
           flexGrow: 1,
+          // Let the viewport shrink to the width the wrapper hands it (bar excluded)
+          // instead of its content's intrinsic width. Without this, a long line's
+          // min-content width inflates the viewport, so text never wraps and the
+          // bar gets squeezed off the right edge.
+          minWidth: 0,
           ref: viewport,
           overflow: 'scroll',
           focusable: props.focusable,
