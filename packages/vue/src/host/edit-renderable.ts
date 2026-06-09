@@ -22,6 +22,12 @@ export interface EditState {
    * handler on its wrapper can drive an autocomplete completion.
    */
   tabBehavior?: 'focus' | 'capture'
+  /**
+   * Ctrl+C handling: `'exit'` (default) lets the host quit the app; `'capture'`
+   * dispatches Ctrl+C to this input first (so a handler can e.g. clear the text)
+   * and only quits if the event is left unhandled (not `preventDefault`-ed).
+   */
+  ctrlCBehavior?: 'exit' | 'capture'
 }
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })

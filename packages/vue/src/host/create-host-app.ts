@@ -248,6 +248,13 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
         ctx.focusManager?.dispatch(ev)
         return
       }
+      // A focused input that opts in (`ctrlCBehavior: 'capture'`) gets first crack
+      // at Ctrl+C — e.g. to clear its text. If a handler consumes it (preventDefault),
+      // don't quit; an unhandled Ctrl+C (e.g. the input was already empty) still exits.
+      if (current?.kind === 'edit' && (current as EditRenderable).edit.ctrlCBehavior === 'capture') {
+        ctx.focusManager?.dispatch(ev)
+        if ((ev as { defaultPrevented?: boolean }).defaultPrevented) return
+      }
       app.unmount()
       process.exit(0)
     }

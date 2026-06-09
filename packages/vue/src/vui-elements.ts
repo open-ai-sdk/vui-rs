@@ -148,6 +148,11 @@ export interface InputProps extends LayoutProps, PaintProps, FocusProps {
    * (it ignores Tab, so a keyDown handler on its wrapper can drive an autocomplete).
    */
   tabBehavior?: 'focus' | 'capture'
+  /**
+   * `'exit'` (default) lets Ctrl+C quit the app; `'capture'` routes Ctrl+C to this
+   * input first (a keyDown handler can clear it), quitting only if left unhandled.
+   */
+  ctrlCBehavior?: 'exit' | 'capture'
   'onUpdate:value'?: (value: string) => void
   'onUpdate:modelValue'?: (value: string) => void
   onInput?: (value: string) => void

@@ -222,6 +222,9 @@ function applyEdit(el: EditRenderable, key: string, next: unknown): boolean {
     case 'tabBehavior':
       el.edit.tabBehavior = next === 'capture' ? 'capture' : 'focus'
       return true
+    case 'ctrlCBehavior':
+      el.edit.ctrlCBehavior = next === 'capture' ? 'capture' : 'exit'
+      return true
   }
   return false
 }
