@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.1.6
+
+### Patch Changes
+
+- 6c6298e: prevent text selection when clicking on interactive elements
+
 ## 0.1.5
 
 ### Patch Changes
