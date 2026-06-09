@@ -1,5 +1,13 @@
 # @vui-rs/vue
 
+## 0.1.8
+
+### Patch Changes
+
+- a37dc6b: `<input>` gains a `ctrlCBehavior` prop (`'exit'` default | `'capture'`).
+
+  With `'capture'`, the host dispatches Ctrl+C to the focused input first (so a `keyDown` handler can e.g. clear the text) and only quits the app if the event is left unhandled — i.e. an empty input still exits on Ctrl+C, but a non-empty one can intercept it. Mirrors the existing `tabBehavior` opt-in and the textarea copy-on-selection carve-out.
+
 ## 0.1.7
 
 ### Patch Changes
