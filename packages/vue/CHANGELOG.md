@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.1.5
+
+### Patch Changes
+
+- 1daedba: prevent scrollbar from disappearing and ensure content wraps correctly
+
 ## 0.1.4
 
 ### Patch Changes
