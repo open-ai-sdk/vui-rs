@@ -143,6 +143,11 @@ export interface InputProps extends LayoutProps, PaintProps, FocusProps {
   placeholderColor?: Color
   cursorColor?: Color
   maxLength?: number
+  /**
+   * `'focus'` (default) lets Tab move focus; `'capture'` routes Tab to this input
+   * (it ignores Tab, so a keyDown handler on its wrapper can drive an autocomplete).
+   */
+  tabBehavior?: 'focus' | 'capture'
   'onUpdate:value'?: (value: string) => void
   'onUpdate:modelValue'?: (value: string) => void
   onInput?: (value: string) => void

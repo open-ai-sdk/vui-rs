@@ -219,6 +219,9 @@ function applyEdit(el: EditRenderable, key: string, next: unknown): boolean {
     case 'maxLength':
       el.edit.maxLength = typeof next === 'number' ? next : undefined
       return true
+    case 'tabBehavior':
+      el.edit.tabBehavior = next === 'capture' ? 'capture' : 'focus'
+      return true
   }
   return false
 }

@@ -4,9 +4,10 @@ import { type AutocompleteApi, useAutocomplete } from '../src/autocomplete.ts'
 import { type Suggestion } from '../src/autocomplete.ts'
 import { key, mount } from './helpers.ts'
 
-function mountAutocomplete() {
+function mountAutocomplete(opts: { withComplete?: boolean } = {}) {
   const query = ref('')
   const accepted: Suggestion[] = []
+  const completed: Suggestion[] = []
   let api!: AutocompleteApi
   const Root = defineComponent({
     setup() {
@@ -23,6 +24,7 @@ function mountAutocomplete() {
           (q) => (q.startsWith('/') ? [{ label: '/help', value: 'help' }] : []),
         ],
         onAccept: (s) => accepted.push(s),
+        ...(opts.withComplete ? { onComplete: (s: Suggestion) => completed.push(s) } : {}),
       })
       return () => h('box', {})
     },
@@ -32,6 +34,7 @@ function mountAutocomplete() {
     ...harness,
     query,
     accepted,
+    completed,
     get api() {
       return api
     },
@@ -71,6 +74,31 @@ describe('useAutocomplete', () => {
     api.onKeyDown(key('down'))
     expect(api.active.value).toBe(0)
     expect(accepted).toEqual([])
+    cleanup()
+  })
+
+  test('Tab completes the active suggestion via onComplete (not onAccept)', () => {
+    const { api, query, accepted, completed, cleanup } = mountAutocomplete({ withComplete: true })
+    query.value = '@'
+    api.onKeyDown(key('down'))
+    api.onKeyDown(key('tab'))
+    expect(completed.map((s) => s.value)).toEqual(['bob'])
+    expect(accepted).toEqual([]) // Tab completes, it does not accept/execute
+    cleanup()
+  })
+
+  test('Tab falls back to onAccept when no onComplete is wired', () => {
+    const { api, query, accepted, cleanup } = mountAutocomplete()
+    query.value = '/'
+    api.onKeyDown(key('tab'))
+    expect(accepted.map((s) => s.value)).toEqual(['help'])
+    cleanup()
+  })
+
+  test('Tab is ignored when there are no suggestions', () => {
+    const { api, completed, cleanup } = mountAutocomplete({ withComplete: true })
+    api.onKeyDown(key('tab'))
+    expect(completed).toEqual([])
     cleanup()
   })
 })
