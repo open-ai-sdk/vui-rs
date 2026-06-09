@@ -84,7 +84,9 @@ export const VuiHostInput = defineComponent({
           e.move(EditMotion.End)
           break
         case 'backspace':
-          e.backspace()
+          // Ctrl/Alt+Backspace delete the previous word (readline); plain deletes a char.
+          if (ev.ctrl || ev.alt) e.deleteWordLeft()
+          else e.backspace()
           break
         case 'delete':
           e.delete()
@@ -98,9 +100,21 @@ export const VuiHostInput = defineComponent({
           emit('enter', value)
           break
         }
+        // readline line-editing: Ctrl+U (to start), Ctrl+W (word back), Ctrl+K (to end).
+        case 'u':
+          if (ev.ctrl && !ev.alt && !ev.meta) e.deleteToStart()
+          else handled = insertPrintable(e, ev)
+          break
+        case 'w':
+          if (ev.ctrl && !ev.alt && !ev.meta) e.deleteWordLeft()
+          else handled = insertPrintable(e, ev)
+          break
+        case 'k':
+          if (ev.ctrl && !ev.alt && !ev.meta) e.deleteToEnd()
+          else handled = insertPrintable(e, ev)
+          break
         default:
-          if (isPrintable(ev)) e.insert(ev.name)
-          else handled = false
+          handled = insertPrintable(e, ev)
       }
       if (handled) {
         ev.preventDefault()
@@ -150,6 +164,13 @@ export const VuiHostInput = defineComponent({
 })
 
 /** A bare printable key (single grapheme, no ctrl/alt/meta) — text to insert. */
-function isPrintable(ev: DispatchableEvent): boolean {
+function isPrintable(ev: DispatchableEvent): ev is DispatchableEvent & { name: string } {
   return ev.type === 'key' && !ev.ctrl && !ev.alt && !ev.meta && ev.name >= ' ' && [...ev.name].length === 1
+}
+
+/** Insert a printable key; returns whether it was handled (so the caller can let others bubble). */
+function insertPrintable(e: EditRenderable, ev: DispatchableEvent): boolean {
+  if (!isPrintable(ev)) return false
+  e.insert(ev.name)
+  return true
 }

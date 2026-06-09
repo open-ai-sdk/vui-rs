@@ -100,6 +100,38 @@ export class EditRenderable extends Renderable {
     this.#touch()
   }
 
+  /** Delete everything before the cursor (readline `Ctrl+U`); cursor moves to start. */
+  deleteToStart(): void {
+    if (this.edit.cursor <= 0) return
+    const gs = graphemes(this.edit.value)
+    gs.splice(0, this.edit.cursor)
+    this.edit.value = gs.join('')
+    this.edit.cursor = 0
+    this.#touch()
+  }
+
+  /** Delete the word before the cursor (readline `Ctrl+W`): trailing spaces, then non-spaces. */
+  deleteWordLeft(): void {
+    if (this.edit.cursor <= 0) return
+    const gs = graphemes(this.edit.value)
+    let c = this.edit.cursor
+    while (c > 0 && isSpace(gs[c - 1]!)) c--
+    while (c > 0 && !isSpace(gs[c - 1]!)) c--
+    gs.splice(c, this.edit.cursor - c)
+    this.edit.value = gs.join('')
+    this.edit.cursor = c
+    this.#touch()
+  }
+
+  /** Delete everything from the cursor to the end of the line (readline `Ctrl+K`). */
+  deleteToEnd(): void {
+    const gs = graphemes(this.edit.value)
+    if (this.edit.cursor >= gs.length) return
+    gs.splice(this.edit.cursor)
+    this.edit.value = gs.join('')
+    this.#touch()
+  }
+
   move(motion: number): void {
     const gs = graphemes(this.edit.value)
     const len = gs.length

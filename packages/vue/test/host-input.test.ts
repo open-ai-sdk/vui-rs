@@ -124,6 +124,42 @@ describe('<input> typing (JS edit model + v-model)', () => {
     cleanup()
   })
 
+  test('Ctrl+U deletes to line start', async () => {
+    const { ctx, value, cleanup } = mountInput('hello world')
+    await nextTick()
+    ctx.focusManager!.dispatch(key('u', { ctrl: true })) // cursor at end → delete everything before
+    expect(value.value).toBe('')
+    cleanup()
+  })
+
+  test('Ctrl+W / Ctrl+Backspace / Alt+Backspace delete the previous word', async () => {
+    for (const ev of [key('w', { ctrl: true }), key('backspace', { ctrl: true }), key('backspace', { alt: true })]) {
+      const { ctx, value, cleanup } = mountInput('hello world')
+      await nextTick()
+      ctx.focusManager!.dispatch(ev)
+      expect(value.value).toBe('hello ')
+      cleanup()
+    }
+  })
+
+  test('Ctrl+K deletes to line end', async () => {
+    const { ctx, value, cleanup } = mountInput('hello world')
+    await nextTick()
+    const fm = ctx.focusManager!
+    fm.dispatch(key('home')) // cursor → 0
+    fm.dispatch(key('k', { ctrl: true })) // delete from cursor to end
+    expect(value.value).toBe('')
+    cleanup()
+  })
+
+  test('plain u / w / k still type as text (line-edit keys need the Ctrl modifier)', async () => {
+    const { ctx, value, cleanup } = mountInput('')
+    await nextTick()
+    for (const c of 'wuk') ctx.focusManager!.dispatch(key(c))
+    expect(value.value).toBe('wuk')
+    cleanup()
+  })
+
   test('maxLength caps insertion', async () => {
     const value = ref('')
     const { ctx, cleanup } = mount(() =>
