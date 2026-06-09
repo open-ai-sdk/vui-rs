@@ -111,6 +111,40 @@ describe('scroll-box', () => {
     expect(allGlyphs(renderer)).toBe('BC')
     cleanup()
   })
+
+  test('scrollbar variant wraps content and keeps its track column', async () => {
+    // A long line must wrap to the viewport width (bar excluded), not blow the
+    // viewport out to its content width — which would drop the tail off the right
+    // edge and squeeze the scrollbar column to zero.
+    const LONG = 'one two three four five six seven eight nine ten eleven twelve'
+    const { app, renderer, root, cleanup } = mount(12, 4, () =>
+      h(VuiScrollBox, { width: 12, height: 4, scrollbar: true }, () => [
+        h('text', { width: { pct: 1 }, wrap: 'word' }, LONG),
+      ]),
+    )
+    await nextTick()
+    app.context.flushNow()
+
+    const all: Array<{ w: number; h: number; ov?: string }> = []
+    const walk = (n: {
+      rect: { w: number; h: number } | null
+      paint?: { overflow?: string }
+      children: unknown[]
+    }): void => {
+      if (n.rect) all.push({ w: n.rect.w, h: n.rect.h, ov: n.paint?.overflow })
+      for (const c of n.children) walk(c as typeof n)
+    }
+    walk(root as Parameters<typeof walk>[0])
+
+    // The scrolling viewport shrank to leave one column for the bar (so the text
+    // wraps into it) rather than expanding to the line's intrinsic content width.
+    const viewport = all.find((r) => r.ov === 'scroll')
+    expect(viewport?.w).toBe(11)
+    // The scrollbar track kept its 1-cell column instead of being shrunk to zero.
+    const track = all.find((r) => r.ov === 'hidden' && r.w === 1)
+    expect(track).toBeDefined()
+    cleanup()
+  })
 })
 
 describe('scroll-box key + scrollbar plumbing', () => {

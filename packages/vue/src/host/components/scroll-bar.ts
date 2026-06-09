@@ -87,6 +87,9 @@ export const VuiScrollBar = defineComponent({
           ...attrs,
           ref: track,
           width: 1,
+          // A track is intrinsically 1 cell wide — never let flex shrink it away
+          // when the content row is over-subscribed (else the bar disappears).
+          flexShrink: 0,
           height: props.viewportHeight,
           // Clip the absolute thumb to the track: boxes now default to
           // overflow `visible`, so without this the thumb could spill past the
