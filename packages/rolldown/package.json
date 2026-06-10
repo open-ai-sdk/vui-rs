@@ -1,6 +1,6 @@
 {
   "name": "@vui-rs/rolldown",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Compile .vue SFCs for the vui-rs custom renderer in rolldown/tsdown builds (unplugin-vue + vui compiler options + style strip).",
   "keywords": [
     "rolldown",

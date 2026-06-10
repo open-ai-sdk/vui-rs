@@ -1,5 +1,11 @@
 # @vui-rs/rolldown
 
+## 0.1.2
+
+### Patch Changes
+
+- cabf286: fix publish
+
 ## 0.1.1
 
 ### Patch Changes
