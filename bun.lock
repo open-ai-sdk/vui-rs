@@ -316,7 +316,7 @@
     },
     "packages/rolldown": {
       "name": "@vui-rs/rolldown",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@vue/compiler-core": "catalog:",
         "@vui-rs/vite-plugin": "workspace:*",
