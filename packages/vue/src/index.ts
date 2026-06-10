@@ -129,6 +129,7 @@ export {
   h,
   nextTick,
   onBeforeUnmount,
+  onErrorCaptured,
   onMounted,
   onUnmounted,
   reactive,
