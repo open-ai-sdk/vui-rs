@@ -1,13 +1,13 @@
 {
-  "name": "@vui-rs/vite-plugin",
-  "version": "0.1.2",
-  "description": "Vite plugin to compile .vue SFCs for the vui-rs custom renderer — element tags, a TUI v-model transform, and style-block stripping.",
+  "name": "@vui-rs/rolldown",
+  "version": "0.1.0",
+  "description": "Compile .vue SFCs for the vui-rs custom renderer in rolldown/tsdown builds (unplugin-vue + vui compiler options + style strip).",
   "keywords": [
+    "rolldown",
     "sfc",
     "terminal",
+    "tsdown",
     "tui",
-    "vite",
-    "vite-plugin",
     "vue",
     "vui-rs"
   ],
@@ -18,7 +18,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/open-ai-sdk/vui-rs.git",
-    "directory": "packages/vite-plugin"
+    "directory": "packages/rolldown"
   },
   "files": [
     "dist"
@@ -36,15 +36,18 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@vitejs/plugin-vue": "catalog:",
-    "@vue/compiler-core": "catalog:"
+    "@vue/compiler-core": "catalog:",
+    "@vui-rs/vite-plugin": "workspace:*",
+    "unplugin-vue": "^7"
+  },
+  "devDependencies": {
+    "rolldown": "~1.1.0"
   },
   "peerDependencies": {
-    "@vue/compiler-sfc": "catalog:",
-    "vite": "catalog:"
+    "rolldown": "^1"
   },
   "peerDependenciesMeta": {
-    "vite": {
+    "rolldown": {
       "optional": true
     }
   }
