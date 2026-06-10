@@ -28,7 +28,7 @@
     "build": "vp run --filter './packages/*' build",
     "build:native": "bun run scripts/build-native.ts",
     "build:native:all": "bun run scripts/build-native.ts --all",
-    "build:packages": "bun run --filter @vui-rs/core build && bun run --filter @vui-rs/vue build && bun run --filter @vui-rs/ui build && bun run --filter @vui-rs/vite-plugin build",
+    "build:packages": "bun run --filter @vui-rs/core build && bun run --filter @vui-rs/vue build && bun run --filter @vui-rs/ui build && bun run --filter @vui-rs/vite-plugin build && bun run --filter @vui-rs/rolldown build",
     "build:examples": "bun run build:packages && bun run --filter '@vui-rs/example-*' build",
     "dev:form": "bun run build:packages && bun run --filter @vui-rs/example-form build && bun examples/form/dist/app.js",
     "dev:textarea": "bun run build:packages && bun run --filter @vui-rs/example-textarea build && bun examples/textarea/dist/app.js",
