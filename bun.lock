@@ -316,7 +316,7 @@
     },
     "packages/ui": {
       "name": "@vui-rs/ui",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "dependencies": {
         "@vue/runtime-core": "catalog:",
         "@vui-rs/core": "workspace:*",
@@ -337,7 +337,7 @@
     },
     "packages/vue": {
       "name": "@vui-rs/vue",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "dependencies": {
         "@vue/reactivity": "catalog:",
         "@vue/runtime-core": "catalog:",

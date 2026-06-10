@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.1.10
+
+### Patch Changes
+
+- 4d61d3b: add onErrorCaptured lifecycle hook to index export
+
 ## 0.1.9
 
 ### Patch Changes
