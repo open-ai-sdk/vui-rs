@@ -47,7 +47,7 @@
     "dev": "bun run scripts/abi-probe.ts",
     "typecheck:sfc": "vue-tsc --noEmit",
     "bench": "bun run examples/paint-bench.ts >/dev/null",
-    "test": "bun run build:packages && cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test packages/ui/test && bun run scripts/abi-probe.ts",
+    "test": "bun run build:packages && cargo test -p vui-core && bun test packages/core/test packages/vue/test packages/vite-plugin/test packages/ui/test packages/rolldown/test && bun run scripts/abi-probe.ts",
     "changeset": "changeset",
     "ci:version": "changeset version && bun update",
     "ci:publish": "bun run build:native:all && bun run build:packages && bun run scripts/publish-packages.ts && changeset tag",

@@ -21,8 +21,9 @@ import { join } from 'node:path'
 const repoRoot = join(import.meta.dir, '..')
 
 // Dependency order: a package is published after the @vui-rs/* packages it
-// depends on (core → vue → ui; vite-plugin is independent).
-const DIRS = ['core', 'vue', 'ui', 'vite-plugin']
+// depends on (core → vue → ui; vite-plugin is independent; rolldown depends on
+// vite-plugin via `workspace:*`, so it publishes after it).
+const DIRS = ['core', 'vue', 'ui', 'vite-plugin', 'rolldown']
 
 interface Manifest {
   name: string
