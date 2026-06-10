@@ -1,5 +1,11 @@
 # @vui-rs/vite-plugin
 
+## 0.1.3
+
+### Patch Changes
+
+- d530430: add @vui-rs/rolldown package for SFC compilation and update build scripts
+
 ## 0.1.2
 
 ### Patch Changes
