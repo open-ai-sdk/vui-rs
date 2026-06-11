@@ -44,6 +44,19 @@ export interface HostMountOptions {
    * (preventDefault). When set, the app becomes responsible for exiting itself.
    */
   onCtrlC?: () => void
+  /**
+   * Auto-copy the active static-text selection to the system clipboard (OSC 52)
+   * when a left-drag ends on mouse-up. Default `false` — strictly opt-in, since
+   * it places whatever the user swept onto the system-wide clipboard. When on, the
+   * release copies once (never re-copies during a streaming re-render), fires
+   * `onCopy`, then clears the selection.
+   */
+  copyOnSelect?: boolean
+  /**
+   * Called once with the copied text after any successful clipboard copy — the
+   * mouse-up auto-copy (when `copyOnSelect`) or a Ctrl+C/Cmd+C over a selection.
+   */
+  onCopy?: (text: string) => void
 }
 
 /**
@@ -61,11 +74,78 @@ export function resolveCtrlCAction(capturePrevented: boolean, hasOnCtrlC: boolea
   return hasOnCtrlC ? 'delegate' : 'exit'
 }
 
+/** State the selection-mouse decision reads, all renderer-independent. */
+export interface SelectionMouseState {
+  /** A left-drag selection is in progress (between down and up). */
+  selecting: boolean
+  /** The selection covers more than its anchor cell — read AFTER any focus update. */
+  selectionActive: boolean
+  /** The mouse-down landed on selectable static text (no interactive ancestor). */
+  selectableHit: boolean
+}
+
+/**
+ * What a selection-mouse event resolves to. The host closure applies it: `begin`
+ * starts a selection at the event coords, `copy` runs the OSC 52 copy and (on
+ * success) fires `onCopy` then clears, `clear` drops the selection outright, and
+ * `selecting` (when defined) becomes the new drag flag. `consumed` is the value
+ * `handleSelectionMouse` returns — true swallows the event, false lets it fall
+ * through to focus handling.
+ *
+ * Mechanical model mutations that need the renderer (hit-testing the down, extending
+ * the focus on drag/up) stay in the closure; this is purely the copy-vs-clear-vs-keep
+ * decision, so it's unit-testable without driving a terminal session. The single-shot
+ * copy guarantee lives here: only the `up` branch ever sets `copy`, so a streaming
+ * re-render (which produces no mouse-up) can never re-copy.
+ */
+export interface SelectionMouseAction {
+  begin: boolean
+  copy: boolean
+  clear: boolean
+  selecting?: boolean
+  consumed: boolean
+}
+
+export function resolveSelectionMouseAction(
+  ev: { kind: import('@vui-rs/core').MouseEvent['kind']; button: import('@vui-rs/core').MouseEvent['button'] },
+  state: SelectionMouseState,
+  opts: { copyOnSelect: boolean },
+): SelectionMouseAction {
+  const none: SelectionMouseAction = { begin: false, copy: false, clear: false, consumed: false }
+  if (ev.kind === 'down' && ev.button === 'left') {
+    if (state.selectableHit) return { ...none, begin: true, selecting: true, consumed: true }
+    // Off any text region: drop a prior selection, then fall through to focus.
+    return { ...none, clear: state.selectionActive, selecting: false, consumed: false }
+  }
+  if (state.selecting && ev.kind === 'drag') {
+    return { ...none, selecting: true, consumed: true }
+  }
+  if (state.selecting && ev.kind === 'up') {
+    // `selectionActive` here is the post-update value (the closure extends focus first).
+    if (!state.selectionActive) return { ...none, clear: true, selecting: false, consumed: true }
+    if (opts.copyOnSelect) return { ...none, copy: true, selecting: false, consumed: true }
+    return { ...none, selecting: false, consumed: true } // keep selection; manual Ctrl+C still copies
+  }
+  return none
+}
+
 export interface VuiHostApp {
   mount(options?: HostMountOptions): VuiHostApp
   unmount(): void
   /** Swap the active theme at runtime (by name, JSON, full theme, or partial) — no remount. */
   setTheme(input: ThemeInput, mode?: 'dark' | 'light'): void
+  /**
+   * Feed one decoded input event through the host's routing (selection/copy,
+   * Ctrl+C, Tab focus, else dispatch) exactly as the terminal session pump would.
+   * The session is only wired when the host owns its renderer (interactive mode),
+   * so with an injected renderer this is the seam to drive that input path — e.g.
+   * to unit-test copy-on-select offscreen without a real terminal.
+   *
+   * Carries the full routing's side effects: a bare unhandled Ctrl+C with no
+   * `onCtrlC` and no active selection takes the default exit path (`process.exit`),
+   * so a test driving Ctrl+C must set `onCtrlC` or hold an active selection.
+   */
+  dispatchInput(ev: import('@vui-rs/core').InputEvent): void
   readonly renderer: Renderer | null
   readonly context: HostContext
 }
@@ -127,6 +207,11 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   // App-provided override for an unhandled Ctrl+C (see `HostMountOptions.onCtrlC`).
   // Captured in `mount()`; read by `handleInputEvent`'s Ctrl+C fallthrough.
   let onCtrlC: (() => void) | undefined
+  // Copy-on-select wiring (see `HostMountOptions.copyOnSelect`/`onCopy`). CLOSURE-
+  // scoped per app instance — never module-scope, so multiple apps in one process
+  // (notably tests) don't share clipboard behavior. Captured in `mount()`.
+  let onCopy: ((text: string) => void) | undefined
+  let copyOnSelect = false
 
   // A lone ESC keypress can't be told apart from the start of a CSI/SS3 sequence
   // (arrow keys, …) until the next byte arrives, so the decoder buffers it. If no
@@ -144,6 +229,8 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
       if (mounted) return app
       mounted = true
       onCtrlC = options.onCtrlC
+      onCopy = options.onCopy
+      copyOnSelect = options.copyOnSelect ?? false
       // Mutate the reactive theme in place (don't replace the proxy) so the
       // provided reference stays the live one `setTheme()` later updates.
       if (options.theme) Object.assign(ctx.theme, options.theme)
@@ -187,23 +274,43 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     setTheme(input: ThemeInput, mode?: 'dark' | 'light'): void {
       applyTheme(ctx, resolveThemeInput(input, mode ?? detectColorScheme(), ctx.theme))
     },
+    dispatchInput(ev: import('@vui-rs/core').InputEvent): void {
+      handleInputEvent(ev)
+    },
   }
 
   /** True while a left-drag text selection is in progress (between down and up). */
   let selecting = false
 
-  /** Copy the active static-text selection to the system clipboard via OSC 52. */
-  function copySelection(): boolean {
+  // A user-initiated scroll invalidates an active selection (the screen-absolute
+  // selection coords would otherwise highlight the wrong glyphs once content moves).
+  // Guarded to never clear mid-drag — a bare `selection.clear()` mid-drag would leave
+  // `selecting === true` with a dead anchor, since `update` no-ops on a cleared
+  // selection. The scroll-box calls this only from its `apply()` path (real user
+  // scroll), never from the stick-to-bottom auto-pin.
+  ctx.invalidateSelection = (): void => {
+    if (!selecting && ctx.selection.active) {
+      ctx.selection.clear()
+      ctx.scheduleRender()
+    }
+  }
+
+  /**
+   * Copy the active static-text selection to the system clipboard via OSC 52.
+   * Returns the copied text so callers can pass it to `onCopy` and decide to clear
+   * the selection without re-reading the buffer; null when there's nothing to copy.
+   */
+  function copySelection(): string | null {
     const r = ctx.renderer
-    if (!r || !ctx.selection.active) return false
+    if (!r || !ctx.selection.active) return null
     const text = selectionText(r, ctx.selection)
-    if (!text) return false
+    if (!text) return null
     const b64 = Buffer.from(text, 'utf8').toString('base64')
     // OSC 52 to the "c"(lipboard) selection; emitted via the passthrough channel,
     // which forces the frame so the one-shot write lands even with no cell change.
     r.stagePassthrough(new TextEncoder().encode(`\x1b]52;c;${b64}\x07`))
     ctx.flushNow()
-    return true
+    return text
   }
 
   /**
@@ -222,36 +329,34 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   /** Drive drag-selection over static `<text>`/`<markdown>`. Returns true if consumed. */
   function handleSelectionMouse(ev: import('@vui-rs/core').MouseEvent): boolean {
     const sel = ctx.selection
-    if (ev.kind === 'down' && ev.button === 'left') {
-      const hit = hitTestTopmost(ctx, ev.x, ev.y)
-      if (hit && hit.kind === 'text' && hit.screenRect && !hasInteractiveAncestor(hit)) {
-        sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1)
-        selecting = true
-        ctx.scheduleRender()
-        return true
-      }
-      // A click off any text region clears a prior selection, then falls through
-      // to normal focus handling.
-      if (sel.active) {
+    // Resolve the renderer-dependent inputs the pure decision needs: hit-test the
+    // down, and extend the focus on drag/up (renderer-free) so `sel.active` reflects
+    // the final drag before we decide copy-vs-clear-vs-keep.
+    let hit: Renderable | null = null
+    if (ev.kind === 'down' && ev.button === 'left') hit = hitTestTopmost(ctx, ev.x, ev.y)
+    const selectableHit = !!(hit && hit.kind === 'text' && hit.screenRect && !hasInteractiveAncestor(hit))
+    if (selecting && (ev.kind === 'drag' || ev.kind === 'up')) sel.update(ev.x, ev.y)
+
+    const action = resolveSelectionMouseAction(
+      { kind: ev.kind, button: ev.button },
+      { selecting, selectionActive: sel.active, selectableHit },
+      { copyOnSelect },
+    )
+    if (action.begin && hit?.screenRect) sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1)
+    if (action.copy) {
+      // D6: clear only AFTER a successful copy, so a lingering selection can't make
+      // the next Ctrl+C re-copy (instead of arming the host's exit path).
+      const copied = copySelection()
+      if (copied !== null) {
+        onCopy?.(copied)
         sel.clear()
-        ctx.scheduleRender()
       }
-      selecting = false
-      return false
+    } else if (action.clear) {
+      sel.clear()
     }
-    if (selecting && ev.kind === 'drag') {
-      sel.update(ev.x, ev.y)
-      ctx.scheduleRender()
-      return true
-    }
-    if (selecting && ev.kind === 'up') {
-      sel.update(ev.x, ev.y)
-      if (!sel.active) sel.clear() // a click with no drag selects nothing
-      selecting = false
-      ctx.scheduleRender()
-      return true
-    }
-    return false
+    if (action.selecting !== undefined) selecting = action.selecting
+    if (action.begin || action.copy || action.clear || action.consumed) ctx.scheduleRender()
+    return action.consumed
   }
 
   /** Route one decoded input event: selection, copy, Ctrl-C exit, Tab focus, else dispatch. */
@@ -262,9 +367,16 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
       return
     }
     // Ctrl-C / Cmd-C with an active static-text selection copies (OSC 52) rather
-    // than exiting / being ignored.
+    // than exiting / being ignored — then (D6) clears, so a second Ctrl+C falls
+    // through to the host's exit path instead of re-copying.
     if (ev.type === 'key' && (matchesKey(ev, 'ctrl+c') || matchesKey(ev, 'meta+c'))) {
-      if (copySelection()) return
+      const copied = copySelection()
+      if (copied !== null) {
+        onCopy?.(copied)
+        ctx.selection.clear()
+        ctx.scheduleRender()
+        return
+      }
     }
     if (ev.type === 'key' && ev.name === 'escape' && ctx.selection.active) {
       ctx.selection.clear()
