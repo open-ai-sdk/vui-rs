@@ -39,6 +39,7 @@ function context(): HostContext {
     dispose: () => {},
     renderCount: 0,
     afterLayout: new Set<() => void>(),
+    layoutListeners: new Set<() => void>(),
     layout: null,
     paint: null,
     focusManager: null,

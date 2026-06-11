@@ -42,6 +42,13 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     el.ctx.scheduleRender()
     return
   }
+  if (key === 'clickFocus') {
+    // Default true; only an explicit `false` opts a focusable container out of
+    // click-to-focus + Tab traversal (it stays prop/programmatically focusable).
+    el.clickFocus = next !== false
+    el.ctx.scheduleRender()
+    return
+  }
   if (key === 'trapFocus') {
     el.trapFocus = next !== false && next != null
     el.ctx.scheduleRender()

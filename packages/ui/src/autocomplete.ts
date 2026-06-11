@@ -8,10 +8,13 @@
 //     `accept()` you call from the input's `@enter` (the input consumes Enter, so it
 //     never reaches `onKeyDown`).
 //   • `<VuiAutocomplete>` — the presentation: a bordered list of the given
-//     suggestions with the active row highlighted, rendered in normal flow right
-//     under the input (so it never gets overpainted by following content).
+//     suggestions with the active row highlighted. With an `anchor` rect (from
+//     `useElementRect` on the input) it renders as an overlay popup that opens
+//     UPWARD above the anchor — no layout shift, clamped to the space above, and
+//     window-scrolled so the active row stays visible. Without an `anchor` it falls
+//     back to the original in-flow box just under the input.
 import { type PropType, type Ref, computed, defineComponent, h, ref, watch } from '@vue/runtime-core'
-import { type DispatchableEvent, useTheme } from '@vui-rs/vue'
+import { type DispatchableEvent, type ScreenMeasure, useTheme } from '@vui-rs/vue'
 
 export interface Suggestion {
   label: string
@@ -101,19 +104,80 @@ export function useAutocomplete(opts: AutocompleteOptions): AutocompleteApi {
   return { suggestions, active, visible, onKeyDown, accept }
 }
 
+/** Rounded border overhead (top+bottom rows / left+right cols). */
+const BORDER = 2
+const MIN_WIDTH = 20
+
 export const VuiAutocomplete = defineComponent({
   name: 'VuiAutocomplete',
   props: {
     suggestions: { type: Array as PropType<Suggestion[]>, default: () => [] },
     active: { type: Number, default: 0 },
     maxRows: { type: Number, default: 8 },
+    /**
+     * Screen rect of the input to anchor an upward overlay popup to (from
+     * `useElementRect`). Omit / `null` to render in normal flow under the input.
+     */
+    anchor: { type: Object as PropType<ScreenMeasure | null>, default: null },
   },
   emits: ['select'],
   setup(props, { emit }) {
     const theme = useTheme()
-    const shown = computed(() => props.suggestions.slice(0, props.maxRows))
-    return () => {
-      if (props.suggestions.length === 0) return null
+
+    // Rows actually shown. In overlay mode also clamp to the space above the
+    // anchor (border included) so the popup never overflows the top of the screen.
+    const rows = computed(() => {
+      const wanted = Math.min(props.maxRows, props.suggestions.length)
+      if (!props.anchor) return wanted
+      const fitsAbove = Math.max(0, props.anchor.y - BORDER)
+      return Math.min(wanted, fitsAbove)
+    })
+
+    // First visible suggestion index. Stateful scroll-into-view: only slides when
+    // `active` leaves the current window, keeping the active row visible with
+    // minimal movement (a wrap from last→first resets it to the top).
+    const windowStart = ref(0)
+    watch(
+      [() => props.active, rows, () => props.suggestions.length],
+      () => {
+        const r = rows.value
+        const n = props.suggestions.length
+        let start = windowStart.value
+        if (props.active < start) start = props.active
+        else if (props.active >= start + r) start = props.active - r + 1
+        // Clamp so the window never runs past the end of the list (or before 0).
+        windowStart.value = Math.max(0, Math.min(start, Math.max(0, n - r)))
+      },
+      { immediate: true },
+    )
+
+    const shown = computed(() => props.suggestions.slice(windowStart.value, windowStart.value + rows.value))
+
+    function renderRow(s: Suggestion, i: number) {
+      const index = windowStart.value + i
+      const on = index === props.active
+      return h(
+        'box',
+        {
+          key: s.value,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          gap: 2,
+          bg: on ? theme.primary : undefined,
+          padding: { left: 1, right: 1 },
+          onMouseDown: (ev: DispatchableEvent) => {
+            ev.preventDefault()
+            emit('select', s, index)
+          },
+        },
+        [
+          h('text', { fg: on ? theme.selectedText : theme.text }, s.label),
+          s.hint ? h('text', { fg: on ? theme.selectedText : theme.textMuted }, s.hint) : null,
+        ],
+      )
+    }
+
+    function renderList(extra: Record<string, unknown>) {
       return h(
         'box',
         {
@@ -121,32 +185,36 @@ export const VuiAutocomplete = defineComponent({
           border: 'rounded',
           borderColor: theme.border,
           bg: theme.backgroundMenu,
-          alignSelf: 'flex-start',
-          minWidth: 20,
+          minWidth: MIN_WIDTH,
+          ...extra,
         },
-        shown.value.map((s, i) => {
-          const on = i === props.active
-          return h(
-            'box',
-            {
-              key: s.value,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              gap: 2,
-              bg: on ? theme.primary : undefined,
-              padding: { left: 1, right: 1 },
-              onMouseDown: (ev: DispatchableEvent) => {
-                ev.preventDefault()
-                emit('select', s, i)
-              },
-            },
-            [
-              h('text', { fg: on ? theme.selectedText : theme.text }, s.label),
-              s.hint ? h('text', { fg: on ? theme.selectedText : theme.textMuted }, s.hint) : null,
-            ],
-          )
-        }),
+        shown.value.map(renderRow),
       )
+    }
+
+    return () => {
+      if (props.suggestions.length === 0) return null
+      const anchor = props.anchor
+      // In-flow fallback: original behavior, content-sized box under the input.
+      if (!anchor) return renderList({ alignSelf: 'flex-start' })
+
+      // Overlay popup: opens upward above the anchor. Hidden when no row fits above
+      // (anchor too close to the top edge).
+      if (rows.value < 1) return null
+      const popupHeight = rows.value + BORDER
+      // `rows ≤ anchor.y - BORDER` guarantees `top ≥ 0` — no top-edge overflow.
+      const top = anchor.y - popupHeight
+      // Full-screen, non-focusing, backdrop-less overlay as a positioning layer;
+      // non-content cells fall through to the tree (clicks on the message list keep
+      // working), and with no trapFocus the input never loses focus.
+      return h('overlay', {}, [
+        renderList({
+          position: 'absolute',
+          top,
+          left: anchor.x,
+          maxWidth: Math.max(MIN_WIDTH, anchor.width),
+        }),
+      ])
     }
   },
 })

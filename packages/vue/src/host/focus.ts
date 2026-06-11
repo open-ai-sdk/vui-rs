@@ -65,7 +65,9 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
     const out: Renderable[] = []
     const visit = (node: Renderable | null): void => {
       if (!node) return
-      if (node.focusable) out.push(node)
+      // `clickFocus:false` containers opt out of Tab traversal too — an app shell
+      // that holds focus only for global-key dispatch must not be tabbable.
+      if (node.focusable && node.clickFocus) out.push(node)
       for (const child of node.children) visit(child)
     }
     visit(trapRoot() ?? ctx.root)
@@ -112,7 +114,10 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
   function findFocusable(node: Renderable | null): Renderable | null {
     const trap = trapRoot()
     for (let n = node; n; n = n.parent) {
-      if (n.focusable) {
+      // `clickFocus:false` nodes are invisible to click-to-focus: the walk passes
+      // through them so a click resolves to a focusable ancestor that opted in, or
+      // to nothing (leaving the current focus — e.g. an input — untouched).
+      if (n.focusable && n.clickFocus) {
         // While a modal traps focus, a click outside it must not focus a node
         // behind it — even with no backdrop intercepting the click. Confine the
         // focus target to the trapped subtree (mirrors `order()`'s Tab scoping).

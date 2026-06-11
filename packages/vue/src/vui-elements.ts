@@ -86,6 +86,13 @@ interface PaintProps {
 interface FocusProps {
   /** Participate in Tab focus traversal. */
   focusable?: boolean
+  /**
+   * Whether a mouse-down may move focus to this node (default `true`). Set `false`
+   * on a focusable container that must keep focus for global-key dispatch but must
+   * not steal it from an input when the user clicks elsewhere — click-to-focus and
+   * Tab skip it, while `focused`/programmatic focus still work.
+   */
+  clickFocus?: boolean
   /** Controlled focus: focus this node on mount / when true. */
   focused?: boolean
   onKeyDown?: (ev: DispatchableEvent) => void

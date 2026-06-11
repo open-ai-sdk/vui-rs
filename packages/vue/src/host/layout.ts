@@ -43,6 +43,10 @@ export function runLayout(ctx: HostContext): void {
   ctx.layoutW = renderer.width
   ctx.layoutH = renderer.height
   readRects(ctx.root)
+  // Layout actually recomputed — notify measurement subscribers (`useElementRect`)
+  // so anchored popups re-read their element's screen rect off the fresh rects.
+  // Skipped on the dirty-gated early return above (nothing moved ⇒ no re-measure).
+  for (const listener of ctx.layoutListeners) listener()
 }
 
 function syncTextareaAutoSize(node: Renderable): void {

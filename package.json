@@ -43,6 +43,7 @@
     "dev:command-palette": "bun run build:packages && bun run --filter @vui-rs/example-command-palette build && bun examples/command-palette/dist/app.js",
     "dev:toast": "bun run build:packages && bun run --filter @vui-rs/example-toast build && bun examples/toast/dist/app.js",
     "dev:autocomplete": "bun run build:packages && bun run --filter @vui-rs/example-autocomplete build && bun examples/autocomplete/dist/app.js",
+    "dev:autocomplete-popup": "bun run build:packages && bun run --filter @vui-rs/example-autocomplete-popup build && bun examples/autocomplete-popup/dist/app.js",
     "dev:virtual-list": "bun run build:packages && bun run --filter @vui-rs/example-virtual-list build && bun examples/virtual-list/dist/app.js",
     "dev": "bun run scripts/abi-probe.ts",
     "typecheck:sfc": "vue-tsc --noEmit",

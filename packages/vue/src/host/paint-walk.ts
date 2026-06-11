@@ -14,7 +14,9 @@ import { paintSelection } from './selection.ts'
 // rounds half toward +∞ (`Math.round(-0.5) === 0`), which would diverge from the
 // Rust paint by one cell at a negative half-integer origin (off-screen / scrolled
 // nodes). `Math.sign * round(abs)` reproduces Rust's rounding on both signs.
-const round = (v: number): number => Math.sign(v) * Math.round(Math.abs(v))
+// Exported so the off-paint measurement walk (`measure.ts`) rounds a screen rect
+// identically — a popup anchored to an element then lines up with its painted cells.
+export const round = (v: number): number => Math.sign(v) * Math.round(Math.abs(v))
 
 function intersect(a: Clip, b: Clip): Clip {
   return {

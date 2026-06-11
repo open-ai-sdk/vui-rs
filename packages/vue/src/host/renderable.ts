@@ -203,6 +203,15 @@ export class Renderable {
   directText: string | null = null
   events = new Map<string, (...args: unknown[]) => void>()
   focusable = false
+  /**
+   * Whether a mouse-down may move focus TO this node. Default `true`: a click on
+   * (or inside) a focusable node focuses it, as usual. Set `false` for a container
+   * that must hold focus programmatically (an app shell that owns global keys while
+   * busy) yet must NOT steal focus from an input when the user clicks elsewhere in
+   * it — the click-to-focus walk and Tab traversal skip it, but `focus(node)` and
+   * the `:focused` prop still focus it. Only meaningful when `focusable`.
+   */
+  clickFocus = true
   /** Unknown props, kept for debugging (parity with the FFI patch-prop). */
   props: Record<string, unknown> = {}
   /** Computed box from layout; null until the first layout pass. */
@@ -288,6 +297,14 @@ export interface HostContext {
    * + `markDirty()` only — do NOT `scheduleRender()` (paint runs next this frame).
    */
   afterLayout: Set<() => void>
+  /**
+   * Subscribers notified once after each layout pass that actually recomputed
+   * rects (the dirty-gated skip does NOT fire them). The subscription point behind
+   * `useElementRect`: a callback re-measures its element's screen rect off the
+   * fresh `rect`s. Fired by `runLayout`; mutate measurement state only — paint
+   * runs next this frame, so a reactive write here coalesces into one repaint.
+   */
+  layoutListeners: Set<() => void>
   /** Layout pass (Phase 03); null until wired. */
   layout: ((ctx: HostContext) => void) | null
   /** Paint walk (Phase 04); null until wired. */
