@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.4.0
+
+### Minor Changes
+
+- 7b41400: add copy-on-select functionality with clipboard integration and user scroll handling
+
 ## 0.3.0
 
 ### Minor Changes
