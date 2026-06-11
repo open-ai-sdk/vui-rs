@@ -1,6 +1,6 @@
 {
   "name": "@vui-rs/core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Native terminal rendering engine for vui-rs — a Rust cell buffer (truecolor, unicode, borders, taffy layout, images) driven from Bun via FFI.",
   "keywords": [
     "bun",
