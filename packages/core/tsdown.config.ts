@@ -16,15 +16,8 @@ export default defineConfig({
   platform: 'neutral',
   // `external` is deprecated in tsdown 0.22+; use `deps.neverBundle` instead.
   // - node:* and bun:ffi are runtime-provided, never bundled.
-  // - Native binary assets (.dylib/.so/.dll) use `with { type: "file" }` import
-  //   attributes and must pass through verbatim so a consumer's `bun build
-  //   --compile` can inline them. Marking them neverBundle prevents tsdown/
-  //   rolldown from trying to parse the binary as JS.
-  deps: { neverBundle: [/^node:/, 'bun:ffi', /\.(dylib|so|dll)$/] },
-  // Copy the prebuilt native lib(s) from `native/<arch>/` (populated by
-  // scripts/build-native.ts) into `dist/native/<arch>/`, so `dist/` is
-  // self-contained. tsdown copies a `from` dir as `to/<basename>`, so `to: dist`
-  // yields `dist/native/<arch>/`. The loader's first candidate (`here/<arch>/lib`,
-  // here = `dist/native`) resolves it at runtime.
-  copy: [{ from: 'native', to: 'dist' }],
+  // - The platform packages (@vui-rs/core-<platform>-<arch>) carry the native
+  //   binaries and must stay as verbatim imports so a consumer's `bun build
+  //   --compile` follows the one DCE-surviving import and embeds that binary.
+  deps: { neverBundle: [/^node:/, 'bun:ffi', /^@vui-rs\/core-/] },
 })

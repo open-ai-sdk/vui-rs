@@ -20,6 +20,9 @@ node_modules/
 
 # Native artifacts copied by scripts/build-native.ts (rebuilt on demand)
 /packages/core/native/
+/packages/core-*/*.dylib
+/packages/core-*/*.so
+/packages/core-*/*.dll
 
 .claude/
 docs/

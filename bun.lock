@@ -327,6 +327,33 @@
     "packages/core": {
       "name": "@vui-rs/core",
       "version": "0.4.0",
+      "optionalDependencies": {
+        "@vui-rs/core-darwin-arm64": "workspace:*",
+        "@vui-rs/core-darwin-x64": "workspace:*",
+        "@vui-rs/core-linux-arm64": "workspace:*",
+        "@vui-rs/core-linux-x64": "workspace:*",
+        "@vui-rs/core-win32-x64": "workspace:*",
+      },
+    },
+    "packages/core-darwin-arm64": {
+      "name": "@vui-rs/core-darwin-arm64",
+      "version": "0.4.0",
+    },
+    "packages/core-darwin-x64": {
+      "name": "@vui-rs/core-darwin-x64",
+      "version": "0.4.0",
+    },
+    "packages/core-linux-arm64": {
+      "name": "@vui-rs/core-linux-arm64",
+      "version": "0.4.0",
+    },
+    "packages/core-linux-x64": {
+      "name": "@vui-rs/core-linux-x64",
+      "version": "0.4.0",
+    },
+    "packages/core-win32-x64": {
+      "name": "@vui-rs/core-win32-x64",
+      "version": "0.4.0",
     },
     "packages/rolldown": {
       "name": "@vui-rs/rolldown",
@@ -665,6 +692,16 @@
     "@vue/shared": ["@vue/shared@3.5.35", "", {}, "sha512-zSbjL7gRXwks2ZQLRGCajBtBXEOXW9Ddhn/HvSdrGkE2dqGnumzW8XtusRrxrE9LvqtiqDXQ+A60Hp6mvdYxfA=="],
 
     "@vui-rs/core": ["@vui-rs/core@workspace:packages/core"],
+
+    "@vui-rs/core-darwin-arm64": ["@vui-rs/core-darwin-arm64@workspace:packages/core-darwin-arm64"],
+
+    "@vui-rs/core-darwin-x64": ["@vui-rs/core-darwin-x64@workspace:packages/core-darwin-x64"],
+
+    "@vui-rs/core-linux-arm64": ["@vui-rs/core-linux-arm64@workspace:packages/core-linux-arm64"],
+
+    "@vui-rs/core-linux-x64": ["@vui-rs/core-linux-x64@workspace:packages/core-linux-x64"],
+
+    "@vui-rs/core-win32-x64": ["@vui-rs/core-win32-x64@workspace:packages/core-win32-x64"],
 
     "@vui-rs/example-animation": ["@vui-rs/example-animation@workspace:examples/animation"],
 

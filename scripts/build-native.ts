@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-// Builds crates/vui-core and copies the cdylib to a stable, platform-scoped
-// location the FFI loader resolves (`packages/core/native/<platform>-<arch>/`,
-// copied into `dist/native/...` at publish by tsdown).
+// Builds crates/vui-core and copies the cdylib into the platform-specific npm
+// package (`packages/core-<platform>-<arch>/`), published alongside
+// @vui-rs/core and resolved by the FFI loader at runtime.
 //
 //   bun run scripts/build-native.ts                 # host build (cargo), release
 //   bun run scripts/build-native.ts --debug         # host build, debug profile
@@ -54,10 +54,10 @@ async function run(cmd: string[]): Promise<void> {
 
 function copyArtifact(builtPath: string, platformArch: string, file: string): void {
   if (!existsSync(builtPath)) throw new Error(`expected build artifact missing: ${builtPath}`)
-  const destDir = join(repoRoot, 'packages', 'core', 'native', platformArch)
+  const destDir = join(repoRoot, 'packages', `core-${platformArch}`)
   mkdirSync(destDir, { recursive: true })
   copyFileSync(builtPath, join(destDir, file))
-  console.log(`vui-core -> ${join('packages/core/native', platformArch, file)}`)
+  console.log(`vui-core -> ${join(`packages/core-${platformArch}`, file)}`)
 }
 
 /** Cross-compile one target with cargo-zigbuild and copy its cdylib into place. */

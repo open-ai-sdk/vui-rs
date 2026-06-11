@@ -21,9 +21,22 @@ import { join } from 'node:path'
 const repoRoot = join(import.meta.dir, '..')
 
 // Dependency order: a package is published after the @vui-rs/* packages it
-// depends on (core → vue → ui; vite-plugin is independent; rolldown depends on
-// vite-plugin via `workspace:*`, so it publishes after it).
-const DIRS = ['core', 'vue', 'ui', 'vite-plugin', 'rolldown']
+// depends on. The platform binary packages go first (core lists them as
+// optionalDependencies), then core → vue → ui; vite-plugin is independent;
+// rolldown depends on vite-plugin via `workspace:*`, so it publishes after it.
+const PLATFORM_DIRS = ['core-darwin-arm64', 'core-darwin-x64', 'core-linux-x64', 'core-linux-arm64', 'core-win32-x64']
+const DIRS = [...PLATFORM_DIRS, 'core', 'vue', 'ui', 'vite-plugin', 'rolldown']
+
+/** A platform package must contain its binary, or it would publish empty. */
+async function assertBinaryPresent(dir: string): Promise<void> {
+  const pkg = await Bun.file(join(repoRoot, 'packages', dir, 'package.json')).json()
+  const lib = (pkg.files as string[]).find((f) => /\.(dylib|so|dll)$/.test(f))
+  if (!lib) throw new Error(`packages/${dir}: no binary listed in files[]`)
+  if (!(await Bun.file(join(repoRoot, 'packages', dir, lib)).exists())) {
+    console.error(`packages/${dir}/${lib} is missing — run \`bun run build:native:all\` first`)
+    process.exit(1)
+  }
+}
 
 interface Manifest {
   name: string
@@ -68,6 +81,7 @@ for (const dir of DIRS) {
     console.log(`skip ${pkg.name}@${pkg.version} (already on npm)`)
     continue
   }
+  if (PLATFORM_DIRS.includes(dir)) await assertBinaryPresent(dir)
   console.log(`publishing ${pkg.name}@${pkg.version} …`)
   await publish(dir)
 }

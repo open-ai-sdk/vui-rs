@@ -1,0 +1,22 @@
+{
+  "name": "@vui-rs/core-win32-x64",
+  "version": "0.4.0",
+  "description": "vui-rs native renderer engine — prebuilt cdylib for Windows x64",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-ai-sdk/vui-rs.git"
+  },
+  "files": [
+    "index.js",
+    "vui_core.dll"
+  ],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "type": "module",
+  "main": "index.js"
+}

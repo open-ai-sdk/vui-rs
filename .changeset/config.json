@@ -2,11 +2,23 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@vui-rs/core",
+      "@vui-rs/core-darwin-arm64",
+      "@vui-rs/core-darwin-x64",
+      "@vui-rs/core-linux-x64",
+      "@vui-rs/core-linux-arm64",
+      "@vui-rs/core-win32-x64"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": [],
-  "privatePackages": { "version": false, "tag": false }
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  }
 }

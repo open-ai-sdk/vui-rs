@@ -13,7 +13,7 @@ import { basename, dirname, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { CELL_BYTES, EXPECTED_ABI_VERSION, STYLE_FFI_BYTES, symbols } from "./ffi-symbols.ts";
-import { resolveEmbeddedLib } from "./embedded-lib.ts";
+import { resolveNativePackage, resolveNativePackageSync } from "./native-package.ts";
 
 export {
   Attr,
@@ -137,11 +137,12 @@ export function extractEmbeddedLib(path: string): string {
 /**
  * Library lookup order (the newest existing candidate actually wins — see
  * `loadNativeLib`):
- *  1. Published layout: dylib copied next to the loader inside `dist/` by the
- *     tsdown `copy` step (`dist/native/<arch>/`). The only candidate that exists
- *     in a published package.
- *  2. Dev: stable copy produced by `scripts/build-native.ts` at the package's
- *     `native/<arch>/` dir.
+ *  1. Platform npm package `@vui-rs/core-<platform>-<arch>` resolved through
+ *     node_modules — the path that exists for npm installs and for the
+ *     workspace dev checkout after `bun install`.
+ *  2. Dev: the platform package dir reached relatively from this file
+ *     (`packages/core-<platform>-<arch>/`), covering checkouts where the
+ *     workspace links are not installed yet.
  *  3. Dev fallbacks: the cargo workspace build directory (release, then debug).
  *
  * `here` is `<pkg>/src/native` in dev and `<pkg>/dist/native` in a build — both
@@ -151,9 +152,10 @@ function candidatePaths(): string[] {
   const file = libFileName();
   const platformArch = `${process.platform}-${process.arch}`;
   const buildDir = join(repoRoot, "target");
+  const fromPackage = resolveNativePackageSync(file);
   return [
-    join(here, platformArch, file),
-    join(here, "..", "..", "native", platformArch, file),
+    ...(fromPackage ? [fromPackage] : []),
+    join(here, "..", "..", "..", `core-${platformArch}`, file),
     join(buildDir, "release", file),
     join(buildDir, "debug", file),
   ];
@@ -174,9 +176,9 @@ let cached: NativeLib | undefined;
  * copy) the most recently modified one wins, so a fresh `cargo build` always
  * takes precedence over an old artifact during iterative development.
  *
- * If no filesystem candidate is found, falls back to the embedded-lib resolver
- * which surfaces the dylib inlined by `bun build --compile` (a $bunfs path).
- * The extracted real-path from that $bunfs path then goes through the normal
+ * If no filesystem candidate is found, falls back to importing the platform
+ * npm package, which inside `bun build --compile` binaries surfaces the
+ * embedded dylib (a $bunfs path). That path then goes through the normal
  * extractEmbeddedLib → dlopen flow.
  */
 export async function loadNativeLibAsync(): Promise<NativeLib> {
@@ -190,16 +192,17 @@ export async function loadNativeLibAsync(): Promise<NativeLib> {
       statSync(p).mtimeMs > statSync(newest).mtimeMs ? p : newest,
     );
   } else {
-    // No filesystem candidate — try the embedded lib (only present inside a
-    // compiled binary where bun has inlined the dylib via the file import).
-    const embedded = await resolveEmbeddedLib();
-    if (embedded != null) {
-      path = embedded;
+    // No filesystem candidate — import the platform package (inside a compiled
+    // binary this surfaces the embedded binary as a $bunfs path; in a plain
+    // runtime it covers resolution setups Bun.resolveSync missed).
+    const fromPackage = await resolveNativePackage();
+    if (fromPackage != null) {
+      path = fromPackage;
     } else {
       throw new Error(
         "vui-core native library not found. Searched:\n" +
           candidates.map((p) => `  - ${p}`).join("\n") +
-          "\n  - embedded (bun build --compile): not present" +
+          `\n  - @vui-rs/core-${process.platform}-${process.arch}: not installed` +
           "\nBuild it with: bun run build:native",
       );
     }
@@ -254,7 +257,7 @@ export function loadNativeLib(): NativeLib {
     throw new Error(
       "vui-core native library not found. Searched:\n" +
         candidates.map((p) => `  - ${p}`).join("\n") +
-        "\n  - embedded (bun build --compile): use loadNativeLibAsync() to reach this path" +
+        `\n  - @vui-rs/core-${process.platform}-${process.arch} (embedded/compiled): use loadNativeLibAsync() to reach this path` +
         "\nBuild it with: bun run build:native",
     );
   }

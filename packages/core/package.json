@@ -34,5 +34,12 @@
   },
   "scripts": {
     "build": "tsdown"
+  },
+  "optionalDependencies": {
+    "@vui-rs/core-darwin-arm64": "workspace:*",
+    "@vui-rs/core-darwin-x64": "workspace:*",
+    "@vui-rs/core-linux-arm64": "workspace:*",
+    "@vui-rs/core-linux-x64": "workspace:*",
+    "@vui-rs/core-win32-x64": "workspace:*"
   }
 }
