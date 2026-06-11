@@ -30,7 +30,12 @@ export { selectImageEncoding, type ImageEncoding } from './host/image-encode.ts'
 
 // Editable input + keyboard/focus.
 export { EditRenderable, type EditState } from './host/edit-renderable.ts'
-export { VuiHostInput, VuiHostInput as VuiInput } from './host/components/input.ts'
+export {
+  VuiHostInput,
+  VuiHostInput as VuiInput,
+  makeHostPasteEvent,
+  type HostPasteEvent,
+} from './host/components/input.ts'
 export { TextareaRenderable, type TextareaState } from './host/textarea-renderable.ts'
 export { VuiHostTextarea, VuiHostTextarea as VuiTextarea } from './host/components/textarea.ts'
 export { VuiScrollBox } from './host/components/scroll-box.ts'

@@ -3,15 +3,19 @@
 // (injected renderer, no terminal session); key events are fed straight to the
 // focus manager, exactly as the terminal session would.
 import { describe, expect, test } from 'bun:test'
-import { type KeyEvent, Renderer } from '@vui-rs/core'
+import { type KeyEvent, type PasteEvent, Renderer } from '@vui-rs/core'
 import { createHostApp } from '../src/host/create-host-app.ts'
-import { VuiHostInput } from '../src/host/components/input.ts'
+import { type HostPasteEvent, VuiHostInput } from '../src/host/components/input.ts'
 import type { EditRenderable } from '../src/host/edit-renderable.ts'
 import type { Renderable } from '../src/host/renderable.ts'
 import { defineComponent, h, nextTick, ref } from '../src/index.ts'
 
 function key(name: string, mods: Partial<KeyEvent> = {}): KeyEvent {
   return { type: 'key', name, ctrl: false, alt: false, shift: false, meta: false, raw: name, ...mods }
+}
+
+function paste(text: string): PasteEvent {
+  return { type: 'paste', text }
 }
 
 function mount(render: () => unknown) {
@@ -173,6 +177,60 @@ describe('<input> typing (JS edit model + v-model)', () => {
     await nextTick()
     for (const c of 'abcdef') ctx.focusManager!.dispatch(key(c))
     expect(value.value).toBe('abc') // capped at 3
+    cleanup()
+  })
+})
+
+describe('<input> paste event (cancelable @paste)', () => {
+  test('default paste inserts the text and updates v-model (no listener)', async () => {
+    const value = ref('a')
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostInput, { value: value.value, focused: true, 'onUpdate:value': (v: string) => (value.value = v) }),
+    )
+    await nextTick()
+    ctx.focusManager!.dispatch(paste('/Users/foo/img.png'))
+    expect(value.value).toBe('a/Users/foo/img.png')
+    cleanup()
+  })
+
+  test('a @paste listener receives the text; not preventing still inserts', async () => {
+    const value = ref('')
+    let seen: string | null = null
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostInput, {
+        value: value.value,
+        focused: true,
+        'onUpdate:value': (v: string) => (value.value = v),
+        onPaste: (e: HostPasteEvent) => {
+          seen = e.text
+        },
+      }),
+    )
+    await nextTick()
+    ctx.focusManager!.dispatch(paste('hello'))
+    expect(seen).toBe('hello')
+    expect(value.value).toBe('hello') // not prevented → still inserted
+    cleanup()
+  })
+
+  test('preventDefault() in @paste suppresses the insert and emits no update', async () => {
+    const value = ref('keep')
+    let updates = 0
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostInput, {
+        value: value.value,
+        focused: true,
+        'onUpdate:value': (v: string) => {
+          updates++
+          value.value = v
+        },
+        onPaste: (e: HostPasteEvent) => e.preventDefault(),
+      }),
+    )
+    await nextTick()
+    ctx.focusManager!.dispatch(paste('/Users/foo/img.png'))
+    expect(value.value).toBe('keep') // buffer untouched
+    expect(updates).toBe(0) // no update:value emitted
     cleanup()
   })
 })
