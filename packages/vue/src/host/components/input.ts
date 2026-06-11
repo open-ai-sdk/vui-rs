@@ -11,6 +11,37 @@ import { type DispatchableEvent } from '../focus.ts'
 
 type ColorProp = string | number
 
+/**
+ * Payload for the component-level `@paste` event emitted by `<input>`/`<textarea>`.
+ * A consumer may inspect `text` (one atomic bracketed-paste payload) and call
+ * `preventDefault()` to suppress the default insert-into-buffer — e.g. to turn a
+ * dragged file path into an attachment instead of typed text. Without a listener,
+ * or when `preventDefault()` is not called, the text is inserted as before.
+ */
+export interface HostPasteEvent {
+  /** The pasted text. */
+  readonly text: string
+  /** Suppress the default insert of `text` into the edit buffer. */
+  preventDefault(): void
+  /** Whether `preventDefault()` has been called. */
+  readonly defaultPrevented: boolean
+}
+
+/** Build a `HostPasteEvent` over `text`; the returned `prevented()` reads the cancel state after emit. */
+export function makeHostPasteEvent(text: string): { event: HostPasteEvent; prevented: () => boolean } {
+  let prevented = false
+  const event: HostPasteEvent = {
+    text,
+    preventDefault() {
+      prevented = true
+    },
+    get defaultPrevented() {
+      return prevented
+    },
+  }
+  return { event, prevented: () => prevented }
+}
+
 export const VuiHostInput = defineComponent({
   name: 'VuiHostInput',
   props: {
@@ -23,7 +54,7 @@ export const VuiHostInput = defineComponent({
     ctrlCBehavior: { type: String as PropType<'exit' | 'capture'>, default: undefined },
     focused: { type: Boolean, default: false },
   },
-  emits: ['update:value', 'input', 'change', 'enter'],
+  emits: ['update:value', 'input', 'change', 'enter', 'paste'],
   setup(props, { emit }) {
     const el = shallowRef<EditRenderable>()
     let lastEmitted = props.value
@@ -125,8 +156,14 @@ export const VuiHostInput = defineComponent({
     function onPaste(ev: DispatchableEvent): void {
       const e = edit()
       if (!e || ev.type !== 'paste') return
-      e.insert(ev.text)
+      // Always consume the host paste here (don't let it bubble); we own insertion.
       ev.preventDefault()
+      // Offer the paste to the consumer first: they may turn it into an attachment
+      // and cancel the default insert. No listener / no cancel → insert as before.
+      const { event, prevented } = makeHostPasteEvent(ev.text)
+      emit('paste', event)
+      if (prevented()) return
+      e.insert(ev.text)
       surface()
     }
 

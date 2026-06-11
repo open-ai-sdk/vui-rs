@@ -5,6 +5,7 @@ import { type PropType, defineComponent, h, shallowRef, watch } from '@vue/runti
 import { EditMotion } from '@vui-rs/core'
 import { type DispatchableEvent } from '../focus.ts'
 import { type TextareaRenderable } from '../textarea-renderable.ts'
+import { makeHostPasteEvent } from './input.ts'
 
 type ColorProp = string | number
 let textareaClipboard = ''
@@ -33,7 +34,7 @@ export const VuiHostTextarea = defineComponent({
     },
     tabSize: { type: Number, default: 2 },
   },
-  emits: ['update:value', 'input', 'change', 'enter'],
+  emits: ['update:value', 'input', 'change', 'enter', 'paste'],
   setup(props, { emit }) {
     const el = shallowRef<TextareaRenderable>()
     let lastEmitted = props.value
@@ -153,8 +154,13 @@ export const VuiHostTextarea = defineComponent({
     function onPaste(ev: DispatchableEvent): void {
       const e = edit()
       if (!e || ev.type !== 'paste') return
-      e.insert(ev.text)
+      // Always consume the host paste here (don't let it bubble); we own insertion.
       ev.preventDefault()
+      // Offer the paste to the consumer first: they may cancel the default insert.
+      const { event, prevented } = makeHostPasteEvent(ev.text)
+      emit('paste', event)
+      if (prevented()) return
+      e.insert(ev.text)
       surface()
     }
 
