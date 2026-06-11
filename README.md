@@ -11,7 +11,8 @@ Build beautiful **terminal UIs with Vue** — a Rust rendering engine (native ce
 | [`@vui-rs/core`](packages/core) | Native terminal rendering engine (Rust cdylib + FFI bindings). |
 | [`@vui-rs/vue`](packages/vue) | Vue 3 custom renderer — elements, layout, input, overlays, rich text, animation, theming. |
 | [`@vui-rs/ui`](packages/ui) | App-level components — dialogs, command palette, toasts, autocomplete, status bars, virtual list. |
-| [`@vui-rs/vite-plugin`](packages/vite-plugin) | Compile `.vue` SFCs for the custom renderer. |
+| [`@vui-rs/vite-plugin`](packages/vite-plugin) | Compile `.vue` SFCs for the custom renderer in Vite builds. |
+| [`@vui-rs/rolldown`](packages/rolldown) | Compile `.vue` SFCs for the custom renderer in rolldown/tsdown builds. |
 
 ## Quick start
 
