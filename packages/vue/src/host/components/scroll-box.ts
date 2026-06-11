@@ -92,6 +92,13 @@ export const VuiScrollBox = defineComponent({
     function apply(value: number): void {
       const max = maxScroll()
       const next = clamp(value, max)
+      // A real offset change marks this as a user scroll (wheel/keys/scrollbar-drag
+      // all flow through here). The stick-to-bottom auto-pin writes scrollY directly
+      // in `syncScroll` and never reaches `apply`, so it can't trip this. In
+      // controlled mode a parent-driven prop reassignment also routes through here
+      // but with `next === current()` (both read the new prop), so it's treated as
+      // non-user and intentionally does NOT clear — only user gestures invalidate.
+      const moved = next !== current()
       localScrollY = next
       // At (or below) the last row → re-pin; scrolled up → release the pin.
       if (props.stickToBottom) stuck = next >= max
@@ -102,6 +109,9 @@ export const VuiScrollBox = defineComponent({
       emit('update:modelValue', next)
       emit('update:scrollY', next)
       emit('scroll', next)
+      // Drop an active selection on a genuine user scroll — its screen-absolute
+      // coords would otherwise highlight the wrong glyphs once content moves.
+      if (moved) viewport.value?.ctx.invalidateSelection?.()
       refreshView()
       viewport.value?.ctx.scheduleRender()
     }
