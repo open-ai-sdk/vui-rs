@@ -119,15 +119,28 @@ export const VuiAutocomplete = defineComponent({
      * `useElementRect`). Omit / `null` to render in normal flow under the input.
      */
     anchor: { type: Object as PropType<ScreenMeasure | null>, default: null },
+    /**
+     * Placeholder shown as a single non-interactive row when there are no
+     * suggestions (e.g. "No matching items"). Omit to render nothing when empty —
+     * so a consumer that mounts the popup only while a trigger is active still gets
+     * a "no results" hint without managing it. Back-compat: unset → empty renders
+     * nothing, exactly as before.
+     */
+    emptyText: { type: String as PropType<string | undefined>, default: undefined },
   },
   emits: ['select'],
   setup(props, { emit }) {
     const theme = useTheme()
 
-    // Rows actually shown. In overlay mode also clamp to the space above the
-    // anchor (border included) so the popup never overflows the top of the screen.
+    // True when there are no suggestions but a placeholder should occupy one row.
+    const showEmpty = computed(() => props.suggestions.length === 0 && props.emptyText != null)
+
+    // Rows actually shown. The empty placeholder reserves a single row. In overlay
+    // mode also clamp to the space above the anchor (border included) so the popup
+    // never overflows the top of the screen.
     const rows = computed(() => {
-      const wanted = Math.min(props.maxRows, props.suggestions.length)
+      const content = showEmpty.value ? 1 : props.suggestions.length
+      const wanted = Math.min(props.maxRows, content)
       if (!props.anchor) return wanted
       const fitsAbove = Math.max(0, props.anchor.y - BORDER)
       return Math.min(wanted, fitsAbove)
@@ -177,6 +190,12 @@ export const VuiAutocomplete = defineComponent({
       )
     }
 
+    // Non-interactive placeholder row (no select emit) — opencode's "No matching
+    // items" fallback. Muted, single line.
+    function renderEmpty() {
+      return h('box', { padding: { left: 1, right: 1 } }, [h('text', { fg: theme.textMuted }, props.emptyText)])
+    }
+
     function renderList(extra: Record<string, unknown>) {
       return h(
         'box',
@@ -188,12 +207,13 @@ export const VuiAutocomplete = defineComponent({
           minWidth: MIN_WIDTH,
           ...extra,
         },
-        shown.value.map(renderRow),
+        showEmpty.value ? [renderEmpty()] : shown.value.map(renderRow),
       )
     }
 
     return () => {
-      if (props.suggestions.length === 0) return null
+      // No suggestions and no placeholder requested → render nothing (back-compat).
+      if (props.suggestions.length === 0 && !showEmpty.value) return null
       const anchor = props.anchor
       // In-flow fallback: original behavior, content-sized box under the input.
       if (!anchor) return renderList({ alignSelf: 'flex-start' })

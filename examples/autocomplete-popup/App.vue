@@ -53,6 +53,7 @@
       :suggestions="ac.suggestions.value"
       :active="ac.active.value"
       :anchor="anchor"
+      :emptyText="emptyText"
       @select="(s: Suggestion) => accept(s)"
     />
 
@@ -63,12 +64,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, useElementRect, useTheme, VuiInput } from '@vui-rs/vue'
+import { computed, ref, useElementRect, useTheme, VuiInput } from '@vui-rs/vue'
 import { VuiAutocomplete, useAutocomplete, type Suggestion } from '@vui-rs/ui'
 
 const theme = useTheme()
 const query = ref('')
 const accepted = ref<string[]>([])
+
+// Show a "no results" placeholder only while a trigger is being typed — so an empty
+// or plain query renders nothing, but `/zzz` keeps the popup open with the hint.
+const emptyText = computed(() => (/^[/@]/.test(query.value) ? 'No matching items' : undefined))
 
 // The popup anchors to the input wrapper's screen rect (reactive, updates on
 // resize / content growth). Drives the upward overlay placement.
