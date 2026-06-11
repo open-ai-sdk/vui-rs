@@ -9,6 +9,7 @@
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "vui_core.dll"
   ],
   "os": [
@@ -18,5 +19,6 @@
     "x64"
   ],
   "type": "module",
-  "main": "index.js"
+  "main": "index.js",
+  "types": "index.d.ts"
 }

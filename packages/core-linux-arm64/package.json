@@ -9,6 +9,7 @@
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "libvui_core.so"
   ],
   "os": [
@@ -18,5 +19,6 @@
     "arm64"
   ],
   "type": "module",
-  "main": "index.js"
+  "main": "index.js",
+  "types": "index.d.ts"
 }
