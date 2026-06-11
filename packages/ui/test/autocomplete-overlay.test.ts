@@ -17,6 +17,7 @@ function harness(initial: {
   active?: number
   anchor?: ScreenMeasure | null
   maxRows?: number
+  emptyText?: string
 }) {
   const suggestions = ref(initial.suggestions)
   const active = ref(initial.active ?? 0)
@@ -31,6 +32,7 @@ function harness(initial: {
             active: active.value,
             anchor: anchor.value,
             maxRows: initial.maxRows ?? 8,
+            emptyText: initial.emptyText,
             onSelect: (s: Suggestion, index: number) => selected.push({ value: s.value, index }),
           }),
           h('text', { key: 'marker' }, 'MARKER'),
@@ -89,6 +91,48 @@ describe('VuiAutocomplete — anchored overlay popup', () => {
     expect(rowGlyphs(h.renderer, 1)).toContain('r05')
     h.dispatch(mouseDown(2, 1)) // click first visible row
     expect(h.selected).toEqual([{ value: 'r5', index: 5 }])
+    h.cleanup()
+  })
+})
+
+describe('VuiAutocomplete — empty placeholder', () => {
+  test('no suggestions and no emptyText renders nothing (back-compat)', async () => {
+    const h = harness({ suggestions: [], anchor: { x: 0, y: 6, width: 30, height: 1 } })
+    await h.settle()
+    expect(h.ctx.overlays.length).toBe(0)
+    expect(rowGlyphs(h.renderer, 0)).toContain('MARKER')
+    h.cleanup()
+  })
+
+  test('emptyText shows a single non-interactive placeholder row in-flow', async () => {
+    const h = harness({ suggestions: [], emptyText: 'No matching items' })
+    await h.settle()
+    expect(h.ctx.overlays.length).toBe(0)
+    expect(allGlyphs(h.renderer)).toContain('matching')
+    // The placeholder is not a selectable row: clicking it emits nothing.
+    h.dispatch(mouseDown(2, 1))
+    expect(h.selected).toEqual([])
+    h.cleanup()
+  })
+
+  test('emptyText shows as an overlay above the anchor with no layout shift', async () => {
+    // Anchor at row 6: 1 placeholder row (height = 1 + border 2 = 3) opens at top = 3.
+    const h = harness({ suggestions: [], emptyText: 'No matching items', anchor: { x: 0, y: 6, width: 30, height: 1 } })
+    await h.settle()
+    expect(h.ctx.overlays.length).toBe(1)
+    expect(rowGlyphs(h.renderer, 4)).toContain('matching') // body row of the popup
+    expect(rowGlyphs(h.renderer, 0)).toContain('MARKER') // hoisted popup, MARKER unmoved
+
+    // Suggestions arriving replaces the placeholder with real rows; clearing them
+    // returns to the placeholder — the overlay stays open the whole time.
+    h.suggestions.value = items(2)
+    await h.settle()
+    expect(allGlyphs(h.renderer)).toContain('r00')
+    expect(allGlyphs(h.renderer)).not.toContain('matching')
+    h.suggestions.value = []
+    await h.settle()
+    expect(h.ctx.overlays.length).toBe(1)
+    expect(allGlyphs(h.renderer)).toContain('matching')
     h.cleanup()
   })
 })
