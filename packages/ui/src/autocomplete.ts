@@ -190,7 +190,7 @@ export const VuiAutocomplete = defineComponent({
       )
     }
 
-    // Non-interactive placeholder row (no select emit) — opencode's "No matching
+    // Non-interactive placeholder row (no select emit) — "No matching
     // items" fallback. Muted, single line.
     function renderEmpty() {
       return h('box', { padding: { left: 1, right: 1 } }, [h('text', { fg: theme.textMuted }, props.emptyText)])
