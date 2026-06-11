@@ -326,7 +326,7 @@
     },
     "packages/core": {
       "name": "@vui-rs/core",
-      "version": "0.2.0",
+      "version": "0.3.0",
     },
     "packages/rolldown": {
       "name": "@vui-rs/rolldown",
@@ -348,7 +348,7 @@
     },
     "packages/ui": {
       "name": "@vui-rs/ui",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "dependencies": {
         "@vue/runtime-core": "catalog:",
         "@vui-rs/core": "workspace:*",
@@ -372,7 +372,7 @@
     },
     "packages/vue": {
       "name": "@vui-rs/vue",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@vue/reactivity": "catalog:",
         "@vue/runtime-core": "catalog:",
