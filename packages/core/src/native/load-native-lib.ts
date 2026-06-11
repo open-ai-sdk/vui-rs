@@ -1,6 +1,15 @@
 import { dlopen, suffix } from "bun:ffi";
-import { existsSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { createHash } from "node:crypto";
+import { basename, dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { CELL_BYTES, EXPECTED_ABI_VERSION, STYLE_FFI_BYTES, symbols } from "./ffi-symbols.ts";
 
@@ -31,6 +40,48 @@ function libFileName(): string {
 }
 
 /**
+ * When running inside a `bun build --compile` binary the OS dynamic linker
+ * cannot open virtual `$bunfs` paths — they live in Bun's in-process VFS, not
+ * on the real filesystem. Copy the embedded bytes to a versioned cache file
+ * under the user's temp dir so `dlopen(2)` gets a real path.
+ *
+ * Detection: `$bunfs` virtual paths contain the literal substring "bunfs".
+ * Real dev/npm paths never do, so the check is a zero-cost no-op outside a
+ * compiled binary.
+ *
+ * Cache filename includes a short SHA-256 prefix of the first 4 KiB + file
+ * size so a newer compiled binary (same lib name, different bytes) writes a
+ * fresh file rather than reusing a stale one.
+ */
+export function extractEmbeddedLib(path: string): string {
+  if (!path.includes("bunfs")) return path;
+
+  const bytes = readFileSync(path);
+  const probe = bytes.subarray(0, 4096);
+  const hash = createHash("sha256")
+    .update(probe)
+    .update(String(bytes.byteLength))
+    .digest("hex")
+    .slice(0, 12);
+
+  const name = basename(path);
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+  const stem = name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name;
+  const cachedName = `${stem}-${hash}${ext}`;
+
+  const cacheDir = join(tmpdir(), "vui-rs-ffi-cache");
+  const out = join(cacheDir, cachedName);
+
+  if (!existsSync(out)) {
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(out, bytes);
+    if (process.platform !== "win32") chmodSync(out, 0o755);
+  }
+
+  return out;
+}
+
+/**
  * Library lookup order (the newest existing candidate actually wins — see
  * `loadNativeLib`):
  *  1. Published layout: dylib copied next to the loader inside `dist/` by the
@@ -56,7 +107,7 @@ function candidatePaths(): string[] {
 }
 
 function open(path: string) {
-  return dlopen(path, symbols);
+  return dlopen(extractEmbeddedLib(path), symbols);
 }
 
 export type NativeLib = ReturnType<typeof open>;
