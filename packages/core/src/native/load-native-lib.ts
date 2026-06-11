@@ -4,14 +4,16 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { CELL_BYTES, EXPECTED_ABI_VERSION, STYLE_FFI_BYTES, symbols } from "./ffi-symbols.ts";
+import { resolveEmbeddedLib } from "./embedded-lib.ts";
 
 export {
   Attr,
@@ -40,42 +42,93 @@ function libFileName(): string {
 }
 
 /**
+ * Resolve the per-user cache directory for extracted native libs.
+ *
+ * Uses $XDG_CACHE_HOME/vui-rs on XDG-compliant systems (most Linux), or
+ * ~/.cache/vui-rs on macOS/Linux, or a pid-isolated subdir under the system
+ * temp dir as a last resort (e.g. restricted environments without a home dir).
+ * The directory is created with mode 0700 so other users on a shared machine
+ * cannot read or replace extracted binaries.
+ */
+function userCacheDir(): string {
+  const xdg = process.env["XDG_CACHE_HOME"];
+  if (xdg) return join(xdg, "vui-rs");
+  try {
+    return join(homedir(), ".cache", "vui-rs");
+  } catch {
+    // homedir() can throw in sandboxed/container environments.
+    return join(tmpdir(), `vui-rs-${process.env["USER"] ?? "ffi"}`);
+  }
+}
+
+/**
  * When running inside a `bun build --compile` binary the OS dynamic linker
  * cannot open virtual `$bunfs` paths — they live in Bun's in-process VFS, not
  * on the real filesystem. Copy the embedded bytes to a versioned cache file
- * under the user's temp dir so `dlopen(2)` gets a real path.
+ * in the user's private cache directory so `dlopen(2)` gets a real path.
  *
  * Detection: `$bunfs` virtual paths contain the literal substring "bunfs".
  * Real dev/npm paths never do, so the check is a zero-cost no-op outside a
  * compiled binary.
  *
- * Cache filename includes a short SHA-256 prefix of the first 4 KiB + file
- * size so a newer compiled binary (same lib name, different bytes) writes a
- * fresh file rather than reusing a stale one.
+ * Security model:
+ * - Cache directory is created with mode 0700 (user-only) so other users on a
+ *   shared machine cannot plant or replace the extracted lib.
+ * - On cache hit the full file content is hashed and compared against the
+ *   embedded bytes before returning the path. A mismatching file is overwritten
+ *   rather than used, guarding against stale content from a previous binary.
+ * - Writes go to a temp file (`<out>.<pid>.tmp`) then atomically renamed into
+ *   place so a crash mid-write leaves only the temp file, never a truncated
+ *   cached path that `existsSync` would reuse.
+ * - On Windows `renameSync` over an existing file succeeds (Node.js handles the
+ *   EPERM/EEXIST by falling back to copy+delete internally since Node 12).
  */
 export function extractEmbeddedLib(path: string): string {
   if (!path.includes("bunfs")) return path;
 
   const bytes = readFileSync(path);
-  const probe = bytes.subarray(0, 4096);
-  const hash = createHash("sha256")
-    .update(probe)
-    .update(String(bytes.byteLength))
-    .digest("hex")
-    .slice(0, 12);
+  const hash = createHash("sha256").update(bytes).digest("hex").slice(0, 16);
 
   const name = basename(path);
   const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
   const stem = name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name;
   const cachedName = `${stem}-${hash}${ext}`;
 
-  const cacheDir = join(tmpdir(), "vui-rs-ffi-cache");
+  const cacheDir = userCacheDir();
   const out = join(cacheDir, cachedName);
 
-  if (!existsSync(out)) {
-    mkdirSync(cacheDir, { recursive: true });
-    writeFileSync(out, bytes);
-    if (process.platform !== "win32") chmodSync(out, 0o755);
+  if (existsSync(out)) {
+    // Verify content matches embedded bytes before trusting the cached file.
+    // Guards against partial writes from a previous crash or a planted file.
+    const existing = readFileSync(out);
+    const existingHash = createHash("sha256").update(existing).digest("hex").slice(0, 16);
+    if (existingHash === hash) return out;
+    // Hash mismatch — fall through to overwrite.
+  }
+
+  mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  // On Unix: tighten permissions if the dir already existed without 0700.
+  if (process.platform !== "win32") {
+    try { chmodSync(cacheDir, 0o700); } catch { /* best-effort */ }
+  }
+
+  const tmp = `${out}.${process.pid}.tmp`;
+  writeFileSync(tmp, bytes, { mode: 0o755 });
+  try {
+    renameSync(tmp, out);
+  } catch {
+    // On Windows, renameSync may fail if another process holds the target open
+    // (e.g. two processes starting simultaneously). The EEXIST case is safe to
+    // ignore if the target now exists with verified content.
+    if (existsSync(out)) {
+      try {
+        const existing = readFileSync(out);
+        const existingHash = createHash("sha256").update(existing).digest("hex").slice(0, 16);
+        if (existingHash === hash) return out;
+      } catch { /* fall through */ }
+    }
+    // Last resort: leave the tmp file in place and return it directly.
+    return tmp;
   }
 
   return out;
@@ -120,21 +173,38 @@ let cached: NativeLib | undefined;
  * When several candidates exist (e.g. a debug build alongside a stale release
  * copy) the most recently modified one wins, so a fresh `cargo build` always
  * takes precedence over an old artifact during iterative development.
+ *
+ * If no filesystem candidate is found, falls back to the embedded-lib resolver
+ * which surfaces the dylib inlined by `bun build --compile` (a $bunfs path).
+ * The extracted real-path from that $bunfs path then goes through the normal
+ * extractEmbeddedLib → dlopen flow.
  */
-export function loadNativeLib(): NativeLib {
+export async function loadNativeLibAsync(): Promise<NativeLib> {
   if (cached) return cached;
   const candidates = candidatePaths();
   const existing = candidates.filter((p) => existsSync(p));
-  if (existing.length === 0) {
-    throw new Error(
-      "vui-core native library not found. Searched:\n" +
-        candidates.map((p) => `  - ${p}`).join("\n") +
-        "\nBuild it with: bun run build:native",
+
+  let path: string | null = null;
+  if (existing.length > 0) {
+    path = existing.reduce((newest, p) =>
+      statSync(p).mtimeMs > statSync(newest).mtimeMs ? p : newest,
     );
+  } else {
+    // No filesystem candidate — try the embedded lib (only present inside a
+    // compiled binary where bun has inlined the dylib via the file import).
+    const embedded = await resolveEmbeddedLib();
+    if (embedded != null) {
+      path = embedded;
+    } else {
+      throw new Error(
+        "vui-core native library not found. Searched:\n" +
+          candidates.map((p) => `  - ${p}`).join("\n") +
+          "\n  - embedded (bun build --compile): not present" +
+          "\nBuild it with: bun run build:native",
+      );
+    }
   }
-  const path = existing.reduce((newest, p) =>
-    statSync(p).mtimeMs > statSync(newest).mtimeMs ? p : newest,
-  );
+
   const lib = open(path);
   const abi = lib.symbols.vui_abi_version();
   if (abi !== EXPECTED_ABI_VERSION) {
@@ -154,6 +224,58 @@ export function loadNativeLib(): NativeLib {
   }
   // The StyleFfi packer writes fields at fixed offsets; a size drift means the
   // packer and the native struct disagree on layout — corrupting every style.
+  const styleBytes = Number(lib.symbols.vui_style_ffi_size());
+  if (styleBytes !== STYLE_FFI_BYTES) {
+    throw new Error(
+      `vui-core StyleFfi size mismatch: native=${styleBytes}, expected=${STYLE_FFI_BYTES}. ` +
+        "Rebuild the native lib: bun run build:native",
+    );
+  }
+  cached = lib;
+  return cached;
+}
+
+/**
+ * Synchronous wrapper retained for backwards-compatibility with callers that
+ * cannot be made async. In dev/npm environments all candidates are filesystem
+ * paths and no async work is needed; the async path (embedded lib) is only
+ * reached inside a compiled binary where the dynamic import resolves instantly
+ * from the in-process VFS.
+ *
+ * If the embedded fallback is needed and the caller is synchronous, this
+ * function throws with a clear message directing the caller to use
+ * `loadNativeLibAsync()` instead.
+ */
+export function loadNativeLib(): NativeLib {
+  if (cached) return cached;
+  const candidates = candidatePaths();
+  const existing = candidates.filter((p) => existsSync(p));
+  if (existing.length === 0) {
+    throw new Error(
+      "vui-core native library not found. Searched:\n" +
+        candidates.map((p) => `  - ${p}`).join("\n") +
+        "\n  - embedded (bun build --compile): use loadNativeLibAsync() to reach this path" +
+        "\nBuild it with: bun run build:native",
+    );
+  }
+  const path = existing.reduce((newest, p) =>
+    statSync(p).mtimeMs > statSync(newest).mtimeMs ? p : newest,
+  );
+  const lib = open(path);
+  const abi = lib.symbols.vui_abi_version();
+  if (abi !== EXPECTED_ABI_VERSION) {
+    throw new Error(
+      `vui-core ABI mismatch: native=${abi}, expected=${EXPECTED_ABI_VERSION}. ` +
+        "Rebuild the native lib: bun run build:native",
+    );
+  }
+  const cellBytes = Number(lib.symbols.vui_cell_size_bytes());
+  if (cellBytes !== CELL_BYTES) {
+    throw new Error(
+      `vui-core Cell size mismatch: native=${cellBytes}, expected=${CELL_BYTES}. ` +
+        "Rebuild the native lib: bun run build:native",
+    );
+  }
   const styleBytes = Number(lib.symbols.vui_style_ffi_size());
   if (styleBytes !== STYLE_FFI_BYTES) {
     throw new Error(

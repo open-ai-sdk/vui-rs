@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { extractEmbeddedLib } from '../src/native/load-native-lib.ts'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Expected per-user cache root (mirrors the logic in load-native-lib.ts). */
+function expectedCacheDir(): string {
+  const xdg = process.env['XDG_CACHE_HOME']
+  if (xdg) return join(xdg, 'vui-rs')
+  try {
+    return join(homedir(), '.cache', 'vui-rs')
+  } catch {
+    /**/
+  }
+  return join(tmpdir(), `vui-rs-${process.env['USER'] ?? 'ffi'}`)
+}
 
 // ---------------------------------------------------------------------------
 // Pass-through: non-bunfs paths are returned unchanged
@@ -31,7 +47,7 @@ describe('extractEmbeddedLib — pass-through', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Extraction: paths containing 'bunfs' trigger copy to cache dir
+// Extraction: paths containing 'bunfs' trigger copy to per-user cache dir
 // ---------------------------------------------------------------------------
 
 describe('extractEmbeddedLib — bunfs extraction', () => {
@@ -42,18 +58,15 @@ describe('extractEmbeddedLib — bunfs extraction', () => {
   const fakeBunfsPath = join(fakeBunfsDir, fakeLibName)
   const fakeContent = Buffer.from('fake-dylib-bytes-for-unit-test')
 
-  it('copies the embedded file to the vui-rs-ffi-cache dir', () => {
-    // Set up fake source
+  it('copies the embedded file to the per-user vui-rs cache dir', () => {
     mkdirSync(fakeBunfsDir, { recursive: true })
     writeFileSync(fakeBunfsPath, fakeContent)
 
     const result = extractEmbeddedLib(fakeBunfsPath)
 
-    // Result must differ from the input (it now points at the cache)
     expect(result).not.toBe(fakeBunfsPath)
-    // Result must live under tmpdir/vui-rs-ffi-cache
-    expect(result.startsWith(join(tmpdir(), 'vui-rs-ffi-cache'))).toBe(true)
-    // Cache file must exist and have the same bytes
+    // Result must live under the per-user cache dir (not the shared tmp root).
+    expect(result.startsWith(expectedCacheDir())).toBe(true)
     expect(existsSync(result)).toBe(true)
     expect(readFileSync(result)).toEqual(fakeContent)
 
@@ -69,11 +82,9 @@ describe('extractEmbeddedLib — bunfs extraction', () => {
     const result1 = extractEmbeddedLib(fakeBunfsPath)
     const result2 = extractEmbeddedLib(fakeBunfsPath)
 
-    // Same content → same versioned filename both times
     expect(result2).toBe(result1)
     expect(existsSync(result1)).toBe(true)
 
-    // Cleanup
     rmSync(fakeBunfsDir, { recursive: true, force: true })
     rmSync(result1, { force: true })
   })
@@ -90,14 +101,12 @@ describe('extractEmbeddedLib — bunfs extraction', () => {
     writeFileSync(fakeBunfsPath, contentB)
     const resultB = extractEmbeddedLib(fakeBunfsPath)
 
-    // Different content → different versioned filename
     expect(resultA).not.toBe(resultB)
     expect(existsSync(resultA)).toBe(true)
     expect(existsSync(resultB)).toBe(true)
     expect(readFileSync(resultA)).toEqual(contentA)
     expect(readFileSync(resultB)).toEqual(contentB)
 
-    // Cleanup
     rmSync(fakeBunfsDir, { recursive: true, force: true })
     rmSync(resultA, { force: true })
     rmSync(resultB, { force: true })
@@ -113,7 +122,103 @@ describe('extractEmbeddedLib — bunfs extraction', () => {
     expect(cacheName.startsWith('libvui_core-')).toBe(true)
     expect(cacheName.endsWith('.dylib')).toBe(true)
 
-    // Cleanup
+    rmSync(fakeBunfsDir, { recursive: true, force: true })
+    rmSync(result, { force: true })
+  })
+
+  it('uses full-content hash: same first-4KiB but different tail produces different cache path', () => {
+    mkdirSync(fakeBunfsDir, { recursive: true })
+
+    // Two buffers that share the first 4 KiB but differ in byte 4097+.
+    const header = Buffer.alloc(4096, 0x42)
+    const tailA = Buffer.from([0xaa, 0xbb])
+    const tailB = Buffer.from([0xcc, 0xdd])
+    const contentA = Buffer.concat([header, tailA])
+    const contentB = Buffer.concat([header, tailB])
+
+    writeFileSync(fakeBunfsPath, contentA)
+    const resultA = extractEmbeddedLib(fakeBunfsPath)
+
+    writeFileSync(fakeBunfsPath, contentB)
+    const resultB = extractEmbeddedLib(fakeBunfsPath)
+
+    // Full-content hash must distinguish them even though header is identical.
+    expect(resultA).not.toBe(resultB)
+
+    rmSync(fakeBunfsDir, { recursive: true, force: true })
+    rmSync(resultA, { force: true })
+    rmSync(resultB, { force: true })
+  })
+
+  it('overwrites a corrupted cache file on content-hash mismatch', () => {
+    mkdirSync(fakeBunfsDir, { recursive: true })
+    writeFileSync(fakeBunfsPath, fakeContent)
+
+    // Prime the cache.
+    const result = extractEmbeddedLib(fakeBunfsPath)
+    expect(existsSync(result)).toBe(true)
+
+    // Corrupt the cached file in-place (different bytes, same name).
+    writeFileSync(result, Buffer.from('corrupted-bytes'))
+
+    // Re-extract — should detect the hash mismatch and overwrite.
+    const result2 = extractEmbeddedLib(fakeBunfsPath)
+    expect(result2).toBe(result)
+    expect(readFileSync(result2)).toEqual(fakeContent)
+
+    rmSync(fakeBunfsDir, { recursive: true, force: true })
+    rmSync(result, { force: true })
+  })
+
+  it('does not leave a .tmp file after a successful write', () => {
+    mkdirSync(fakeBunfsDir, { recursive: true })
+    writeFileSync(fakeBunfsPath, fakeContent)
+
+    const result = extractEmbeddedLib(fakeBunfsPath)
+    const cacheDir = expectedCacheDir()
+
+    // No .tmp files should remain after extraction.
+    const tmpFiles = existsSync(cacheDir)
+      ? require('node:fs')
+          .readdirSync(cacheDir)
+          .filter((f: string) => f.endsWith('.tmp'))
+      : []
+    expect(tmpFiles.length).toBe(0)
+
+    rmSync(fakeBunfsDir, { recursive: true, force: true })
+    rmSync(result, { force: true })
+  })
+
+  it('cache dir is NOT the shared system tmpdir root', () => {
+    mkdirSync(fakeBunfsDir, { recursive: true })
+    writeFileSync(fakeBunfsPath, fakeContent)
+
+    const result = extractEmbeddedLib(fakeBunfsPath)
+
+    // The cache path must not sit directly in tmpdir() — it must be in a
+    // user-scoped subdir to avoid the shared-tmp security issue.
+    const sharedTmpRoot = tmpdir()
+    const parentDir = result.split('/').slice(0, -1).join('/')
+    expect(parentDir).not.toBe(sharedTmpRoot)
+
+    rmSync(fakeBunfsDir, { recursive: true, force: true })
+    rmSync(result, { force: true })
+  })
+
+  it('cache dir has mode 0700 on Unix', () => {
+    if (process.platform === 'win32') return // chmod semantics don't apply
+
+    mkdirSync(fakeBunfsDir, { recursive: true })
+    writeFileSync(fakeBunfsPath, fakeContent)
+
+    const result = extractEmbeddedLib(fakeBunfsPath)
+    const cacheDir = expectedCacheDir()
+
+    if (existsSync(cacheDir)) {
+      const mode = statSync(cacheDir).mode & 0o777
+      expect(mode).toBe(0o700)
+    }
+
     rmSync(fakeBunfsDir, { recursive: true, force: true })
     rmSync(result, { force: true })
   })
