@@ -57,6 +57,12 @@ export interface HostMountOptions {
    * mouse-up auto-copy (when `copyOnSelect`) or a Ctrl+C/Cmd+C over a selection.
    */
   onCopy?: (text: string) => void
+  /**
+   * Called when the terminal reports a color-scheme change (DEC mode 2031, which the
+   * session enables). The app decides what to do — e.g. `app.setTheme(lightTheme)`.
+   * Fires only on terminals that support the notification.
+   */
+  onThemeChange?: (mode: 'dark' | 'light') => void
 }
 
 /**
@@ -212,6 +218,10 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   // (notably tests) don't share clipboard behavior. Captured in `mount()`.
   let onCopy: ((text: string) => void) | undefined
   let copyOnSelect = false
+  // App-provided handler for a terminal color-scheme change (see
+  // `HostMountOptions.onThemeChange`). Captured in `mount()`; read at the top of
+  // `handleInputEvent` when a ThemeEvent arrives.
+  let onThemeChange: ((mode: 'dark' | 'light') => void) | undefined
 
   // A lone ESC keypress can't be told apart from the start of a CSI/SS3 sequence
   // (arrow keys, …) until the next byte arrives, so the decoder buffers it. If no
@@ -231,6 +241,7 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
       onCtrlC = options.onCtrlC
       onCopy = options.onCopy
       copyOnSelect = options.copyOnSelect ?? false
+      onThemeChange = options.onThemeChange
       // Mutate the reactive theme in place (don't replace the proxy) so the
       // provided reference stays the live one `setTheme()` later updates.
       if (options.theme) Object.assign(ctx.theme, options.theme)
@@ -361,6 +372,10 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
 
   /** Route one decoded input event: selection, copy, Ctrl-C exit, Tab focus, else dispatch. */
   function handleInputEvent(ev: import('@vui-rs/core').InputEvent): void {
+    if (ev.type === 'theme') {
+      onThemeChange?.(ev.mode)
+      return
+    }
     if (ev.type === 'mouse') {
       if (handleSelectionMouse(ev)) return
       ctx.focusManager?.dispatch(ev)

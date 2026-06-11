@@ -25,6 +25,12 @@ const MOUSE_OFF = '\x1b[?1002l\x1b[?1000l\x1b[?1006l'
 // stop so the terminal's keyboard mode is restored exactly as we found it.
 const KITTY_KBD_ON = '\x1b[>1u'
 const KITTY_KBD_OFF = '\x1b[<u'
+// DEC mode 2031: color-scheme change notifications. While enabled, the terminal
+// reports light/dark changes as `CSI ? 997 ; <1|2> n` (decoded in keys.ts as a
+// ThemeEvent). Harmless on terminals that don't support it. Disabled on stop so
+// the terminal's mode is restored exactly as we found it.
+const THEME_NOTIFY_ON = '\x1b[?2031h'
+const THEME_NOTIFY_OFF = '\x1b[?2031l'
 
 /** The slice of `process.stdin` this module needs (injectable for tests). */
 export interface InputStream {
@@ -54,6 +60,8 @@ export interface TerminalSessionOptions {
   installSignalHandlers?: boolean
   /** Push the Kitty keyboard protocol (disambiguate flag) on start. Default true. */
   kittyKeyboard?: boolean
+  /** Enable DEC mode 2031 color-scheme change notifications on start. Default true. */
+  themeNotifications?: boolean
 }
 
 export interface TerminalSession {
@@ -78,6 +86,7 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
   const altScreen = options.altScreen ?? true
   const installSignals = options.installSignalHandlers ?? true
   const kittyKeyboard = options.kittyKeyboard ?? true
+  const themeNotifications = options.themeNotifications ?? true
 
   let started = false
   let restored = false
@@ -102,7 +111,14 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
     if (started) return
     started = true
     input.setRawMode?.(true)
-    output.write((altScreen ? ENTER_ALT : '') + HIDE_CURSOR + PASTE_ON + MOUSE_ON + (kittyKeyboard ? KITTY_KBD_ON : ''))
+    output.write(
+      (altScreen ? ENTER_ALT : '') +
+        HIDE_CURSOR +
+        PASTE_ON +
+        MOUSE_ON +
+        (kittyKeyboard ? KITTY_KBD_ON : '') +
+        (themeNotifications ? THEME_NOTIFY_ON : ''),
+    )
     input.resume?.()
     input.on('data', onDataRaw)
     output.on('resize', onResizeRaw)
@@ -122,7 +138,12 @@ export function createTerminalSession(options: TerminalSessionOptions = {}): Ter
     input.setRawMode?.(false)
     input.pause?.()
     output.write(
-      (kittyKeyboard ? KITTY_KBD_OFF : '') + MOUSE_OFF + PASTE_OFF + SHOW_CURSOR + (altScreen ? LEAVE_ALT : ''),
+      (themeNotifications ? THEME_NOTIFY_OFF : '') +
+        (kittyKeyboard ? KITTY_KBD_OFF : '') +
+        MOUSE_OFF +
+        PASTE_OFF +
+        SHOW_CURSOR +
+        (altScreen ? LEAVE_ALT : ''),
     )
     if (installSignals) {
       process.off('exit', stop)

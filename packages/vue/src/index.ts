@@ -120,8 +120,12 @@ export {
   rgba,
   Key,
   matchesKey,
+  queryBackgroundColor,
+  queryColorScheme,
+  type QueryColorSchemeOptions,
   type KeyEvent,
   type MouseEvent,
+  type ThemeEvent,
   type InputEvent,
   type TextWrapMode,
 } from '@vui-rs/core'

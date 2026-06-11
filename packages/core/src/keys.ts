@@ -46,7 +46,13 @@ export interface MouseEvent {
   raw: string
 }
 
-export type InputEvent = KeyEvent | PasteEvent | MouseEvent
+export interface ThemeEvent {
+  type: 'theme'
+  mode: 'dark' | 'light'
+  raw: string
+}
+
+export type InputEvent = KeyEvent | PasteEvent | MouseEvent | ThemeEvent
 
 interface Mods {
   ctrl?: boolean
@@ -295,6 +301,24 @@ function parseEscape(s: string, i: number, out: InputEvent[], mouse: MouseState)
 function parseCSI(s: string, i: number, out: InputEvent[], mouse: MouseState): number {
   if (s[i + 2] === '<') return parseSgrMouse(s, i, out, mouse)
   if (s[i + 2] === 'M') return parseX10Mouse(s, i, out, mouse)
+  // Private CSI (`CSI ? …`). Consume it whole so its bytes never leak as stray
+  // keys, and surface the DEC mode 2031 color-scheme report `CSI ? 997 ; <1|2> n`
+  // (1 = dark, 2 = light) as a ThemeEvent.
+  if (s[i + 2] === '?') {
+    let k = i + 3
+    let p = ''
+    while (k < s.length && (s[k] === ';' || (s[k]! >= '0' && s[k]! <= '9'))) {
+      p += s[k]
+      k += 1
+    }
+    const f = s[k]
+    if (f === undefined) return -1 // truncated private CSI: need more input
+    if (f === 'n') {
+      const [code, value] = p.split(';')
+      if (code === '997') out.push({ type: 'theme', mode: value === '2' ? 'light' : 'dark', raw: s.slice(i, k + 1) })
+    }
+    return k + 1 - i // consume any private CSI; emit nothing for non-997 forms
+  }
   let j = i + 2
   let params = ''
   // `:` is accepted so the Kitty CSI-u sub-parameter form (`code;mods:event`) is
