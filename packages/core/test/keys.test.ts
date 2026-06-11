@@ -1,7 +1,15 @@
 // Byte-chunk → key-event parser coverage: the common terminal key set, modifier
 // decoding, alt/ctrl, and bracketed paste (captured literally, never re-parsed).
 import { describe, expect, test } from 'bun:test'
-import { createKeyDecoder, Key, matchesKey, parseKeys, type KeyEvent, type MouseEvent } from '../src/keys.ts'
+import {
+  createKeyDecoder,
+  Key,
+  matchesKey,
+  parseKeys,
+  type KeyEvent,
+  type MouseEvent,
+  type ThemeEvent,
+} from '../src/keys.ts'
 
 /** Parse a chunk expected to yield exactly one event and return it. */
 function one(data: string) {
@@ -184,5 +192,23 @@ describe('key parser', () => {
   test('X10 mouse fallback parses button events', () => {
     const seq = '\x1b[M' + String.fromCharCode(32) + String.fromCharCode(37) + String.fromCharCode(35)
     expect(one(seq)).toMatchObject({ type: 'mouse', kind: 'down', button: 'left', x: 4, y: 2 })
+  })
+
+  test('DEC 2031 color-scheme report decodes to a ThemeEvent', () => {
+    expect(one('\x1b[?997;1n')).toMatchObject({ type: 'theme', mode: 'dark' })
+    expect(one('\x1b[?997;2n')).toMatchObject({ type: 'theme', mode: 'light' })
+  })
+
+  test('a 997 report split across feeds yields one ThemeEvent and no stray keys', () => {
+    const d = createKeyDecoder()
+    expect(d.feed('\x1b[?997')).toEqual([]) // partial private CSI buffered, nothing leaks
+    const evs = d.feed(';1n') as ThemeEvent[]
+    expect(evs.length).toBe(1)
+    expect(evs[0]).toMatchObject({ type: 'theme', mode: 'dark' })
+  })
+
+  test('a non-997 private CSI is consumed silently', () => {
+    expect(parseKeys('\x1b[?1n')).toEqual([]) // device-status report, not a theme report
+    expect(parseKeys('\x1b[?25h')).toEqual([]) // private mode set, emit nothing
   })
 })

@@ -40,8 +40,10 @@ export {
   type MouseButton,
   type MouseEvent,
   type PasteEvent,
+  type ThemeEvent,
   type InputEvent,
 } from './keys.ts'
+export { queryBackgroundColor, queryColorScheme, type QueryColorSchemeOptions } from './query-color-scheme.ts'
 export { createTerminalSession, type TerminalSession, type TerminalSessionOptions } from './terminal-session.ts'
 export { hostTreeHash, VuiNode, type LayoutRect, type RectEdges, type TextRun, type TextWrapName } from './node.ts'
 export { packStyle, type AlignValue, type Dim, type JustifyValue, type Sides, type VuiStyle } from './style.ts'

@@ -95,6 +95,27 @@ describe('terminal session', () => {
     expect(all2).not.toContain('\x1b[<u')
   })
 
+  test('theme notifications (DEC 2031) enabled on start, disabled on stop', () => {
+    const { s, output } = session()
+    s.start()
+    expect(output.writes.join('')).toContain('\x1b[?2031h') // enable on start
+    s.stop()
+    const all = output.writes.join('')
+    expect(all.split('\x1b[?2031h').length - 1).toBe(1) // enabled exactly once
+    expect(all.split('\x1b[?2031l').length - 1).toBe(1) // disabled exactly once
+  })
+
+  test('themeNotifications:false writes neither 2031 sequence', () => {
+    const input = mockInput()
+    const output = mockOutput()
+    const s = createTerminalSession({ input, output, installSignalHandlers: false, themeNotifications: false })
+    s.start()
+    s.stop()
+    const all = output.writes.join('')
+    expect(all).not.toContain('\x1b[?2031h')
+    expect(all).not.toContain('\x1b[?2031l')
+  })
+
   test('data + resize are surfaced to callbacks', () => {
     const { s, input, output } = session()
     let got = ''
