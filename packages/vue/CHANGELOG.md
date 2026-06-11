@@ -10,7 +10,7 @@
 
 ### Patch Changes
 
-- 1182f65: `<input>` gains readline-style line editing (parity with opencode's prompt):
+- 1182f65: `<input>` gains readline-style line editing:
 
   - **Ctrl+U** → delete to line start
   - **Ctrl+W**, **Ctrl+Backspace**, **Alt+Backspace** → delete the previous word

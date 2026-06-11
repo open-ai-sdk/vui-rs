@@ -58,6 +58,10 @@ export {
 } from './host/animation/timeline.ts'
 export { type Timeline, useAnimation, useTimeline } from './host/animation/use-timeline.ts'
 
+// Anchor tracking: read an element's absolute screen rect reactively (drives
+// anchored popups like the autocomplete overlay).
+export { useElementRect, type ScreenMeasure } from './use-element-rect.ts'
+
 // Rich text: markdown, syntax-highlighted code, unified diff — the `<markdown>`/
 // `<code>`/`<diff>` widgets (registered globally at app create).
 export { VuiMarkdown } from './host/components/markdown.ts'

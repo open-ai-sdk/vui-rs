@@ -45,6 +45,20 @@
         "vite": "catalog:",
       },
     },
+    "examples/autocomplete-popup": {
+      "name": "@vui-rs/example-autocomplete-popup",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vue/runtime-core": "catalog:",
+        "@vui-rs/core": "workspace:*",
+        "@vui-rs/ui": "workspace:*",
+        "@vui-rs/vue": "workspace:*",
+      },
+      "devDependencies": {
+        "@vui-rs/vite-plugin": "workspace:*",
+        "vite": "catalog:",
+      },
+    },
     "examples/autosize": {
       "name": "@vui-rs/example-autosize",
       "version": "0.1.0",
@@ -655,6 +669,8 @@
     "@vui-rs/example-animation": ["@vui-rs/example-animation@workspace:examples/animation"],
 
     "@vui-rs/example-autocomplete": ["@vui-rs/example-autocomplete@workspace:examples/autocomplete"],
+
+    "@vui-rs/example-autocomplete-popup": ["@vui-rs/example-autocomplete-popup@workspace:examples/autocomplete-popup"],
 
     "@vui-rs/example-autosize": ["@vui-rs/example-autosize@workspace:examples/autosize"],
 
