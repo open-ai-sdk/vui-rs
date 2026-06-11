@@ -35,6 +35,30 @@ export interface HostMountOptions {
   height?: number
   altScreen?: boolean
   theme?: Theme
+  /**
+   * Take over the decision for an otherwise-unhandled Ctrl+C instead of the host's
+   * default `unmount()` + `process.exit(0)`. It only fires for presses that would
+   * have exited — the higher-priority paths still win first and never reach it:
+   * active-selection copy (OSC 52), a focused textarea with a selection, and a
+   * focused input with `ctrlCBehavior: 'capture'` that consumes the press
+   * (preventDefault). When set, the app becomes responsible for exiting itself.
+   */
+  onCtrlC?: () => void
+}
+
+/**
+ * Final disposition of a Ctrl+C that selection-copy did not already consume and a
+ * focused textarea-with-selection did not claim. `capturePrevented` is true when a
+ * focused `ctrlCBehavior: 'capture'` input already handled the press
+ * (preventDefault) — that press is fully consumed. Otherwise an `onCtrlC` override
+ * takes over (the app owns exiting); with no override the host exits by default.
+ *
+ * Pure so the priority can be unit-tested without driving a terminal session.
+ */
+export type CtrlCAction = 'consume' | 'delegate' | 'exit'
+export function resolveCtrlCAction(capturePrevented: boolean, hasOnCtrlC: boolean): CtrlCAction {
+  if (capturePrevented) return 'consume'
+  return hasOnCtrlC ? 'delegate' : 'exit'
 }
 
 export interface VuiHostApp {
@@ -100,6 +124,9 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   let teardownSession: (() => void) | null = null
   let keepAliveTimer: ReturnType<typeof setInterval> | null = null
   let escTimer: ReturnType<typeof setTimeout> | null = null
+  // App-provided override for an unhandled Ctrl+C (see `HostMountOptions.onCtrlC`).
+  // Captured in `mount()`; read by `handleInputEvent`'s Ctrl+C fallthrough.
+  let onCtrlC: (() => void) | undefined
 
   // A lone ESC keypress can't be told apart from the start of a CSI/SS3 sequence
   // (arrow keys, …) until the next byte arrives, so the decoder buffers it. If no
@@ -116,6 +143,7 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     mount(options: HostMountOptions = {}): VuiHostApp {
       if (mounted) return app
       mounted = true
+      onCtrlC = options.onCtrlC
       // Mutate the reactive theme in place (don't replace the proxy) so the
       // provided reference stays the live one `setTheme()` later updates.
       if (options.theme) Object.assign(ctx.theme, options.theme)
@@ -252,9 +280,17 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
       // A focused input that opts in (`ctrlCBehavior: 'capture'`) gets first crack
       // at Ctrl+C — e.g. to clear its text. If a handler consumes it (preventDefault),
       // don't quit; an unhandled Ctrl+C (e.g. the input was already empty) still exits.
+      let capturePrevented = false
       if (current?.kind === 'edit' && (current as EditRenderable).edit.ctrlCBehavior === 'capture') {
         ctx.focusManager?.dispatch(ev)
-        if ((ev as { defaultPrevented?: boolean }).defaultPrevented) return
+        capturePrevented = (ev as { defaultPrevented?: boolean }).defaultPrevented === true
+      }
+      const action = resolveCtrlCAction(capturePrevented, onCtrlC !== undefined)
+      if (action === 'consume') return
+      if (action === 'delegate') {
+        // App owns the press now (e.g. arm an exit-confirm) — host does not exit.
+        onCtrlC?.()
+        return
       }
       app.unmount()
       process.exit(0)
