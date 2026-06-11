@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.5.4
+
+### Patch Changes
+
+- c9b61d3: add cancelable paste event support to VuiHostInput and VuiHostTextarea components
+
 ## 0.5.3
 
 ### Patch Changes
