@@ -46,7 +46,8 @@ const VERSION: u32 = 0x00_01_00;
 ///      `vui_renderer_clear_links`) with link id in the cell `attrs` high byte, the
 ///      raw-emit passthrough channel (`vui_renderer_stage_passthrough`) for OSC 52
 ///      + image transmit, and inline-image decode (`vui_image_*`).
-const ABI_VERSION: u32 = 12;
+/// v13: `vui_editor_set_cursor_visible` for JS-host textarea cursor blink.
+const ABI_VERSION: u32 = 13;
 
 /// Returns the packed semver of the native core.
 ///

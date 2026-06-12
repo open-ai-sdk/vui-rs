@@ -35,6 +35,8 @@ function mount(render: () => unknown) {
 }
 
 describe('<textarea> native editor', () => {
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
   test('default enter inserts newline and emits enter', async () => {
     const value = ref('hello')
     const enterValues: string[] = []
@@ -300,6 +302,51 @@ describe('<textarea> native editor', () => {
     ctx2.focusManager!.dispatch(key('enter'))
     expect(value2.value).toBe('ab\n')
     cleanup2()
+  })
+
+  test('cursor blink toggles the native textarea cursor and resets on typing', async () => {
+    const cursorColor = 0x123456ff
+    const { r, ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: '',
+        width: 5,
+        height: 1,
+        cursorColor,
+      }),
+    )
+    await nextTick()
+    const textarea = ctx.root!.children[0] as TextareaRenderable
+    textarea.setBlinkInterval(10)
+    ctx.focusManager!.focus(textarea)
+    ctx.flushNow()
+    expect(textarea.textarea.cursorVisible).toBe(true)
+    expect(cellBg(r, 0, 0)).toBe(cursorColor)
+    await sleep(15)
+    ctx.flushNow()
+    expect(textarea.textarea.cursorVisible).toBe(false)
+    expect(cellBg(r, 0, 0)).not.toBe(cursorColor)
+    ctx.focusManager!.dispatch(key('a'))
+    ctx.flushNow()
+    expect(textarea.textarea.cursorVisible).toBe(true)
+    cleanup()
+  })
+
+  test('cursorBlink disabled keeps textarea cursor steady', async () => {
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: '',
+        width: 5,
+        height: 1,
+        cursorBlink: false,
+      }),
+    )
+    await nextTick()
+    const textarea = ctx.root!.children[0] as TextareaRenderable
+    ctx.focusManager!.focus(textarea)
+    expect(textarea.textarea.cursorVisible).toBe(true)
+    await sleep(20)
+    expect(textarea.textarea.cursorVisible).toBe(true)
+    cleanup()
   })
 
   test('copy cut and paste operate on textarea selection', async () => {

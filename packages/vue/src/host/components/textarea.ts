@@ -26,6 +26,7 @@ export const VuiHostTextarea = defineComponent({
       type: [String, Number] as PropType<ColorProp>,
       default: undefined,
     },
+    cursorBlink: { type: [Boolean, Number] as PropType<boolean | number>, default: undefined },
     focused: { type: Boolean, default: false },
     wrap: {
       type: String as PropType<'word' | 'char' | 'nowrap'>,
@@ -228,6 +229,7 @@ export const VuiHostTextarea = defineComponent({
         placeholder: props.placeholder,
         placeholderColor: props.placeholderColor,
         cursorColor: props.cursorColor,
+        cursorBlink: props.cursorBlink,
         wrap: props.wrap,
         tabBehavior: props.tabBehavior,
         tabSize: props.tabSize,

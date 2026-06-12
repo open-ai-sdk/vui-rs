@@ -66,8 +66,7 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     } else if (el.kind === 'edit') {
       ;(el as EditRenderable).setFocused(on)
     } else if (el.kind === 'textarea') {
-      ;(el as TextareaRenderable).textarea.focused = on
-      el.markDirty()
+      ;(el as TextareaRenderable).setFocused(on)
     }
     el.ctx.scheduleRender()
     return
@@ -255,6 +254,9 @@ function applyTextarea(el: TextareaRenderable, key: string, next: unknown): bool
       return true
     case 'cursorColor':
       el.textarea.cursorColor = parseColor(next)
+      return true
+    case 'cursorBlink':
+      el.setBlinkInterval(next === false ? 0 : typeof next === 'number' ? next : DEFAULT_BLINK_MS)
       return true
     case 'wrap':
       el.textarea.wrap = next === 'nowrap' || next === false ? 'nowrap' : next === 'char' ? 'char' : 'word'

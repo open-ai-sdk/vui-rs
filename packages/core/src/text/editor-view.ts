@@ -44,6 +44,10 @@ export class EditorView {
     check(this.#lib.symbols.vui_editor_set_focused(this.#ptr, focused ? 1 : 0), 'editor_set_focused')
   }
 
+  setCursorVisible(visible: boolean): void {
+    check(this.#lib.symbols.vui_editor_set_cursor_visible(this.#ptr, visible ? 1 : 0), 'editor_set_cursor_visible')
+  }
+
   move(motion: EditMotionCode, selecting = false): void {
     check(this.#lib.symbols.vui_editor_move(this.#ptr, motion, selecting ? 1 : 0), 'editor_move')
   }

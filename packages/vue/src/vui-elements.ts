@@ -174,6 +174,7 @@ export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
   placeholder?: string
   placeholderColor?: Color
   cursorColor?: Color
+  cursorBlink?: boolean | number
   wrap?: 'word' | 'char' | 'nowrap'
   tabBehavior?: 'focus' | 'indent' | 'capture'
   tabSize?: number

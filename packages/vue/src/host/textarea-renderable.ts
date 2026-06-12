@@ -2,6 +2,7 @@
 // `@vui-rs/core`'s native EditBuffer/EditorView; this class only adapts it to the
 // JS-host Renderable paint/lifecycle contract.
 import { EditBuffer, EditorView, EditMotion, type EditMotionCode, type TextWrapMode } from '@vui-rs/core'
+import { DEFAULT_BLINK_MS } from './edit-renderable.ts'
 import { drawChrome } from './paint-ops.ts'
 import { type HostContext, type PaintBuffer, type PaintCtx, Renderable } from './renderable.ts'
 
@@ -17,6 +18,7 @@ export interface TextareaState {
   tabSize: number
   maxLength?: number
   ctrlCBehavior?: 'exit' | 'capture'
+  cursorVisible?: boolean
 }
 
 export class TextareaRenderable extends Renderable {
@@ -30,11 +32,27 @@ export class TextareaRenderable extends Renderable {
     autoHeight: true,
     tabBehavior: 'focus',
     tabSize: 2,
+    cursorVisible: true,
   }
+
+  blinkIntervalMs = DEFAULT_BLINK_MS
+  #blinkTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(ctx: HostContext, tag: string) {
     super(ctx, 'textarea', tag)
     this.focusable = true
+  }
+
+  setFocused(on: boolean): void {
+    this.textarea.focused = on
+    if (on) this.#startBlink()
+    else this.#stopBlink()
+    this.markDirty()
+  }
+
+  setBlinkInterval(ms: number): void {
+    this.blinkIntervalMs = Number.isFinite(ms) && ms > 0 ? ms : 0
+    if (this.textarea.focused) this.#startBlink()
   }
 
   renderSelf(buffer: PaintBuffer, ctx: PaintCtx): void {
@@ -47,6 +65,7 @@ export class TextareaRenderable extends Renderable {
     this.editor.setViewport(width, height)
     this.editor.setWrap(this.textarea.wrap)
     this.editor.setFocused(this.textarea.focused)
+    this.editor.setCursorVisible(this.textarea.cursorVisible !== false)
     const fg = this.paint.fg ?? this.ctx.theme.fg
     const bg = this.paint.bg ?? buffer.bgUnder(ctx.cx0, ctx.cy0)
     const cursorBg = this.textarea.cursorColor ?? fg
@@ -176,14 +195,35 @@ export class TextareaRenderable extends Renderable {
   }
 
   dispose(): void {
+    this.#stopBlink()
     this.editor.free()
     this.edit.free()
   }
 
   #touch(): void {
+    if (this.textarea.focused) this.#startBlink()
     if (this.textarea.autoWidth || this.textarea.autoHeight) this.ctx.dirtyLayout.add(this)
     this.markDirty()
     this.ctx.scheduleRender()
+  }
+
+  #startBlink(): void {
+    this.#stopBlink()
+    this.textarea.cursorVisible = true
+    if (this.blinkIntervalMs <= 0) return
+    this.#blinkTimer = setInterval(() => {
+      this.textarea.cursorVisible = !this.textarea.cursorVisible
+      this.markDirty()
+      this.ctx.scheduleRender()
+    }, this.blinkIntervalMs)
+  }
+
+  #stopBlink(): void {
+    if (this.#blinkTimer) {
+      clearInterval(this.#blinkTimer)
+      this.#blinkTimer = null
+    }
+    this.textarea.cursorVisible = true
   }
 
   #syncEditorViewportFromRect(): void {

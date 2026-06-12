@@ -11,6 +11,7 @@ pub struct EditorView {
     wrap: WrapMode,
     scroll_y: u32,
     focused: bool,
+    cursor_visible: bool,
     desired_visual_col: Option<u32>,
 }
 
@@ -23,6 +24,7 @@ impl EditorView {
             wrap: WrapMode::Word,
             scroll_y: 0,
             focused: false,
+            cursor_visible: true,
             desired_visual_col: None,
         }
     }
@@ -38,6 +40,10 @@ impl EditorView {
 
     pub fn set_focused(&mut self, focused: bool) {
         self.focused = focused;
+    }
+
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        self.cursor_visible = visible;
     }
 
     pub fn measure(&self, width: u32, mode: WrapMode) -> TextMeasure {
@@ -101,7 +107,7 @@ impl EditorView {
             };
             dst.draw_text_clipped(x, y + row as i32, line, fg, bg, attrs, clip);
         }
-        if self.focused {
+        if self.focused && self.cursor_visible {
             let (cy, cx) = self.visual_cursor();
             if cy >= self.scroll_y && cy < self.scroll_y + self.height {
                 dst.set_cell_clipped(
