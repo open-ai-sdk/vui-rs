@@ -66,8 +66,7 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     } else if (el.kind === 'edit') {
       ;(el as EditRenderable).setFocused(on)
     } else if (el.kind === 'textarea') {
-      ;(el as TextareaRenderable).textarea.focused = on
-      el.markDirty()
+      ;(el as TextareaRenderable).setFocused(on)
     }
     el.ctx.scheduleRender()
     return
@@ -256,15 +255,24 @@ function applyTextarea(el: TextareaRenderable, key: string, next: unknown): bool
     case 'cursorColor':
       el.textarea.cursorColor = parseColor(next)
       return true
+    case 'cursorBlink':
+      el.setBlinkInterval(next === false ? 0 : typeof next === 'number' ? next : DEFAULT_BLINK_MS)
+      return true
     case 'wrap':
       el.textarea.wrap = next === 'nowrap' || next === false ? 'nowrap' : next === 'char' ? 'char' : 'word'
       el.ctx.dirtyLayout.add(el)
       return true
     case 'tabBehavior':
-      el.textarea.tabBehavior = next === 'indent' ? 'indent' : 'focus'
+      el.textarea.tabBehavior = next === 'indent' || next === 'capture' ? next : 'focus'
       return true
     case 'tabSize':
       el.textarea.tabSize = typeof next === 'number' && Number.isFinite(next) ? Math.max(1, Math.floor(next)) : 2
+      return true
+    case 'maxLength':
+      el.textarea.maxLength = typeof next === 'number' ? next : undefined
+      return true
+    case 'ctrlCBehavior':
+      el.textarea.ctrlCBehavior = next === 'capture' ? 'capture' : 'exit'
       return true
   }
   return false

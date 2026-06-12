@@ -154,4 +154,30 @@ describe('focus manager', () => {
       cleanup()
     }
   })
+
+  test('textarea capture mode can bubble Tab without moving focus', async () => {
+    const bubbled: string[] = []
+    const { app, cleanup } = mount(() =>
+      h('box', { onKeyDown: (ev: DispatchableEvent) => bubbled.push(ev.name) }, [
+        h(VuiHostTextarea, {
+          value: '',
+          focused: true,
+          tabBehavior: 'capture',
+          'onUpdate:value': () => undefined,
+        }),
+        h('input', { focusable: true }),
+      ]),
+    )
+    try {
+      await nextTick()
+      const fm = app.context.focusManager!
+      const textarea = app.context.root!.children[0]!.children[0]!
+      expect(fm.current()).toBe(textarea)
+      fm.dispatch(keyEvent('tab'))
+      expect(fm.current()).toBe(textarea)
+      expect(bubbled).toEqual(['tab'])
+    } finally {
+      cleanup()
+    }
+  })
 })

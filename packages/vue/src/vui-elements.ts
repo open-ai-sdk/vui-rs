@@ -174,11 +174,16 @@ export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
   placeholder?: string
   placeholderColor?: Color
   cursorColor?: Color
+  cursorBlink?: boolean | number
   wrap?: 'word' | 'char' | 'nowrap'
-  tabBehavior?: 'focus' | 'indent'
+  tabBehavior?: 'focus' | 'indent' | 'capture'
   tabSize?: number
+  maxLength?: number
+  ctrlCBehavior?: 'exit' | 'capture'
   enterBehavior?: 'newline' | 'submit'
   newlineShortcut?: 'ctrl+enter' | 'shift+enter' | 'meta+enter' | 'alt+enter'
+  newlineShortcutFallback?: 'none' | 'linefeed'
+  bubbleKeys?: string[]
   'onUpdate:value'?: (value: string) => void
   'onUpdate:modelValue'?: (value: string) => void
   onInput?: (value: string) => void

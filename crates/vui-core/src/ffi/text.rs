@@ -517,6 +517,17 @@ pub extern "C" fn vui_editor_set_focused(ptr: *mut EditorView, focused: u8) -> u
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn vui_editor_set_cursor_visible(ptr: *mut EditorView, visible: u8) -> u32 {
+    ffi_status(|| {
+        let Some(view) = (unsafe { ptr.as_mut() }) else {
+            return status::NULL_PTR;
+        };
+        view.set_cursor_visible(visible != 0);
+        status::OK
+    })
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn vui_editor_move(ptr: *mut EditorView, motion: u8, selecting: u8) -> u32 {
     ffi_status(|| {
         let Some(view) = (unsafe { ptr.as_mut() }) else {

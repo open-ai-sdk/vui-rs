@@ -404,11 +404,15 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
         ctx.focusManager?.dispatch(ev)
         return
       }
-      // A focused input that opts in (`ctrlCBehavior: 'capture'`) gets first crack
-      // at Ctrl+C — e.g. to clear its text. If a handler consumes it (preventDefault),
-      // don't quit; an unhandled Ctrl+C (e.g. the input was already empty) still exits.
+      // A focused editable that opts in (`ctrlCBehavior: 'capture'`) gets first
+      // crack at Ctrl+C — e.g. to clear its text. If a handler consumes it
+      // (preventDefault), don't quit; an unhandled Ctrl+C (e.g. the input was
+      // already empty) still exits.
       let capturePrevented = false
-      if (current?.kind === 'edit' && (current as EditRenderable).edit.ctrlCBehavior === 'capture') {
+      if (current?.kind === 'textarea' && (current as TextareaRenderable).textarea.ctrlCBehavior === 'capture') {
+        ctx.focusManager?.dispatch(ev)
+        capturePrevented = (ev as { defaultPrevented?: boolean }).defaultPrevented === true
+      } else if (current?.kind === 'edit' && (current as EditRenderable).edit.ctrlCBehavior === 'capture') {
         ctx.focusManager?.dispatch(ev)
         capturePrevented = (ev as { defaultPrevented?: boolean }).defaultPrevented === true
       }
@@ -424,7 +428,7 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     }
     if (ev.type === 'key' && ev.name === 'tab') {
       const current = ctx.focusManager?.current()
-      if (current?.kind === 'textarea' && (current as TextareaRenderable).textarea.tabBehavior === 'indent') {
+      if (current?.kind === 'textarea' && (current as TextareaRenderable).textarea.tabBehavior !== 'focus') {
         ctx.focusManager?.dispatch(ev)
         return
       }

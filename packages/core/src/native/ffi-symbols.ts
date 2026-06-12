@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 12;
+export const EXPECTED_ABI_VERSION = 13;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -368,6 +368,10 @@ export const symbols = {
     returns: FFIType.u32,
   },
   vui_editor_set_focused: {
+    args: [FFIType.ptr, FFIType.u8],
+    returns: FFIType.u32,
+  },
+  vui_editor_set_cursor_visible: {
     args: [FFIType.ptr, FFIType.u8],
     returns: FFIType.u32,
   },
