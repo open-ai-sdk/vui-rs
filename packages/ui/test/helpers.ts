@@ -40,6 +40,21 @@ export function mouseDown(x: number, y: number): MouseEvent {
   }
 }
 
+export function mouseMove(x: number, y: number): MouseEvent {
+  return {
+    type: 'mouse',
+    kind: 'move',
+    button: null,
+    x,
+    y,
+    ctrl: false,
+    alt: false,
+    shift: false,
+    meta: false,
+    raw: '',
+  }
+}
+
 export function mount(w: number, h: number, render: () => unknown) {
   const r = new Renderer(w, h)
   const App = defineComponent({ setup: () => render })
