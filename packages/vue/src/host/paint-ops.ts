@@ -220,7 +220,12 @@ export function drawEdit(
   if (edit.focused && edit.cursorVisible !== false) {
     const sx = cx0 + cursorCol - scroll
     if (sx >= cx0 && sx < cx1) {
-      const underG = valGs[edit.cursor]
+      // With an empty value the caret sits over the placeholder's first glyph, so
+      // show THAT under the cursor (e.g. the 'A' of "Ask…") rather than blanking it
+      // — otherwise the block paints a space over the placeholder and its first
+      // char appears to vanish (and flicker, once the cursor blinks).
+      const underGs = edit.value === '' && edit.placeholder !== '' ? graphemes(edit.placeholder) : valGs
+      const underG = underGs[edit.cursor]
       const underCp = underG ? cp(underG) : 32 // ' '
       const wide = Math.max(charWidth(underCp), 1) === 2 && sx + 1 < cx1
       let cfg: number

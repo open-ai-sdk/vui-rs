@@ -9,6 +9,7 @@ import { type HostPasteEvent, VuiHostInput } from '../src/host/components/input.
 import type { EditRenderable } from '../src/host/edit-renderable.ts'
 import type { Renderable } from '../src/host/renderable.ts'
 import { defineComponent, h, nextTick, ref } from '../src/index.ts'
+import { cellGlyph } from './helpers/read-buffer.ts'
 
 function key(name: string, mods: Partial<KeyEvent> = {}): KeyEvent {
   return { type: 'key', name, ctrl: false, alt: false, shift: false, meta: false, raw: name, ...mods }
@@ -353,6 +354,27 @@ describe('cursor blink', () => {
     expect(e.edit.cursorVisible).toBe(true)
     await sleep(20)
     expect(e.edit.cursorVisible).toBe(true) // never toggles
+    cleanup()
+  })
+})
+
+describe('placeholder under the cursor', () => {
+  function mountR(render: () => unknown) {
+    const r = new Renderer(40, 6)
+    const App = defineComponent({ setup: () => render })
+    const app = createHostApp(App).mount({ renderer: r })
+    return { r, ctx: app.context, cleanup: () => (app.unmount(), r.free()) }
+  }
+
+  test('empty focused input shows the placeholder glyph under the solid cursor', async () => {
+    const { r, ctx, cleanup } = mountR(() => h(VuiHostInput, { value: '', placeholder: 'Ask', focused: true }))
+    await nextTick()
+    ctx.flushNow()
+    // The block cursor sits on column 0; it must reveal the placeholder's 'A', not
+    // blank it out with a space (the bug the user saw as a flickering first char).
+    expect(cellGlyph(r, 0, 0)).toBe('A')
+    expect(cellGlyph(r, 1, 0)).toBe('s')
+    expect(cellGlyph(r, 2, 0)).toBe('k')
     cleanup()
   })
 })
