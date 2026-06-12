@@ -1,5 +1,13 @@
 # @vui-rs/vue
 
+## 0.6.4
+
+### Patch Changes
+
+- e4c0c32: Add textarea key escape hatches and input parity for composer-style controls: cursorBlink, opt-in linefeed fallback for newline shortcuts, Tab/Ctrl+C capture, selected key bubbling, maxLength insertion caps, and readline delete shortcuts.
+- Updated dependencies [e4c0c32]
+  - @vui-rs/core@0.6.1
+
 ## 0.6.3
 
 ### Patch Changes
