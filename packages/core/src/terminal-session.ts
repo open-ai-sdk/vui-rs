@@ -15,8 +15,8 @@ const HIDE_CURSOR = '\x1b[?25l'
 const SHOW_CURSOR = '\x1b[?25h'
 const PASTE_ON = '\x1b[?2004h'
 const PASTE_OFF = '\x1b[?2004l'
-const MOUSE_ON = '\x1b[?1006h\x1b[?1000h\x1b[?1002h'
-const MOUSE_OFF = '\x1b[?1002l\x1b[?1000l\x1b[?1006l'
+const MOUSE_ON = '\x1b[?1006h\x1b[?1000h\x1b[?1002h\x1b[?1003h'
+const MOUSE_OFF = '\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l'
 // Kitty keyboard protocol: push the "disambiguate escape codes" flag (1) so the
 // terminal reports keys that the legacy encoding can't (e.g. Shift+Enter, Ctrl+
 // Shift+letter) as `CSI <code> ; <mods> u`. Pushing is harmless on terminals that

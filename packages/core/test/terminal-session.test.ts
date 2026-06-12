@@ -70,6 +70,7 @@ describe('terminal session', () => {
     expect(all).toContain('\x1b[?1006h') // SGR mouse on
     expect(all).toContain('\x1b[?1000h') // button mouse on
     expect(all).toContain('\x1b[?1002h') // drag mouse on
+    expect(all).toContain('\x1b[?1003h') // all-motion mouse on
     expect(all).toContain('\x1b[>1u') // kitty keyboard push (disambiguate)
     s.stop()
   })
@@ -152,6 +153,7 @@ describe('terminal session', () => {
     expect(restores.split('\x1b[?1006l').length - 1).toBe(1) // SGR mouse off
     expect(restores.split('\x1b[?1000l').length - 1).toBe(1) // button mouse off
     expect(restores.split('\x1b[?1002l').length - 1).toBe(1) // drag mouse off
+    expect(restores.split('\x1b[?1003l').length - 1).toBe(1) // all-motion mouse off
   })
 
   test('data after stop is not delivered', () => {
