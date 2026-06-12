@@ -133,16 +133,22 @@ export class TextareaRenderable extends Renderable {
     if (!this.textarea.autoWidth && !this.textarea.autoHeight) return false
     let changed = false
     const intrinsic = this.editor.measure(1_000_000, this.textarea.wrap)
-    const width = this.textarea.autoWidth
-      ? Math.max(1, intrinsic.maxWidth)
-      : Math.max(1, typeof this.style.width === 'number' ? Math.floor(this.style.width) : intrinsic.maxWidth)
+    const horizontalInset = insetSum(this.rect, this.style, 'left', 'right')
+    const verticalInset = insetSum(this.rect, this.style, 'top', 'bottom')
+    const outerWidth = this.textarea.autoWidth
+      ? Math.max(1, intrinsic.maxWidth + horizontalInset)
+      : Math.max(
+          1,
+          typeof this.style.width === 'number' ? Math.floor(this.style.width) : (this.rect?.w ?? intrinsic.maxWidth),
+        )
+    const width = Math.max(1, outerWidth - horizontalInset)
     const measured = this.editor.measure(width, this.textarea.wrap)
-    if (this.textarea.autoWidth && this.style.width !== width) {
-      this.style.width = width
+    if (this.textarea.autoWidth && this.style.width !== outerWidth) {
+      this.style.width = outerWidth
       changed = true
     }
     if (this.textarea.autoHeight) {
-      const height = clampHeight(measured.lineCount, this.style.minHeight, this.style.maxHeight)
+      const height = clampHeight(measured.lineCount + verticalInset, this.style.minHeight, this.style.maxHeight)
       if (this.style.height !== height) {
         this.style.height = height
         changed = true
@@ -249,6 +255,31 @@ function clampHeight(value: number, min: unknown, max: unknown): number {
   if (typeof min === 'number') out = Math.max(out, min)
   if (typeof max === 'number') out = Math.min(out, Math.max(1, max))
   return out
+}
+
+function insetSum(
+  rect: {
+    padding: Record<'left' | 'right' | 'top' | 'bottom', number>
+    border: Record<'left' | 'right' | 'top' | 'bottom', number>
+  } | null,
+  style: { padding?: unknown; border?: unknown },
+  a: 'left' | 'right' | 'top' | 'bottom',
+  b: 'left' | 'right' | 'top' | 'bottom',
+): number {
+  if (rect) {
+    return Math.max(0, Math.round(rect.padding[a] + rect.padding[b] + rect.border[a] + rect.border[b]))
+  }
+  return (
+    sideValue(style.padding, a) + sideValue(style.padding, b) + sideValue(style.border, a) + sideValue(style.border, b)
+  )
+}
+
+function sideValue(value: unknown, side: 'left' | 'right' | 'top' | 'bottom'): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value))
+  if (!value || typeof value !== 'object') return 0
+  if ('pct' in value) return 0
+  const sideValue = (value as Record<string, unknown>)[side]
+  return typeof sideValue === 'number' && Number.isFinite(sideValue) ? Math.max(0, Math.round(sideValue)) : 0
 }
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })

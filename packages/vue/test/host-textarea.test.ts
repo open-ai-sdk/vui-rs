@@ -411,6 +411,33 @@ describe('<textarea> native editor', () => {
     cleanup()
   })
 
+  test('auto-height uses laid-out percent width and border chrome for soft wraps', async () => {
+    const value = ref('')
+    const { ctx, cleanup } = mount(() =>
+      h('box', { width: 10 }, [
+        h(VuiHostTextarea, {
+          value: value.value,
+          focused: true,
+          width: { pct: 1 },
+          border: 'rounded',
+          minHeight: 3,
+          maxHeight: 6,
+          'onUpdate:value': (v: string) => (value.value = v),
+        }),
+      ]),
+    )
+    await nextTick()
+    ctx.flushNow()
+    const textarea = ctx.root!.children[0]!.children[0] as TextareaRenderable
+    expect(textarea.rect!.h).toBe(3)
+    for (const c of 'abcdefghijk') ctx.focusManager!.dispatch(key(c))
+    await nextTick()
+    ctx.flushNow()
+    expect(textarea.editor.measure(8, 'word').lineCount).toBe(2)
+    expect(textarea.rect!.h).toBe(4)
+    cleanup()
+  })
+
   test('bubbleKeys lets wrapper handlers own selected textarea keys', async () => {
     const bubbled: string[] = []
     const { ctx, cleanup } = mount(() =>
