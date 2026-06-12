@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.6.3
+
+### Patch Changes
+
+- 29e3250: Add an opt-in textarea submit mode so Enter can emit `submit` while Ctrl+Enter inserts a newline.
+
 ## 0.6.2
 
 ### Patch Changes
