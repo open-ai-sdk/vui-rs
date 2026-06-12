@@ -1,5 +1,11 @@
 # @vui-rs/core
 
+## 0.6.0
+
+### Minor Changes
+
+- edece37: add support for all-motion mouse events in terminal session
+
 ## 0.5.0
 
 ### Minor Changes

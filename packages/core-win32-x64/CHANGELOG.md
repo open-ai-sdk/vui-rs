@@ -1,5 +1,7 @@
 # @vui-rs/core-win32-x64
 
+## 0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
