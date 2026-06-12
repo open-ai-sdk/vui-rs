@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.6.5
+
+### Patch Changes
+
+- e0cf9b9: Fix textarea auto-height measurement for percentage-width, bordered textareas so soft-wrapped lines expand the outer box immediately.
+
 ## 0.6.4
 
 ### Patch Changes
