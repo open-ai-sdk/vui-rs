@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.8.0
+
+### Minor Changes
+
+- 083224d: fix wide-glyph clip-edge straddle guard restored
+
 ## 0.7.0
 
 ### Minor Changes
