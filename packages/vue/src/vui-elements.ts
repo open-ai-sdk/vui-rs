@@ -180,7 +180,11 @@ export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
   tabSize?: number
   maxLength?: number
   ctrlCBehavior?: 'exit' | 'capture'
-  /** Sigil whose whitespace-delimited tokens (e.g. `$skill`) render in `highlightColor`. */
+  /**
+   * Single-character sigil whose whitespace-delimited tokens (e.g. `$skill`) render in
+   * `highlightColor`. Matched against the token's first grapheme, so a multi-char value
+   * never matches.
+   */
   highlightSigil?: string
   /** Accent color for `highlightSigil` tokens (paired with `highlightSigil`). */
   highlightColor?: Color

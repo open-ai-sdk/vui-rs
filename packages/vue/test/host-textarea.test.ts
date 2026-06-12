@@ -478,6 +478,30 @@ describe('<textarea> native editor', () => {
     cleanup()
   })
 
+  test('highlightSigil aligns after a CRLF newline', async () => {
+    const accent = 0x00c8ffff
+    // "a\r\n$x": the native draw splits on \n and keeps \r as its own cell, so "$x"
+    // starts at the second visual row col 0. The host range model must agree.
+    const { r, ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: 'a\r\n$x',
+        width: 20,
+        height: 3,
+        wrap: 'nowrap',
+        highlightSigil: '$',
+        highlightColor: accent,
+      }),
+    )
+    await nextTick()
+    ctx.flushNow()
+    // Row 0 = "a" (default fg), row 1 = "$x" (accent fg) — the token must land on
+    // the right cells despite the CRLF.
+    expect(cellFg(r, 0, 0)).not.toBe(accent)
+    expect(cellFg(r, 0, 1)).toBe(accent)
+    expect(cellFg(r, 1, 1)).toBe(accent)
+    cleanup()
+  })
+
   test('up and down keys move across wrapped visual rows', async () => {
     const { ctx, cleanup } = mount(() =>
       h(VuiHostTextarea, {

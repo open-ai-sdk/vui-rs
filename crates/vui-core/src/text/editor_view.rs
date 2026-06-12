@@ -133,27 +133,33 @@ impl EditorView {
             let mut col = 0i32;
             for cell in &line.cells {
                 let dx = x + col;
+                let w = cell.width as i32;
                 if dx >= clip.x1 {
                     break;
                 }
-                let cell_fg = if self.highlight_contains(cell.source) {
-                    self.highlight_fg
-                } else {
-                    fg
-                };
-                dst.set_cell_clipped(dx, dy, cell.ch as u32, cell_fg, bg, attrs, clip);
-                if cell.width == 2 {
-                    dst.set_cell_clipped(
-                        dx + 1,
-                        dy,
-                        0,
-                        cell_fg,
-                        bg,
-                        attrs | attr::WIDE_CONTINUATION,
-                        clip,
-                    );
+                // Only paint a glyph that fits wholly inside the clip horizontally; a
+                // wide glyph straddling either edge is dropped rather than split into an
+                // orphaned half (parity with `draw_text_clipped`).
+                if dx >= clip.x0 && dx + w <= clip.x1 {
+                    let cell_fg = if self.highlight_contains(cell.source) {
+                        self.highlight_fg
+                    } else {
+                        fg
+                    };
+                    dst.set_cell_clipped(dx, dy, cell.ch as u32, cell_fg, bg, attrs, clip);
+                    if cell.width == 2 {
+                        dst.set_cell_clipped(
+                            dx + 1,
+                            dy,
+                            0,
+                            cell_fg,
+                            bg,
+                            attrs | attr::WIDE_CONTINUATION,
+                            clip,
+                        );
+                    }
                 }
-                col += cell.width as i32;
+                col += w;
             }
         }
         if self.focused && self.cursor_visible {
@@ -564,5 +570,34 @@ mod tests {
         for i in 0..10 {
             assert_eq!(dst.cells[i].fg, base);
         }
+    }
+
+    #[test]
+    fn draw_drops_wide_glyph_straddling_the_clip_edge() {
+        let base = crate::buffer::DEFAULT_FG;
+        let mut edit = EditBuffer::new();
+        // '世' is width-2 at cols 1..3; clipping at x1=2 must drop it whole, never
+        // leaving a bare leader at col 1 (parity with draw_text_clipped).
+        edit.insert_text("a世b");
+        let mut view = EditorView::new(&edit, 20, 1);
+        view.set_wrap(WrapMode::None);
+        let mut dst = CellBuffer::new(20, 1);
+        view.draw(
+            &mut dst,
+            0,
+            0,
+            base,
+            crate::buffer::DEFAULT_BG,
+            base,
+            0,
+            ClipRect {
+                x0: 0,
+                y0: 0,
+                x1: 2,
+                y1: 1,
+            },
+        );
+        assert_eq!(dst.cells[0].ch, 'a' as u32);
+        assert_ne!(dst.cells[1].ch, '世' as u32);
     }
 }
