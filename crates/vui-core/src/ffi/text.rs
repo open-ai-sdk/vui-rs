@@ -42,6 +42,15 @@ pub struct TextRunFfi {
 
 const _: () = assert!(std::mem::size_of::<TextRunFfi>() == 20);
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HighlightRangeFfi {
+    pub start: u32,
+    pub end: u32,
+}
+
+const _: () = assert!(std::mem::size_of::<HighlightRangeFfi>() == 8);
+
 fn opt_color(rgba: u32, has: u8) -> Option<Rgba> {
     if has == 0 {
         None
@@ -553,6 +562,33 @@ pub extern "C" fn vui_editor_measure(
             return status::NULL_PTR;
         };
         *out = view.measure(width, WrapMode::from_u8(mode));
+        status::OK
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn vui_editor_set_highlights(
+    ptr: *mut EditorView,
+    ranges_ptr: *const HighlightRangeFfi,
+    ranges_len: usize,
+    color: u32,
+) -> u32 {
+    ffi_status(|| {
+        let Some(view) = (unsafe { ptr.as_mut() }) else {
+            return status::NULL_PTR;
+        };
+        if ranges_len > 0 && ranges_ptr.is_null() {
+            return status::NULL_PTR;
+        }
+        let ranges = if ranges_len == 0 {
+            Vec::new()
+        } else {
+            unsafe { std::slice::from_raw_parts(ranges_ptr, ranges_len) }
+                .iter()
+                .map(|r| (r.start, r.end))
+                .collect()
+        };
+        view.set_highlights(ranges, Rgba::from_packed(color));
         status::OK
     })
 }

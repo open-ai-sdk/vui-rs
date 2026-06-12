@@ -1,6 +1,6 @@
-use crate::buffer::{CellBuffer, ClipRect};
+use crate::buffer::{CellBuffer, ClipRect, DEFAULT_FG, attr};
 use crate::color::Rgba;
-use crate::text::text_buffer_view::{WrapMode, wrap_text};
+use crate::text::text_buffer_view::{WrapMode, wrap_text, wrap_visual_lines};
 use crate::text::{EditBuffer, EditMotion, TextMeasure, grapheme_width, graphemes, str_width};
 
 #[derive(Debug)]
@@ -13,6 +13,10 @@ pub struct EditorView {
     focused: bool,
     cursor_visible: bool,
     desired_visual_col: Option<u32>,
+    /// Half-open grapheme-offset ranges painted in `highlight_fg` (e.g. `$skill`
+    /// tokens). Offsets share the cursor's model (newlines count as 1 grapheme).
+    highlights: Vec<(u32, u32)>,
+    highlight_fg: Rgba,
 }
 
 impl EditorView {
@@ -26,7 +30,23 @@ impl EditorView {
             focused: false,
             cursor_visible: true,
             desired_visual_col: None,
+            highlights: Vec::new(),
+            highlight_fg: DEFAULT_FG,
         }
+    }
+
+    /// Set the grapheme-offset ranges to paint in `color` (replaces any prior set).
+    /// Pass an empty `ranges` to clear highlighting.
+    pub fn set_highlights(&mut self, ranges: Vec<(u32, u32)>, color: Rgba) {
+        self.highlights = ranges;
+        self.highlight_fg = color;
+    }
+
+    fn highlight_contains(&self, offset: usize) -> bool {
+        let offset = offset as u32;
+        self.highlights
+            .iter()
+            .any(|&(start, end)| offset >= start && offset < end)
     }
 
     pub fn set_wrap(&mut self, mode: WrapMode) {
@@ -100,12 +120,41 @@ impl EditorView {
             self.ensure_cursor_visible();
         }
         let value = self.edit.value();
-        let lines = wrap_text(&value, self.width, self.wrap);
+        // Paint cell-by-cell (mirrors `TextBufferView::draw`) so each grapheme can take
+        // the accent fg when its source offset falls inside a highlight range. With no
+        // highlights this is equivalent to the prior `draw_text_clipped` per line —
+        // `wrap_text`/`wrap_visual_lines` already collapse each cell to its first char.
+        let lines = wrap_visual_lines(&value, self.width, self.wrap);
         for row in 0..self.height as usize {
             let Some(line) = lines.get(self.scroll_y as usize + row) else {
                 break;
             };
-            dst.draw_text_clipped(x, y + row as i32, line, fg, bg, attrs, clip);
+            let dy = y + row as i32;
+            let mut col = 0i32;
+            for cell in &line.cells {
+                let dx = x + col;
+                if dx >= clip.x1 {
+                    break;
+                }
+                let cell_fg = if self.highlight_contains(cell.source) {
+                    self.highlight_fg
+                } else {
+                    fg
+                };
+                dst.set_cell_clipped(dx, dy, cell.ch as u32, cell_fg, bg, attrs, clip);
+                if cell.width == 2 {
+                    dst.set_cell_clipped(
+                        dx + 1,
+                        dy,
+                        0,
+                        cell_fg,
+                        bg,
+                        attrs | attr::WIDE_CONTINUATION,
+                        clip,
+                    );
+                }
+                col += cell.width as i32;
+            }
         }
         if self.focused && self.cursor_visible {
             let (cy, cx) = self.visual_cursor();
@@ -450,5 +499,70 @@ mod tests {
             },
         );
         assert_eq!(dst.cells[0].ch, 'o' as u32);
+    }
+
+    #[test]
+    fn draw_paints_highlight_ranges_in_accent_fg() {
+        let base = crate::buffer::DEFAULT_FG;
+        let accent = Rgba::new(0, 200, 255, 255);
+        let mut edit = EditBuffer::new();
+        // "go $skill" — grapheme offsets 3..9 cover "$skill".
+        edit.insert_text("go $skill");
+        let mut view = EditorView::new(&edit, 20, 1);
+        view.set_wrap(WrapMode::None);
+        view.set_highlights(vec![(3, 9)], accent);
+        let mut dst = CellBuffer::new(20, 1);
+        view.draw(
+            &mut dst,
+            0,
+            0,
+            base,
+            crate::buffer::DEFAULT_BG,
+            base,
+            0,
+            ClipRect {
+                x0: 0,
+                y0: 0,
+                x1: 20,
+                y1: 1,
+            },
+        );
+        // "go " stays base fg; "$skill" takes the accent fg.
+        assert_eq!(dst.cells[0].ch, 'g' as u32);
+        assert_eq!(dst.cells[0].fg, base);
+        assert_eq!(dst.cells[2].fg, base); // the space before the token
+        assert_eq!(dst.cells[3].ch, '$' as u32);
+        assert_eq!(dst.cells[3].fg, accent);
+        assert_eq!(dst.cells[8].ch, 'l' as u32);
+        assert_eq!(dst.cells[8].fg, accent);
+    }
+
+    #[test]
+    fn draw_without_highlights_keeps_uniform_fg() {
+        let base = crate::buffer::DEFAULT_FG;
+        let mut edit = EditBuffer::new();
+        edit.insert_text("plain text");
+        let mut view = EditorView::new(&edit, 20, 1);
+        view.set_wrap(WrapMode::None);
+        let mut dst = CellBuffer::new(20, 1);
+        view.draw(
+            &mut dst,
+            0,
+            0,
+            base,
+            crate::buffer::DEFAULT_BG,
+            base,
+            0,
+            ClipRect {
+                x0: 0,
+                y0: 0,
+                x1: 20,
+                y1: 1,
+            },
+        );
+        assert_eq!(dst.cells[0].ch, 'p' as u32);
+        for i in 0..10 {
+            assert_eq!(dst.cells[i].fg, base);
+        }
     }
 }

@@ -456,6 +456,28 @@ describe('<textarea> native editor', () => {
     cleanup()
   })
 
+  test('highlightSigil paints $skill tokens in the accent fg', async () => {
+    const accent = 0x00c8ffff
+    const { r, ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: 'go $skill',
+        width: 20,
+        height: 1,
+        wrap: 'nowrap',
+        highlightSigil: '$',
+        highlightColor: accent,
+      }),
+    )
+    await nextTick()
+    ctx.flushNow()
+    // "go " keeps the default fg; "$skill" (cols 3..8) takes the accent fg.
+    expect(cellFg(r, 0, 0)).not.toBe(accent)
+    expect(cellFg(r, 2, 0)).not.toBe(accent)
+    expect(cellFg(r, 3, 0)).toBe(accent)
+    expect(cellFg(r, 8, 0)).toBe(accent)
+    cleanup()
+  })
+
   test('up and down keys move across wrapped visual rows', async () => {
     const { ctx, cleanup } = mount(() =>
       h(VuiHostTextarea, {
@@ -481,5 +503,11 @@ describe('<textarea> native editor', () => {
 function cellBg(r: Renderer, x: number, y: number): number {
   const buf = r.backBufferView()
   const base = (y * r.width + x) * CELL_BYTES + 8
+  return ((buf[base]! << 24) | (buf[base + 1]! << 16) | (buf[base + 2]! << 8) | buf[base + 3]!) >>> 0
+}
+
+function cellFg(r: Renderer, x: number, y: number): number {
+  const buf = r.backBufferView()
+  const base = (y * r.width + x) * CELL_BYTES + 4
   return ((buf[base]! << 24) | (buf[base + 1]! << 16) | (buf[base + 2]! << 8) | buf[base + 3]!) >>> 0
 }

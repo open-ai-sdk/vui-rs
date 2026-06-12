@@ -7,7 +7,7 @@ import { FFIType } from "bun:ffi";
  * ABI change — bump `ABI_VERSION` in `crates/vui-core/src/lib.rs` and
  * `EXPECTED_ABI_VERSION` below together.
  */
-export const EXPECTED_ABI_VERSION = 13;
+export const EXPECTED_ABI_VERSION = 14;
 
 /**
  * Size of one native `Cell` in bytes (`ch:u32, fg:Rgba, bg:Rgba, attrs:u16` +
@@ -381,6 +381,11 @@ export const symbols = {
   },
   vui_editor_measure: {
     args: [FFIType.ptr, FFIType.u32, FFIType.u8, FFIType.ptr],
+    returns: FFIType.u32,
+  },
+  vui_editor_set_highlights: {
+    // (*mut EditorView, *const HighlightRangeFfi {start,end}, count, packed color)
+    args: [FFIType.ptr, FFIType.ptr, "usize", FFIType.u32],
     returns: FFIType.u32,
   },
 
