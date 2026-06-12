@@ -215,7 +215,9 @@ export function drawEdit(
     drawGlyphs(buf, clip, cx0, cx1, row, glyphCells(edit.value), scroll, fg, paint.bg, paint.attrs)
   }
 
-  if (edit.focused) {
+  // `cursorVisible === false` is the dark half of the blink: leave the underlying
+  // glyph as drawn above and skip the cursor cell entirely.
+  if (edit.focused && edit.cursorVisible !== false) {
     const sx = cx0 + cursorCol - scroll
     if (sx >= cx0 && sx < cx1) {
       const underG = valGs[edit.cursor]

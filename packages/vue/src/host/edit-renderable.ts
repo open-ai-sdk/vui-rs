@@ -13,6 +13,12 @@ export interface EditState {
   placeholder: string
   cursor: number
   focused: boolean
+  /**
+   * Blink phase for the block cursor: `true` (or unset) paints the cursor, `false`
+   * is the dark half of the blink. Toggled on a timer by `EditRenderable` while
+   * focused; the painter (`drawEdit`) skips the cursor cell when this is `false`.
+   */
+  cursorVisible?: boolean
   maxLength?: number
   cursorColor?: number
   placeholderColor?: number
@@ -38,16 +44,68 @@ const graphemes = (s: string): string[] => {
 }
 const isSpace = (g: string): boolean => g.trim() === ''
 
+/** Classic xterm cursor blink half-period (ms): solid for this long, then dark for this long. */
+export const DEFAULT_BLINK_MS = 530
+
 export class EditRenderable extends Renderable {
   edit: EditState = {
     value: '',
     placeholder: '',
     cursor: 0,
     focused: false,
+    cursorVisible: true,
   }
+
+  /** Blink half-period in ms; `0` disables blink (steady cursor). Driven by the `cursorBlink` prop. */
+  blinkIntervalMs = DEFAULT_BLINK_MS
+  #blinkTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(ctx: HostContext, tag: string) {
     super(ctx, 'edit', tag)
+  }
+
+  /**
+   * Focus gate for the cursor blink. Routed through here (not a bare
+   * `edit.focused =`) by both the focus manager and `patch-prop` so the blink
+   * timer starts on focus and stops on blur. Caller still fires focus/blur events.
+   */
+  setFocused(on: boolean): void {
+    this.edit.focused = on
+    if (on) this.#startBlink()
+    else this.#stopBlink()
+    this.markDirty()
+  }
+
+  /** Set the blink half-period; `<= 0` (or non-finite) means a steady, non-blinking cursor. */
+  setBlinkInterval(ms: number): void {
+    this.blinkIntervalMs = Number.isFinite(ms) && ms > 0 ? ms : 0
+    if (this.edit.focused) this.#startBlink()
+  }
+
+  /** (Re)start the blink: cursor solid now, then toggle every `blinkIntervalMs`. No-op if disabled. */
+  #startBlink(): void {
+    this.#stopBlink()
+    this.edit.cursorVisible = true
+    if (this.blinkIntervalMs <= 0) return
+    this.#blinkTimer = setInterval(() => {
+      this.edit.cursorVisible = !this.edit.cursorVisible
+      this.markDirty()
+      this.ctx.scheduleRender()
+    }, this.blinkIntervalMs)
+  }
+
+  /** Stop the blink and leave the cursor solid (its resting state). */
+  #stopBlink(): void {
+    if (this.#blinkTimer) {
+      clearInterval(this.#blinkTimer)
+      this.#blinkTimer = null
+    }
+    this.edit.cursorVisible = true
+  }
+
+  /** Unmount: drop the blink timer so a removed input leaves no live interval. */
+  dispose(): void {
+    this.#stopBlink()
   }
 
   renderSelf(buffer: PaintBuffer, ctx: PaintCtx): void {
@@ -163,6 +221,9 @@ export class EditRenderable extends Renderable {
   }
 
   #touch(): void {
+    // Typing/motion makes the cursor solid immediately, then resumes blinking —
+    // so the caret is always visible at the moment of activity (restarts the timer).
+    if (this.edit.focused) this.#startBlink()
     this.markDirty()
     this.ctx.scheduleRender()
   }
