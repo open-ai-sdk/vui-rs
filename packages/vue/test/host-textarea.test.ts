@@ -34,6 +34,24 @@ function mount(render: () => unknown) {
 }
 
 describe('<textarea> native editor', () => {
+  test('default enter inserts newline and emits enter', async () => {
+    const value = ref('hello')
+    const enterValues: string[] = []
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: value.value,
+        focused: true,
+        'onUpdate:value': (v: string) => (value.value = v),
+        onEnter: (v: string) => enterValues.push(v),
+      }),
+    )
+    await nextTick()
+    ctx.focusManager!.dispatch(key('enter'))
+    expect(value.value).toBe('hello\n')
+    expect(enterValues).toEqual(['hello\n'])
+    cleanup()
+  })
+
   test('printable keys, enter, and undo update v-model', async () => {
     const value = ref('')
     const { ctx, cleanup } = mount(() =>
@@ -51,6 +69,51 @@ describe('<textarea> native editor', () => {
     expect(value.value).toBe('hi\nthere')
     fm.dispatch(key('z', { ctrl: true }))
     expect(value.value).toBe('hi\n')
+    cleanup()
+  })
+
+  test('submit enterBehavior emits submit without mutating the textarea value', async () => {
+    const value = ref('send me')
+    const submitValues: string[] = []
+    const inputValues: string[] = []
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: value.value,
+        focused: true,
+        enterBehavior: 'submit',
+        'onUpdate:value': (v: string) => (value.value = v),
+        onInput: (v: string) => inputValues.push(v),
+        onSubmit: (v: string) => submitValues.push(v),
+      }),
+    )
+    await nextTick()
+    ctx.focusManager!.dispatch(key('enter'))
+    expect(value.value).toBe('send me')
+    expect(inputValues).toEqual([])
+    expect(submitValues).toEqual(['send me'])
+    cleanup()
+  })
+
+  test('submit enterBehavior lets the newline shortcut insert a newline without submitting', async () => {
+    const value = ref('line')
+    const enterValues: string[] = []
+    const submitValues: string[] = []
+    const { ctx, cleanup } = mount(() =>
+      h(VuiHostTextarea, {
+        value: value.value,
+        focused: true,
+        enterBehavior: 'submit',
+        newlineShortcut: 'ctrl+enter',
+        'onUpdate:value': (v: string) => (value.value = v),
+        onEnter: (v: string) => enterValues.push(v),
+        onSubmit: (v: string) => submitValues.push(v),
+      }),
+    )
+    await nextTick()
+    ctx.focusManager!.dispatch(key('enter', { ctrl: true }))
+    expect(value.value).toBe('line\n')
+    expect(enterValues).toEqual(['line\n'])
+    expect(submitValues).toEqual([])
     cleanup()
   })
 
@@ -166,6 +229,15 @@ describe('<textarea> native editor', () => {
     await nextTick()
     ctx.flushNow()
     expect(allGlyphs(r)).toContain('onetwo')
+    cleanup()
+  })
+
+  test('auto-height clamps to maxHeight for multiline content', async () => {
+    const { ctx, cleanup } = mount(() => h(VuiHostTextarea, { value: 'one\ntwo\nthree', width: 10, maxHeight: 2 }))
+    await nextTick()
+    ctx.flushNow()
+    const textarea = ctx.root!.children[0] as TextareaRenderable
+    expect(textarea.rect!.h).toBe(2)
     cleanup()
   })
 

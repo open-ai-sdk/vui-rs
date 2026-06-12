@@ -8,6 +8,8 @@ import { type TextareaRenderable } from '../textarea-renderable.ts'
 import { makeHostPasteEvent } from './input.ts'
 
 type ColorProp = string | number
+type EnterBehavior = 'newline' | 'submit'
+type NewlineShortcut = 'ctrl+enter' | 'shift+enter' | 'meta+enter' | 'alt+enter'
 let textareaClipboard = ''
 
 export const VuiHostTextarea = defineComponent({
@@ -33,8 +35,16 @@ export const VuiHostTextarea = defineComponent({
       default: 'focus',
     },
     tabSize: { type: Number, default: 2 },
+    enterBehavior: {
+      type: String as PropType<EnterBehavior>,
+      default: 'newline',
+    },
+    newlineShortcut: {
+      type: String as PropType<NewlineShortcut>,
+      default: 'ctrl+enter',
+    },
   },
-  emits: ['update:value', 'input', 'change', 'enter', 'paste'],
+  emits: ['update:value', 'input', 'change', 'enter', 'submit', 'paste'],
   setup(props, { emit }) {
     const el = shallowRef<TextareaRenderable>()
     let lastEmitted = props.value
@@ -103,8 +113,12 @@ export const VuiHostTextarea = defineComponent({
           e.delete()
           break
         case 'enter':
-          e.newline()
-          emit('enter', e.getValue())
+          if (props.enterBehavior === 'submit' && !matchesNewlineShortcut(ev, props.newlineShortcut)) {
+            emit('submit', e.getValue())
+          } else {
+            e.newline()
+            emit('enter', e.getValue())
+          }
           break
         case 'tab':
           if (props.tabBehavior === 'indent') e.insert(' '.repeat(Math.max(1, Math.floor(props.tabSize))))
@@ -195,4 +209,18 @@ export const VuiHostTextarea = defineComponent({
 
 function isPrintable(ev: DispatchableEvent): boolean {
   return ev.type === 'key' && !ev.ctrl && !ev.alt && !ev.meta && ev.name >= ' ' && [...ev.name].length === 1
+}
+
+function matchesNewlineShortcut(ev: DispatchableEvent, shortcut: NewlineShortcut): boolean {
+  if (ev.type !== 'key' || ev.name !== 'enter') return false
+  switch (shortcut) {
+    case 'ctrl+enter':
+      return ev.ctrl && !ev.alt && !ev.meta && !ev.shift
+    case 'shift+enter':
+      return ev.shift && !ev.ctrl && !ev.alt && !ev.meta
+    case 'meta+enter':
+      return ev.meta && !ev.ctrl && !ev.alt && !ev.shift
+    case 'alt+enter':
+      return ev.alt && !ev.ctrl && !ev.meta && !ev.shift
+  }
 }

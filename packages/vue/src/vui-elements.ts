@@ -177,11 +177,14 @@ export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
   wrap?: 'word' | 'char' | 'nowrap'
   tabBehavior?: 'focus' | 'indent'
   tabSize?: number
+  enterBehavior?: 'newline' | 'submit'
+  newlineShortcut?: 'ctrl+enter' | 'shift+enter' | 'meta+enter' | 'alt+enter'
   'onUpdate:value'?: (value: string) => void
   'onUpdate:modelValue'?: (value: string) => void
   onInput?: (value: string) => void
   onChange?: (value: string) => void
   onEnter?: (value: string) => void
+  onSubmit?: (value: string) => void
 }
 
 /**
