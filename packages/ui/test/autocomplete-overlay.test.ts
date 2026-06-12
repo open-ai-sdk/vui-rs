@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { defineComponent, h, ref } from '@vue/runtime-core'
 import { type ScreenMeasure } from '@vui-rs/vue'
 import { VuiAutocomplete, type Suggestion } from '../src/autocomplete.ts'
-import { allGlyphs, mount, mouseDown, rowGlyphs } from './helpers.ts'
+import { allGlyphs, mount, mouseDown, mouseMove, rowGlyphs } from './helpers.ts'
 
 function items(n: number): Suggestion[] {
   return Array.from({ length: n }, (_, i) => ({ label: `r${String(i).padStart(2, '0')}`, value: `r${i}` }))
@@ -23,6 +23,7 @@ function harness(initial: {
   const active = ref(initial.active ?? 0)
   const anchor = ref<ScreenMeasure | null>(initial.anchor ?? null)
   const selected: Array<{ value: string; index: number }> = []
+  const activated: number[] = []
   const Root = defineComponent({
     setup() {
       return () =>
@@ -33,13 +34,17 @@ function harness(initial: {
             anchor: anchor.value,
             maxRows: initial.maxRows ?? 8,
             emptyText: initial.emptyText,
+            onActive: (index: number) => {
+              active.value = index
+              activated.push(index)
+            },
             onSelect: (s: Suggestion, index: number) => selected.push({ value: s.value, index }),
           }),
           h('text', { key: 'marker' }, 'MARKER'),
         ])
     },
   })
-  return { suggestions, active, anchor, selected, ...mount(40, 12, () => h(Root)) }
+  return { suggestions, active, anchor, selected, activated, ...mount(40, 12, () => h(Root)) }
 }
 
 describe('VuiAutocomplete — in-flow fallback (no anchor)', () => {
@@ -91,6 +96,15 @@ describe('VuiAutocomplete — anchored overlay popup', () => {
     expect(rowGlyphs(h.renderer, 1)).toContain('r05')
     h.dispatch(mouseDown(2, 1)) // click first visible row
     expect(h.selected).toEqual([{ value: 'r5', index: 5 }])
+    h.cleanup()
+  })
+
+  test('mouse-move on a row activates it with the correct global index', async () => {
+    const h = harness({ suggestions: items(20), active: 12, anchor: { x: 0, y: 10, width: 30, height: 1 }, maxRows: 8 })
+    await h.settle()
+    h.dispatch(mouseMove(2, 2))
+    expect(h.activated).toEqual([6])
+    expect(h.active.value).toBe(6)
     h.cleanup()
   })
 })

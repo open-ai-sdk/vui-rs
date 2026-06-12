@@ -128,7 +128,7 @@ export const VuiAutocomplete = defineComponent({
      */
     emptyText: { type: String as PropType<string | undefined>, default: undefined },
   },
-  emits: ['select'],
+  emits: ['select', 'active'],
   setup(props, { emit }) {
     const theme = useTheme()
 
@@ -178,6 +178,9 @@ export const VuiAutocomplete = defineComponent({
           gap: 2,
           bg: on ? theme.primary : undefined,
           padding: { left: 1, right: 1 },
+          onMouseMove: () => {
+            emit('active', index)
+          },
           onMouseDown: (ev: DispatchableEvent) => {
             ev.preventDefault()
             emit('select', s, index)
