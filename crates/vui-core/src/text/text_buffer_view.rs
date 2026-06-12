@@ -27,16 +27,18 @@ pub struct TextMeasure {
 }
 
 #[derive(Clone, Debug)]
-struct VisualCell {
-    ch: char,
-    width: u32,
-    source: usize,
+pub(crate) struct VisualCell {
+    pub(crate) ch: char,
+    pub(crate) width: u32,
+    /// Grapheme offset of this cell within the full text (newlines count as 1).
+    /// Shared offset model with the editor cursor, so highlight ranges align.
+    pub(crate) source: usize,
 }
 
 #[derive(Clone, Debug, Default)]
-struct VisualLine {
-    cells: Vec<VisualCell>,
-    width: u32,
+pub(crate) struct VisualLine {
+    pub(crate) cells: Vec<VisualCell>,
+    pub(crate) width: u32,
 }
 
 #[derive(Debug)]
@@ -168,7 +170,7 @@ pub fn wrap_text(text: &str, width: u32, mode: WrapMode) -> Vec<String> {
         .collect()
 }
 
-fn wrap_visual_lines(text: &str, width: u32, mode: WrapMode) -> Vec<VisualLine> {
+pub(crate) fn wrap_visual_lines(text: &str, width: u32, mode: WrapMode) -> Vec<VisualLine> {
     let budget = width.max(1);
     let mut out = Vec::new();
     let mut source = 0usize;

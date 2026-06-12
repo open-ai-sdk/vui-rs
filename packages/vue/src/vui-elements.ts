@@ -180,6 +180,10 @@ export interface TextareaProps extends LayoutProps, PaintProps, FocusProps {
   tabSize?: number
   maxLength?: number
   ctrlCBehavior?: 'exit' | 'capture'
+  /** Sigil whose whitespace-delimited tokens (e.g. `$skill`) render in `highlightColor`. */
+  highlightSigil?: string
+  /** Accent color for `highlightSigil` tokens (paired with `highlightSigil`). */
+  highlightColor?: Color
   enterBehavior?: 'newline' | 'submit'
   newlineShortcut?: 'ctrl+enter' | 'shift+enter' | 'meta+enter' | 'alt+enter'
   newlineShortcutFallback?: 'none' | 'linefeed'

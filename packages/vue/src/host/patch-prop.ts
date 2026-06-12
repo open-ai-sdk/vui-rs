@@ -274,6 +274,12 @@ function applyTextarea(el: TextareaRenderable, key: string, next: unknown): bool
     case 'ctrlCBehavior':
       el.textarea.ctrlCBehavior = next === 'capture' ? 'capture' : 'exit'
       return true
+    case 'highlightSigil':
+      el.textarea.highlightSigil = typeof next === 'string' && next ? next : undefined
+      return true
+    case 'highlightColor':
+      el.textarea.highlightColor = parseColor(next)
+      return true
   }
   return false
 }

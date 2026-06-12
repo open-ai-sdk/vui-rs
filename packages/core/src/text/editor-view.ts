@@ -52,6 +52,23 @@ export class EditorView {
     check(this.#lib.symbols.vui_editor_move(this.#ptr, motion, selecting ? 1 : 0), 'editor_move')
   }
 
+  /**
+   * Paint the given half-open grapheme-offset ranges in `color` (packed 0xRRGGBBAA),
+   * replacing any prior set. Offsets share the cursor's model (newlines count as 1
+   * grapheme). Pass an empty array to clear highlighting.
+   */
+  setHighlights(ranges: ReadonlyArray<readonly [number, number]>, color: number): void {
+    const packed = new Uint32Array(ranges.length * 2)
+    for (let i = 0; i < ranges.length; i++) {
+      packed[i * 2] = ranges[i]![0]
+      packed[i * 2 + 1] = ranges[i]![1]
+    }
+    check(
+      this.#lib.symbols.vui_editor_set_highlights(this.#ptr, packed, ranges.length, color >>> 0),
+      'editor_set_highlights',
+    )
+  }
+
   measure(width: number, mode: TextWrapMode = 'word'): { lineCount: number; maxWidth: number } {
     check(
       this.#lib.symbols.vui_editor_measure(this.#ptr, Math.max(1, Math.floor(width)), wrapCode(mode), this.#measure),
