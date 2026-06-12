@@ -1,6 +1,6 @@
 {
   "name": "@vui-rs/core-linux-x64",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "vui-rs native renderer engine — prebuilt cdylib for Linux x64 (glibc)",
   "license": "MIT",
   "repository": {
