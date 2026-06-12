@@ -1,5 +1,11 @@
 # @vui-rs/ui
 
+## 0.3.0
+
+### Minor Changes
+
+- 782cccc: add 'active' event to VuiAutocomplete and implement mouse move activation in tests
+
 ## 0.2.10
 
 ### Patch Changes
