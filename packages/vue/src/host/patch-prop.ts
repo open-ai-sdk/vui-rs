@@ -5,7 +5,7 @@
 // in `dirtyText`. The bucket classification is shared via `prop-buckets.ts`.
 import { parseColor } from '../color.ts'
 import { ATTR_FLAGS, INSET_SIDES, LAYOUT_KEYS, isEvent } from '../prop-buckets.ts'
-import { type EditRenderable } from './edit-renderable.ts'
+import { DEFAULT_BLINK_MS, type EditRenderable } from './edit-renderable.ts'
 import { type Backdrop, type Renderable, type RunStyle } from './renderable.ts'
 import { type TextareaRenderable } from './textarea-renderable.ts'
 import { enclosingText } from './tree.ts'
@@ -64,8 +64,7 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
       if (on) fm.focus(el)
       else if (fm.current() === el) fm.blur()
     } else if (el.kind === 'edit') {
-      ;(el as EditRenderable).edit.focused = on
-      el.markDirty()
+      ;(el as EditRenderable).setFocused(on)
     } else if (el.kind === 'textarea') {
       ;(el as TextareaRenderable).textarea.focused = on
       el.markDirty()
@@ -222,6 +221,10 @@ function applyEdit(el: EditRenderable, key: string, next: unknown): boolean {
       return true
     case 'cursorColor':
       el.edit.cursorColor = parseColor(next)
+      return true
+    case 'cursorBlink':
+      // `false` → steady; `true`/unset → default rate; a number → custom half-period (ms).
+      el.setBlinkInterval(next === false ? 0 : typeof next === 'number' ? next : DEFAULT_BLINK_MS)
       return true
     case 'maxLength':
       el.edit.maxLength = typeof next === 'number' ? next : undefined

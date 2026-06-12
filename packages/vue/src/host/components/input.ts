@@ -49,6 +49,11 @@ export const VuiHostInput = defineComponent({
     placeholder: { type: String, default: '' },
     placeholderColor: { type: [String, Number] as PropType<ColorProp>, default: undefined },
     cursorColor: { type: [String, Number] as PropType<ColorProp>, default: undefined },
+    /**
+     * Block-cursor blink. `true`/unset blinks at the default rate, `false` keeps a
+     * steady (non-blinking) cursor, a number sets a custom half-period in ms.
+     */
+    cursorBlink: { type: [Boolean, Number] as PropType<boolean | number>, default: undefined },
     maxLength: { type: Number, default: undefined },
     tabBehavior: { type: String as PropType<'focus' | 'capture'>, default: undefined },
     ctrlCBehavior: { type: String as PropType<'exit' | 'capture'>, default: undefined },
@@ -190,6 +195,7 @@ export const VuiHostInput = defineComponent({
         placeholder: props.placeholder,
         placeholderColor: props.placeholderColor,
         cursorColor: props.cursorColor,
+        cursorBlink: props.cursorBlink,
         maxLength: props.maxLength,
         tabBehavior: props.tabBehavior,
         ctrlCBehavior: props.ctrlCBehavior,

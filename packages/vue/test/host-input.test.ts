@@ -309,3 +309,50 @@ describe('EditRenderable model (unit)', () => {
     cleanup()
   })
 })
+
+describe('cursor blink', () => {
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+  function mountInput(): { e: EditRenderable; cleanup: () => void } {
+    const { cleanup } = mount(() =>
+      h('input', { ref: (el: unknown) => ((globalThis as Record<string, unknown>).__e = el) }),
+    )
+    const e = (globalThis as Record<string, unknown>).__e as EditRenderable
+    delete (globalThis as Record<string, unknown>).__e
+    return { e, cleanup }
+  }
+
+  test('focus starts a solid cursor that then toggles; blur leaves it solid', async () => {
+    const { e, cleanup } = mountInput()
+    e.setBlinkInterval(10) // short half-period for a fast, deterministic test
+    e.setFocused(true)
+    expect(e.edit.focused).toBe(true)
+    expect(e.edit.cursorVisible).toBe(true) // solid the instant it gains focus
+    await sleep(15)
+    expect(e.edit.cursorVisible).toBe(false) // dark half of the blink
+    e.setFocused(false)
+    expect(e.edit.cursorVisible).toBe(true) // blur resets to the resting (solid) state
+    cleanup()
+  })
+
+  test('typing resets the cursor to solid (solid-while-typing)', async () => {
+    const { e, cleanup } = mountInput()
+    e.setBlinkInterval(10)
+    e.setFocused(true)
+    await sleep(15)
+    expect(e.edit.cursorVisible).toBe(false) // mid-blink, currently dark
+    e.insert('a') // a keystroke must make the caret visible immediately
+    expect(e.edit.cursorVisible).toBe(true)
+    cleanup()
+  })
+
+  test('cursorBlink disabled keeps a steady cursor (no timer)', async () => {
+    const { e, cleanup } = mountInput()
+    e.setBlinkInterval(0) // false → steady
+    e.setFocused(true)
+    expect(e.edit.cursorVisible).toBe(true)
+    await sleep(20)
+    expect(e.edit.cursorVisible).toBe(true) // never toggles
+    cleanup()
+  })
+})

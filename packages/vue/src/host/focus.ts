@@ -75,7 +75,7 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
   }
 
   function setFocused(node: Renderable, on: boolean): void {
-    if (node.kind === 'edit') (node as EditRenderable).edit.focused = on
+    if (node.kind === 'edit') (node as EditRenderable).setFocused(on)
     else if (node.kind === 'textarea') (node as TextareaRenderable).textarea.focused = on
     node.events.get(on ? 'focus' : 'blur')?.()
   }
