@@ -10,6 +10,7 @@ import { makeHostPasteEvent } from './input.ts'
 type ColorProp = string | number
 type EnterBehavior = 'newline' | 'submit'
 type NewlineShortcut = 'ctrl+enter' | 'shift+enter' | 'meta+enter' | 'alt+enter'
+type NewlineShortcutFallback = 'none' | 'linefeed'
 let textareaClipboard = ''
 
 export const VuiHostTextarea = defineComponent({
@@ -31,10 +32,12 @@ export const VuiHostTextarea = defineComponent({
       default: 'word',
     },
     tabBehavior: {
-      type: String as PropType<'focus' | 'indent'>,
+      type: String as PropType<'focus' | 'indent' | 'capture'>,
       default: 'focus',
     },
     tabSize: { type: Number, default: 2 },
+    maxLength: { type: Number, default: undefined },
+    ctrlCBehavior: { type: String as PropType<'exit' | 'capture'>, default: undefined },
     enterBehavior: {
       type: String as PropType<EnterBehavior>,
       default: 'newline',
@@ -42,6 +45,14 @@ export const VuiHostTextarea = defineComponent({
     newlineShortcut: {
       type: String as PropType<NewlineShortcut>,
       default: 'ctrl+enter',
+    },
+    newlineShortcutFallback: {
+      type: String as PropType<NewlineShortcutFallback>,
+      default: 'none',
+    },
+    bubbleKeys: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
   },
   emits: ['update:value', 'input', 'change', 'enter', 'submit', 'paste'],
@@ -86,6 +97,7 @@ export const VuiHostTextarea = defineComponent({
     function onKeyDown(ev: DispatchableEvent): void {
       const e = edit()
       if (!e || ev.type !== 'key') return
+      if (shouldBubbleKey(ev, props.bubbleKeys)) return
       let handled = true
       switch (ev.name) {
         case 'left':
@@ -107,13 +119,17 @@ export const VuiHostTextarea = defineComponent({
           e.move(ev.ctrl || ev.meta ? EditMotion.DocEnd : EditMotion.End, ev.shift)
           break
         case 'backspace':
-          e.backspace()
+          if (ev.ctrl || ev.alt) e.deleteWordLeft()
+          else e.backspace()
           break
         case 'delete':
           e.delete()
           break
         case 'enter':
-          if (props.enterBehavior === 'submit' && !matchesNewlineShortcut(ev, props.newlineShortcut)) {
+          if (
+            props.enterBehavior === 'submit' &&
+            !matchesNewlineShortcut(ev, props.newlineShortcut, props.newlineShortcutFallback)
+          ) {
             emit('submit', e.getValue())
           } else {
             e.newline()
@@ -135,11 +151,26 @@ export const VuiHostTextarea = defineComponent({
           } else if (isPrintable(ev)) e.insert(ev.name)
           else handled = false
           break
+        case 'u':
+          if (ev.ctrl && !ev.alt && !ev.meta) e.deleteToLineStart()
+          else if (isPrintable(ev)) e.insert(ev.name)
+          else handled = false
+          break
+        case 'w':
+          if (ev.ctrl && !ev.alt && !ev.meta) e.deleteWordLeft()
+          else if (isPrintable(ev)) e.insert(ev.name)
+          else handled = false
+          break
         case 'x':
           if ((ev.ctrl || ev.meta) && e.hasSelection()) {
             textareaClipboard = e.selectedText()
             e.deleteSelection()
           } else if (isPrintable(ev)) e.insert(ev.name)
+          else handled = false
+          break
+        case 'k':
+          if (ev.ctrl && !ev.alt && !ev.meta) e.deleteToLineEnd()
+          else if (isPrintable(ev)) e.insert(ev.name)
           else handled = false
           break
         case 'v':
@@ -200,6 +231,8 @@ export const VuiHostTextarea = defineComponent({
         wrap: props.wrap,
         tabBehavior: props.tabBehavior,
         tabSize: props.tabSize,
+        maxLength: props.maxLength,
+        ctrlCBehavior: props.ctrlCBehavior,
         onKeyDown,
         onPaste,
         onBlur,
@@ -211,8 +244,17 @@ function isPrintable(ev: DispatchableEvent): boolean {
   return ev.type === 'key' && !ev.ctrl && !ev.alt && !ev.meta && ev.name >= ' ' && [...ev.name].length === 1
 }
 
-function matchesNewlineShortcut(ev: DispatchableEvent, shortcut: NewlineShortcut): boolean {
+function shouldBubbleKey(ev: DispatchableEvent, bubbleKeys: readonly string[]): boolean {
+  return ev.type === 'key' && bubbleKeys.includes(ev.name)
+}
+
+function matchesNewlineShortcut(
+  ev: DispatchableEvent,
+  shortcut: NewlineShortcut,
+  fallback: NewlineShortcutFallback,
+): boolean {
   if (ev.type !== 'key' || ev.name !== 'enter') return false
+  if (fallback === 'linefeed' && ev.raw === '\n' && !ev.ctrl && !ev.alt && !ev.meta && !ev.shift) return true
   switch (shortcut) {
     case 'ctrl+enter':
       return ev.ctrl && !ev.alt && !ev.meta && !ev.shift

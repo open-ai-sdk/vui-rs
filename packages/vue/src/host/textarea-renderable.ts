@@ -13,8 +13,10 @@ export interface TextareaState {
   wrap: TextWrapMode
   autoWidth: boolean
   autoHeight: boolean
-  tabBehavior: 'focus' | 'indent'
+  tabBehavior: 'focus' | 'indent' | 'capture'
   tabSize: number
+  maxLength?: number
+  ctrlCBehavior?: 'exit' | 'capture'
 }
 
 export class TextareaRenderable extends Renderable {
@@ -71,14 +73,25 @@ export class TextareaRenderable extends Renderable {
     this.#touch()
   }
 
-  insert(text: string): void {
-    this.edit.insert(text)
+  insert(text: string): boolean {
+    const insert = clampInsert(
+      this.getValue(),
+      this.hasSelection() ? this.selectedText() : '',
+      text,
+      this.textarea.maxLength,
+    )
+    if (!insert) return false
+    this.edit.insert(insert)
     this.#touch()
+    return true
   }
 
-  newline(): void {
+  newline(): boolean {
+    if (!canInsert(this.getValue(), this.hasSelection() ? this.selectedText() : '', this.textarea.maxLength))
+      return false
     this.edit.newline()
     this.#touch()
+    return true
   }
 
   backspace(): void {
@@ -139,6 +152,21 @@ export class TextareaRenderable extends Renderable {
     return changed
   }
 
+  deleteToLineStart(): boolean {
+    this.move(EditMotion.Home, true)
+    return this.deleteSelection()
+  }
+
+  deleteWordLeft(): boolean {
+    this.move(EditMotion.WordLeft, true)
+    return this.deleteSelection()
+  }
+
+  deleteToLineEnd(): boolean {
+    this.move(EditMotion.End, true)
+    return this.deleteSelection()
+  }
+
   undo(): void {
     if (this.edit.undo()) this.#touch()
   }
@@ -181,4 +209,30 @@ function clampHeight(value: number, min: unknown, max: unknown): number {
   if (typeof min === 'number') out = Math.max(out, min)
   if (typeof max === 'number') out = Math.min(out, Math.max(1, max))
   return out
+}
+
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+function graphemeCount(value: string): number {
+  let count = 0
+  for (const _ of segmenter.segment(value)) count += 1
+  return count
+}
+
+function graphemes(value: string): string[] {
+  const out: string[] = []
+  for (const seg of segmenter.segment(value)) out.push(seg.segment)
+  return out
+}
+
+function canInsert(value: string, selection: string, maxLength: number | undefined): boolean {
+  return maxLength === undefined || graphemeCount(value) - graphemeCount(selection) < maxLength
+}
+
+function clampInsert(value: string, selection: string, insert: string, maxLength: number | undefined): string {
+  if (maxLength === undefined) return insert
+  const room = maxLength - (graphemeCount(value) - graphemeCount(selection))
+  if (room <= 0) return ''
+  const gs = graphemes(insert)
+  return gs.length > room ? gs.slice(0, room).join('') : insert
 }

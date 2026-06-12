@@ -261,10 +261,16 @@ function applyTextarea(el: TextareaRenderable, key: string, next: unknown): bool
       el.ctx.dirtyLayout.add(el)
       return true
     case 'tabBehavior':
-      el.textarea.tabBehavior = next === 'indent' ? 'indent' : 'focus'
+      el.textarea.tabBehavior = next === 'indent' || next === 'capture' ? next : 'focus'
       return true
     case 'tabSize':
       el.textarea.tabSize = typeof next === 'number' && Number.isFinite(next) ? Math.max(1, Math.floor(next)) : 2
+      return true
+    case 'maxLength':
+      el.textarea.maxLength = typeof next === 'number' ? next : undefined
+      return true
+    case 'ctrlCBehavior':
+      el.textarea.ctrlCBehavior = next === 'capture' ? 'capture' : 'exit'
       return true
   }
   return false
