@@ -101,6 +101,8 @@ interface FocusProps {
   onMouseUp?: (ev: DispatchableMouseEvent) => void
   onMouseMove?: (ev: DispatchableMouseEvent) => void
   onWheel?: (ev: DispatchableMouseEvent) => void
+  /** A mouse-down on this bordered element's painted `title` cells (top border row). */
+  onTitleClick?: (ev: DispatchableMouseEvent) => void
   onFocus?: () => void
   onBlur?: () => void
 }

@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type { MouseEvent } from '@vui-rs/core'
+import { Renderer } from '@vui-rs/core'
+import { createHostApp } from '../src/host/create-host-app.ts'
 import { createHostFocusManager } from '../src/host/focus.ts'
 import { LinkRegistry } from '../src/host/link-registry.ts'
 import { type HostContext, Renderable } from '../src/host/renderable.ts'
 import { createHostScheduler } from '../src/host/scheduler.ts'
 import { HostSelection } from '../src/host/selection.ts'
+import { defineComponent, h } from '../src/index.ts'
 
 function mouse(partial: Partial<MouseEvent> = {}): MouseEvent {
   return {
@@ -135,6 +138,46 @@ describe('mouse input dispatch', () => {
     expect(hits[0]).toMatchObject({ kind: 'wheel', button: 'wheelUp' })
   })
 
+  test('a click on a bordered title fires onTitleClick and does not focus or fire mousedown', () => {
+    const ctx = context()
+    const root = node(ctx, 'root', { x0: 0, y0: 0, x1: 20, y1: 10 })
+    // Right-aligned 'abc' (width 3): innerRight=19 → title cells [16,19) on row 0.
+    root.focusable = true
+    root.paint.border = 'rounded'
+    root.paint.title = 'abc'
+    root.paint.titleAlign = 'right'
+    ctx.root = root
+
+    const titleClicks: MouseEvent[] = []
+    const downs: MouseEvent[] = []
+    root.events.set('titleclick', (ev) => titleClicks.push(ev as MouseEvent))
+    root.events.set('mousedown', (ev) => downs.push(ev as MouseEvent))
+
+    ctx.focusManager!.dispatch(mouse({ x: 17, y: 0 }))
+    expect(titleClicks).toHaveLength(1)
+    expect(titleClicks[0]).toMatchObject({ kind: 'down', x: 17, y: 0 })
+    expect(downs).toHaveLength(0) // title click consumes the down
+    expect(ctx.focusManager!.current()).toBeNull() // and does not move focus
+  })
+
+  test('a click on the top border outside the title falls through to mousedown', () => {
+    const ctx = context()
+    const root = node(ctx, 'root', { x0: 0, y0: 0, x1: 20, y1: 10 })
+    root.paint.border = 'rounded'
+    root.paint.title = 'abc'
+    root.paint.titleAlign = 'right'
+    ctx.root = root
+
+    const titleClicks: MouseEvent[] = []
+    const downs: MouseEvent[] = []
+    root.events.set('titleclick', (ev) => titleClicks.push(ev as MouseEvent))
+    root.events.set('mousedown', (ev) => downs.push(ev as MouseEvent))
+
+    ctx.focusManager!.dispatch(mouse({ x: 3, y: 0 })) // top border, left of the title
+    expect(titleClicks).toHaveLength(0)
+    expect(downs).toHaveLength(1)
+  })
+
   test('move-triggered renders are coalesced by the host scheduler', async () => {
     const ctx = context()
     const scheduler = createHostScheduler(ctx)
@@ -152,5 +195,37 @@ describe('mouse input dispatch', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(ctx.renderCount).toBeLessThanOrEqual(1)
     scheduler.dispose()
+  })
+})
+
+// End-to-end through the full input seam (`dispatchInput` → `handleSelectionMouse`
+// → focus dispatch) against a real renderer, so a future change to selection
+// routing can't silently swallow a title-click or start a text selection over it.
+describe('title click via the full dispatchInput seam', () => {
+  test('a down on the title fires titleClick and starts no text selection', () => {
+    const r = new Renderer(20, 5)
+    let clicks = 0
+    // Full-width bordered box: innerRight=19, 'abc' right-aligned → title on [16,19), row 0.
+    const App = defineComponent({
+      setup: () => () =>
+        h(
+          'box',
+          { width: { pct: 1 }, border: 'rounded', title: 'abc', titleAlign: 'right', onTitleClick: () => clicks++ },
+          h('text', {}, 'hello world'),
+        ),
+    })
+    const app = createHostApp(App).mount({ renderer: r })
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 17, y: 0 }))
+    expect(clicks).toBe(1)
+    expect(app.context.selection.active).toBe(false) // no selection started over the title
+
+    // A down on the body text still behaves normally (no title click).
+    app.dispatchInput(mouse({ kind: 'down', x: 2, y: 1 }))
+    expect(clicks).toBe(1)
+
+    app.unmount()
+    r.free()
   })
 })
