@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { h, nextTick, ref } from '@vue/runtime-core'
 import { VuiDialogSelect } from '../src/dialog-select.ts'
-import { allGlyphs, key, mount } from './helpers.ts'
+import { allGlyphs, key, mount, mouseMove, rowGlyphs } from './helpers.ts'
 
 const ITEMS = ['Open File', 'Close File', 'Save As', 'Open Folder']
 
@@ -39,6 +39,24 @@ describe('VuiDialogSelect', () => {
     dispatch(key('down')) // active 0 -> 1 (Close File)
     dispatch(key('enter'))
     expect(selected).toEqual(['Close File'])
+    cleanup()
+  })
+
+  test('hovering a row moves the active highlight (mouse)', async () => {
+    const { renderer, dispatch, settle, selected, cleanup } = mountSelect()
+    await settle()
+    // Locate the 'Save As' row (index 2) on screen, then hover it.
+    let y = -1
+    for (let row = 0; row < 16; row++) {
+      if (rowGlyphs(renderer, row).replace(/ /g, '').includes('SaveAs')) {
+        y = row
+        break
+      }
+    }
+    expect(y).toBeGreaterThanOrEqual(0)
+    dispatch(mouseMove(10, y)) // hover → active becomes the Save As row
+    dispatch(key('enter')) // commit the hovered row
+    expect(selected).toEqual(['Save As'])
     cleanup()
   })
 

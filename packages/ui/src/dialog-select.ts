@@ -133,6 +133,12 @@ export const VuiDialogSelect = defineComponent({
               flexDirection: 'row',
               justifyContent: 'space-between',
               bg: on ? theme.primary : undefined,
+              // Hover moves the active highlight to this row (parity with Up/Down).
+              // `move`/`drag` dispatch as `mousemove`; any-motion tracking is on, so
+              // a bare hover fires this. Same-value writes are a reactive no-op.
+              onMouseMove: () => {
+                active.value = i
+              },
               onMouseDown: (ev: DispatchableEvent) => {
                 ev.preventDefault()
                 active.value = i

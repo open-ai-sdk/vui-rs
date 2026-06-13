@@ -131,6 +131,33 @@ export function drawBorder(
   put(buf, clip, right, bottom, cp(g.br), fg, bgAt(right, bottom), 0)
 }
 
+/**
+ * The half-open cell span `[x0,x1)` on the top border row that `drawTitle` paints
+ * the title into, given the node's border box. Returns null when there is no title
+ * or no room. Shared by `drawTitle` (paint) and the host's title-click hit-test, so
+ * both agree on exactly which cells the title occupies. `x1` is clamped to the
+ * inner-right edge (the title is clipped to the available width when it overflows).
+ */
+export function titleHitRect(
+  rect: { x0: number; y0: number; x1: number },
+  title: string,
+  align: TitleAlign,
+): { x0: number; x1: number; y: number } | null {
+  if (!title) return null
+  const innerLeft = rect.x0 + 1
+  const innerRight = rect.x1 - 1 // exclusive
+  const avail = innerRight - innerLeft
+  if (avail <= 0) return null
+  const gs = graphemes(title)
+  const titleW = gs.reduce((n, g) => n + gWidth(g), 0)
+  let start: number
+  if (align === 'right') start = innerRight - titleW
+  else if (align === 'center') start = innerLeft + Math.trunc((avail - titleW) / 2)
+  else start = innerLeft
+  start = Math.max(start, innerLeft)
+  return { x0: start, x1: Math.min(start + titleW, innerRight), y: rect.y0 }
+}
+
 /** Title on the top border row, inside the corners, aligned (paint.rs `draw_title`). */
 export function drawTitle(
   buf: PaintBuffer,
@@ -143,18 +170,9 @@ export function drawTitle(
   nodeBg: number | undefined,
   align: TitleAlign,
 ): void {
-  const innerLeft = x0 + 1
-  const innerRight = x1 - 1 // exclusive
-  const avail = innerRight - innerLeft
-  if (avail <= 0) return
-  const gs = graphemes(title)
-  const titleW = gs.reduce((n, g) => n + gWidth(g), 0)
-  let start: number
-  if (align === 'right') start = innerRight - titleW
-  else if (align === 'center') start = innerLeft + Math.trunc((avail - titleW) / 2)
-  else start = innerLeft
-  start = Math.max(start, innerLeft)
-  drawLine(buf, clip, start, innerRight, y0, gs, fg, nodeBg)
+  const span = titleHitRect({ x0, y0, x1 }, title, align)
+  if (!span) return
+  drawLine(buf, clip, span.x0, x1 - 1, y0, graphemes(title), fg, nodeBg)
 }
 
 /** Single-line text from `start`, clipped to `[start,end)` on row `y` (paint.rs `draw_line`). */

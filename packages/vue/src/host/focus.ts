@@ -6,6 +6,7 @@
 import type { InputEvent, MouseEvent } from '@vui-rs/core'
 import { type EditRenderable } from './edit-renderable.ts'
 import { hitTestTopmost } from './hit-test.ts'
+import { titleHitRect } from './paint-ops.ts'
 import { type HostContext, type Renderable } from './renderable.ts'
 import { type TextareaRenderable } from './textarea-renderable.ts'
 
@@ -143,6 +144,22 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
     }
   }
 
+  /**
+   * The nearest node (from `start` up) whose painted border `title` covers cell
+   * `(x,y)` and which carries an `onTitleClick` handler — the title is on the node's
+   * own top border row, so the hit node is normally `start` itself. Null when the
+   * cell isn't on any title's cells.
+   */
+  function titleClickTarget(start: Renderable | null, x: number, y: number): Renderable | null {
+    for (let n: Renderable | null = start; n; n = n.parent) {
+      if (!n.events.has('titleclick') || !n.screenRect) continue
+      if (n.paint.border === 'none' || !n.paint.title) continue
+      const hit = titleHitRect(n.screenRect, n.paint.title, n.paint.titleAlign)
+      if (hit && y === hit.y && x >= hit.x0 && x < hit.x1) return n
+    }
+    return null
+  }
+
   function dispatchMouse(ev: MouseEvent): void {
     // An active pointer capture wins for move/drag/up: route straight to the
     // capturing node so a drag keeps tracking even off the node's cells. `down`
@@ -156,6 +173,13 @@ export function createHostFocusManager(ctx: HostContext): HostFocusManager {
     const target = underCursor ?? current
     if (!target) return
     if (ev.kind === 'down') {
+      // A click on a bordered element's title is its own action: fire `titleClick`
+      // and stop — it must not move focus or fall through to a body `mousedown`.
+      const tnode = titleClickTarget(target, ev.x, ev.y)
+      if (tnode) {
+        bubble(tnode, ev, 'titleclick')
+        return
+      }
       const focusTarget = findFocusable(target)
       if (focusTarget) focus(focusTarget)
     }
