@@ -7,6 +7,7 @@ const ITEMS = ['Open File', 'Close File', 'Save As', 'Open Folder']
 
 function mountSelect() {
   const selected: Array<string | number> = []
+  const highlighted: Array<string | number> = []
   const open = ref(true)
   const harness = mount(60, 16, () =>
     h(VuiDialogSelect, {
@@ -15,9 +16,17 @@ function mountSelect() {
       items: ITEMS,
       'onUpdate:open': (v: boolean) => (open.value = v),
       onSelect: (v: string | number) => selected.push(v),
+      onHighlight: (v: string | number) => highlighted.push(v),
     }),
   )
-  return { ...harness, selected, open }
+  return { ...harness, selected, highlighted, open }
+}
+
+function rowOf(renderer: Parameters<typeof rowGlyphs>[0], label: string): number {
+  for (let row = 0; row < 16; row++) {
+    if (rowGlyphs(renderer, row).replace(/ /g, '').includes(label)) return row
+  }
+  return -1
 }
 
 describe('VuiDialogSelect', () => {
@@ -87,6 +96,36 @@ describe('VuiDialogSelect', () => {
     dispatch(key('escape'))
     expect(open.value).toBe(false)
     expect(selected).toEqual([])
+    cleanup()
+  })
+
+  test('emits highlight for the initial focused row on open', async () => {
+    const { highlighted, cleanup } = mountSelect()
+    await nextTick()
+    expect(highlighted).toEqual(['Open File'])
+    cleanup()
+  })
+
+  test('emits highlight as the active row moves (keyboard)', async () => {
+    const { dispatch, highlighted, cleanup } = mountSelect()
+    await nextTick()
+    dispatch(key('down')) // 0 -> 1
+    await nextTick()
+    dispatch(key('down')) // 1 -> 2
+    await nextTick()
+    expect(highlighted).toEqual(['Open File', 'Close File', 'Save As'])
+    cleanup()
+  })
+
+  test('does not re-emit highlight for an unchanged focused row (hover active row)', async () => {
+    const { renderer, dispatch, settle, highlighted, cleanup } = mountSelect()
+    await settle()
+    const before = highlighted.length // initial 'Open File' emit
+    const y = rowOf(renderer, 'OpenFile')
+    expect(y).toBeGreaterThanOrEqual(0)
+    dispatch(mouseMove(10, y)) // hover the already-active row → same value, no new emit
+    await settle()
+    expect(highlighted.length).toBe(before)
     cleanup()
   })
 })
