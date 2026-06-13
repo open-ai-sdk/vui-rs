@@ -1,5 +1,13 @@
 # @vui-rs/ui
 
+## 0.3.7
+
+### Patch Changes
+
+- 12c0ac4: Fix `VuiDialogSelect`: hovering a row now moves the active highlight to it (parity with Up/Down). Rows previously reacted only to click (`onMouseDown`); a new `onMouseMove` handler updates the active index on hover.
+- Updated dependencies [12c0ac4]
+  - @vui-rs/vue@0.9.0
+
 ## 0.3.6
 
 ### Patch Changes
