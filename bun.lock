@@ -375,7 +375,7 @@
     },
     "packages/ui": {
       "name": "@vui-rs/ui",
-      "version": "0.3.7",
+      "version": "0.4.0",
       "dependencies": {
         "@vue/runtime-core": "catalog:",
         "@vui-rs/core": "workspace:*",
