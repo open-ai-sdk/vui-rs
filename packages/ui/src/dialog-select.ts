@@ -33,12 +33,15 @@ export const VuiDialogSelect = defineComponent({
     /** Max rows of the scrolling list viewport. */
     maxRows: { type: Number, default: 10 },
   },
-  emits: ['update:open', 'select', 'close'],
+  emits: ['update:open', 'select', 'close', 'highlight'],
   setup(props, { emit }) {
     const theme = useTheme()
     const query = ref('')
     const active = ref(0)
     const scrollY = ref(0)
+    // Last value reported via `highlight` — dedupes repeat emits when the focused
+    // row resolves to the same option (e.g. filter typing that keeps the top match).
+    const lastHighlighted = ref<string | number | undefined>(undefined)
 
     const options = computed(() => props.items.map(normalize))
     // Ranked matches; an empty query is an identity filter (original order).
@@ -52,6 +55,9 @@ export const VuiDialogSelect = defineComponent({
           query.value = ''
           active.value = 0
           scrollY.value = 0
+          // Re-arm so re-opening re-emits the focused row (the `immediate` watcher
+          // below fires on mount; this covers subsequent opens).
+          lastHighlighted.value = undefined
         }
       },
     )
@@ -59,6 +65,20 @@ export const VuiDialogSelect = defineComponent({
     watch(ranked, (r) => {
       if (active.value > r.length - 1) active.value = Math.max(0, r.length - 1)
     })
+    // Report the focused row whenever it changes — by keyboard, page nav, hover,
+    // or filter (which resets/clamps `active`). One watcher covers every mutation
+    // site; consumers use it for live preview without committing a selection.
+    watch(
+      [active, ranked],
+      () => {
+        const hit = ranked.value[active.value]
+        if (!hit) return
+        if (hit.item.value === lastHighlighted.value) return
+        lastHighlighted.value = hit.item.value
+        emit('highlight', hit.item.value, hit.item)
+      },
+      { immediate: true },
+    )
     // Keep the active row inside the viewport window.
     watch([active, () => props.maxRows], ([a, rows]) => {
       if (a < scrollY.value) scrollY.value = a
