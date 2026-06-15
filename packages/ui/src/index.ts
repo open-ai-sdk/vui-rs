@@ -35,6 +35,9 @@ export {
 // Select option type (shared by dialog-select).
 export { type SelectOption } from './dialog-select.ts'
 
+// Tabular layout (auto/fixed columns, optional rounded border).
+export { VuiTable, type TableColumn } from './table.ts'
+
 // Fixed chrome regions + large-list + busy indicators.
 export { VuiStatusBar, VuiHeader, VuiFooter } from './status-bar.ts'
 export { VuiVirtualList } from './virtual-list.ts'

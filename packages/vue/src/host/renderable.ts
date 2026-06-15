@@ -42,6 +42,14 @@ export interface PaintProps {
   attrFlags: Record<string, number>
   border: 'none' | 'single' | 'double' | 'rounded'
   borderColor?: number
+  /**
+   * Open left guide rail: a `│` spine down the box's left gutter
+   * capped by a `╰─` foot, with no top/right/bottom ring. `'none'` (default) off.
+   * Paints in column `x0` — the consumer reserves the gutter via `padding.left>=2`
+   * so children don't overpaint it. Mutually exclusive by convention with `border`.
+   */
+  rail: 'none' | 'open'
+  railColor?: number
   title: string
   titleAlign: 'left' | 'center' | 'right'
   visible: boolean
@@ -166,6 +174,7 @@ export function newPaint(): PaintProps {
     baseAttrs: 0,
     attrFlags: {},
     border: 'none',
+    rail: 'none',
     title: '',
     titleAlign: 'left',
     visible: true,
