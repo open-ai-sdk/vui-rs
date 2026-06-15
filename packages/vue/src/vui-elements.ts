@@ -68,6 +68,13 @@ interface PaintProps {
   inverse?: boolean
   border?: boolean | 'none' | 'single' | 'double' | 'rounded'
   borderColor?: Color
+  /**
+   * Open left guide rail: a `│` spine down the box's left gutter capped by a `╰─`
+   * foot, with no top/right/bottom ring. `'none'` (default) off. Paints in the box's
+   * left gutter column — reserve it via `padding.left>=2` so children stay clear.
+   */
+  rail?: 'none' | 'open'
+  railColor?: Color
   title?: string
   titleAlign?: 'left' | 'center' | 'right'
   visible?: boolean

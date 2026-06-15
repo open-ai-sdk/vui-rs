@@ -92,6 +92,19 @@ describe('VuiTable render', () => {
     cleanup()
   })
 
+  test('header={false} omits the header row and the ─┼─ separator', async () => {
+    const { renderer, settle, cleanup } = mount(30, 8, () =>
+      h(VuiTable, { columns: COLUMNS, rows: ROWS, header: false }),
+    )
+    await settle()
+    // First row is data, not the header; no separator anywhere.
+    expect(rowGlyphs(renderer, 0)).toContain('Alice')
+    let hasSeparator = false
+    for (let y = 0; y < 8; y++) if (rowGlyphs(renderer, y).includes('┼')) hasSeparator = true
+    expect(hasSeparator).toBe(false)
+    cleanup()
+  })
+
   test('bordered variant wraps the table in a rounded box', async () => {
     const { renderer, settle, cleanup } = mount(30, 8, () =>
       h(VuiTable, { columns: COLUMNS, rows: ROWS, bordered: true }),

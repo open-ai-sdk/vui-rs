@@ -75,6 +75,8 @@ export const VuiTable = defineComponent({
     rows: { type: Array as PropType<Array<Record<string, string>>>, default: () => [] },
     /** Wrap the table in a rounded `<box>` border. */
     bordered: { type: Boolean, default: false },
+    /** Show the header row + `─┼─` separator. `false` → bare cell grid (e.g. a key/value arg list). */
+    header: { type: Boolean, default: true },
     /** Header row emphasis. Default `'bold'`. */
     headerStyle: { type: String as PropType<'bold' | 'muted'>, default: 'bold' },
   },
@@ -87,19 +89,20 @@ export const VuiTable = defineComponent({
       const w = widths.value
       const sep = () => h('span', { fg: theme.textMuted }, ' │ ')
 
-      // Header row.
-      const headerCells: (VNode | string)[] = []
-      for (let c = 0; c < cols.length; c++) {
-        if (c > 0) headerCells.push(sep())
-        headerCells.push(padCell(cols[c]!.header, w[c]!, cols[c]!.align ?? 'left'))
+      const lines: VNode[] = []
+      if (props.header) {
+        // Header row.
+        const headerCells: (VNode | string)[] = []
+        for (let c = 0; c < cols.length; c++) {
+          if (c > 0) headerCells.push(sep())
+          headerCells.push(padCell(cols[c]!.header, w[c]!, cols[c]!.align ?? 'left'))
+        }
+        const headerProps =
+          props.headerStyle === 'muted' ? { wrap: 'nowrap', fg: theme.textMuted } : { wrap: 'nowrap', bold: true }
+        // `─┼─`-style separator under the header.
+        const separator = h('text', { wrap: 'nowrap', fg: theme.textMuted }, w.map((n) => '─'.repeat(n)).join('─┼─'))
+        lines.push(h('text', headerProps, headerCells), separator)
       }
-      const headerProps =
-        props.headerStyle === 'muted' ? { wrap: 'nowrap', fg: theme.textMuted } : { wrap: 'nowrap', bold: true }
-
-      // `─┼─`-style separator under the header.
-      const separator = h('text', { wrap: 'nowrap', fg: theme.textMuted }, w.map((n) => '─'.repeat(n)).join('─┼─'))
-
-      const lines: VNode[] = [h('text', headerProps, headerCells), separator]
 
       if (props.rows.length === 0) {
         lines.push(h('text', { wrap: 'nowrap', fg: theme.textMuted }, '(no rows)'))
