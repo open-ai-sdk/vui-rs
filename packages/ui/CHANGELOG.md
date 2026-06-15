@@ -1,5 +1,16 @@
 # @vui-rs/ui
 
+## 0.6.0
+
+### Minor Changes
+
+- 316a0bf: expose `rail`/`railColor` on the `<box>` element type (the open left guide-rail paint primitive) and add a `header` prop to `VuiTable` for a headerless (bare cell-grid) mode
+
+### Patch Changes
+
+- Updated dependencies [316a0bf]
+  - @vui-rs/vue@0.12.0
+
 ## 0.5.0
 
 ### Minor Changes
