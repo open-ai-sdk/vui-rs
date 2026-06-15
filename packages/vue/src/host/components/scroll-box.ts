@@ -50,7 +50,7 @@ export const VuiScrollBox = defineComponent({
     scrollbar: { type: Boolean, default: false },
   },
   emits: ['update:modelValue', 'update:scrollY', 'scroll'],
-  setup(props, { attrs, emit, slots }) {
+  setup(props, { attrs, emit, slots, expose }) {
     const viewport = shallowRef<Renderable>()
     let localScrollY = 0
     // Whether the view is pinned to the bottom (stickToBottom). Flipped off when
@@ -119,6 +119,14 @@ export const VuiScrollBox = defineComponent({
     function scrollBy(delta: number): void {
       apply(current() + delta)
     }
+
+    // Let a parent drive scrolling (e.g. PgUp/PgDn forwarded while another element
+    // holds focus) WITHOUT binding scrollY — so uncontrolled stick-to-bottom keeps
+    // owning the auto-follow. `scrollToBottom` jumps to the max and re-engages stick.
+    expose({
+      scrollBy,
+      scrollToBottom: (): void => apply(maxScroll()),
+    })
 
     // After layout (rects fresh), pin to the new bottom when stuck, or re-clamp a
     // stale offset when content shrank/resized. Uncontrolled only — a bound
