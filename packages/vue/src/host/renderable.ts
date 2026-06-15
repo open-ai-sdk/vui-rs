@@ -293,14 +293,13 @@ export interface HostContext {
   /** Active drag-selection over static `<text>`/`<markdown>` (highlight + copy). */
   selection: import('./selection.ts').HostSelection
   /**
-   * Drop an active selection in response to a USER-initiated scroll (wheel/keys/
-   * scrollbar-drag — the scroll-box `apply()` path), so the highlight can't slide
-   * onto the wrong glyphs once the content moves under screen-absolute selection
-   * coords. A no-op while a drag is in progress (never clears mid-drag) and never
-   * called from the stick-to-bottom auto-pin. Wired by `createHostApp` (the host
-   * owns the drag state this must also reset); undefined offscreen/until mount.
+   * React to USER-initiated scroll (wheel/keys/scrollbar-drag — the scroll-box
+   * `apply()` path). A settled selection is cleared; an in-progress drag captures
+   * selected rows that are about to leave the viewport so copy can span more than
+   * one visible screen. Never called from the stick-to-bottom auto-pin. Wired by
+   * `createHostApp` (the host owns the drag state); undefined offscreen/until mount.
    */
-  invalidateSelection?: () => void
+  invalidateSelection?: (deltaY?: number, viewport?: Pick<Clip, 'y0' | 'y1'>, focus?: { x: number; y: number }) => void
   /** Renderer size at the last layout pass; a change (resize) forces a relayout. */
   layoutW: number
   layoutH: number

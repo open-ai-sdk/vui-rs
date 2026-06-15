@@ -7,10 +7,11 @@
 // and its mid-drag guard are exercised at the bottom.
 import { describe, expect, test } from 'bun:test'
 import type { KeyEvent, MouseEvent } from '@vui-rs/core'
-import { Renderer } from '@vui-rs/core'
+import { Attr, Renderer } from '@vui-rs/core'
 import { createHostApp, resolveSelectionMouseAction } from '../src/host/create-host-app.ts'
 import { VuiScrollBox } from '../src/host/components/scroll-box.ts'
 import { defineComponent, h, nextTick } from '../src/index.ts'
+import { cellAttrs } from './helpers/read-buffer.ts'
 
 function mouse(partial: Partial<MouseEvent>): MouseEvent {
   return {
@@ -293,6 +294,187 @@ describe('user-scroll selection clear', () => {
     app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 0, y: 0 }))
     app.context.flushNow()
     expect(app.context.selection.active).toBe(false)
+
+    app.unmount()
+    r.free()
+  })
+
+  test('wheel while dragging preserves rows that leave the scroll viewport', async () => {
+    const r = new Renderer(10, 2)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h(VuiScrollBox, { width: 10, height: 2, focused: true }, () => [
+          h('text', {}, 'alpha'),
+          h('text', {}, 'bravo'),
+          h('text', {}, 'gamma'),
+          h('text', {}, 'delta'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.context.flushNow()
+    app.dispatchInput(mouse({ kind: 'up', x: 4, y: 1 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma'])
+    expect(app.context.selection.active).toBe(false)
+
+    app.unmount()
+    r.free()
+  })
+
+  test('rapid wheel events while dragging do not duplicate stale buffer rows', async () => {
+    const r = new Renderer(10, 2)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h(VuiScrollBox, { width: 10, height: 2, focused: true }, () => [
+          h('text', {}, 'alpha'),
+          h('text', {}, 'bravo'),
+          h('text', {}, 'gamma'),
+          h('text', {}, 'delta'),
+          h('text', {}, 'echo'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.context.flushNow()
+    app.dispatchInput(mouse({ kind: 'up', x: 4, y: 1 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma\ndelta'])
+
+    app.unmount()
+    r.free()
+  })
+
+  test('wheel while dragging expands the visible highlight instead of moving a fixed band', async () => {
+    const r = new Renderer(10, 4)
+    const App = defineComponent({
+      setup: () => () =>
+        h(VuiScrollBox, { width: 10, height: 4, focused: true }, () => [
+          h('text', {}, 'alpha'),
+          h('text', {}, 'bravo'),
+          h('text', {}, 'gamma'),
+          h('text', {}, 'delta'),
+          h('text', {}, 'echo'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 2 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 2 }))
+    app.context.flushNow()
+
+    expect(cellAttrs(r, 0, 0) & Attr.INVERSE).toBeTruthy()
+    expect(cellAttrs(r, 0, 1) & Attr.INVERSE).toBeTruthy()
+    expect(cellAttrs(r, 0, 2) & Attr.INVERSE).toBeTruthy()
+    expect(cellAttrs(r, 0, 3) & Attr.INVERSE).toBeFalsy()
+
+    app.unmount()
+    r.free()
+  })
+
+  test('wheel-expanded selection is clipped to the scroll-box and never paints the composer row', async () => {
+    const r = new Renderer(10, 5)
+    const App = defineComponent({
+      setup: () => () =>
+        h('box', { width: 10, height: 5, flexDirection: 'column' }, [
+          h(VuiScrollBox, { width: 10, height: 4, focused: true }, () => [
+            h('text', {}, 'alpha'),
+            h('text', {}, 'bravo'),
+            h('text', {}, 'gamma'),
+            h('text', {}, 'delta'),
+            h('text', {}, 'echo'),
+          ]),
+          h('text', {}, 'composer'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 2 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 2 }))
+    app.context.flushNow()
+
+    expect(cellAttrs(r, 0, 0) & Attr.INVERSE).toBeTruthy()
+    expect(cellAttrs(r, 0, 2) & Attr.INVERSE).toBeTruthy()
+    expect(cellAttrs(r, 0, 4) & Attr.INVERSE).toBeFalsy()
+
+    app.unmount()
+    r.free()
+  })
+
+  test('selectionBoundary clamps drag-copy to the originating panel', async () => {
+    const r = new Renderer(12, 5)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h('box', { width: 12, height: 5, flexDirection: 'column' }, [
+          h('box', { width: 12, height: 3, flexDirection: 'column', selectionBoundary: true }, [
+            h('text', {}, 'alpha'),
+            h('text', {}, 'bravo'),
+            h('text', {}, 'gamma'),
+          ]),
+          h('text', {}, 'composer'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 7, y: 3 }))
+    app.dispatchInput(mouse({ kind: 'up', x: 7, y: 3 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma'])
+    expect(cellAttrs(r, 0, 3) & Attr.INVERSE).toBeFalsy()
+
+    app.unmount()
+    r.free()
+  })
+
+  test('selectionBoundary prevents wheel-expanded copy from crossing into the next panel', async () => {
+    const r = new Renderer(12, 2)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h(VuiScrollBox, { width: 12, height: 2, focused: true }, () => [
+          h('box', { width: 12, flexDirection: 'column', selectionBoundary: true }, [
+            h('text', {}, 'alpha'),
+            h('text', {}, 'bravo'),
+            h('text', {}, 'gamma'),
+          ]),
+          h('box', { width: 12, flexDirection: 'column', selectionBoundary: true }, [h('text', {}, 'outside')]),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.context.flushNow()
+    app.dispatchInput(mouse({ kind: 'up', x: 4, y: 1 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma'])
 
     app.unmount()
     r.free()

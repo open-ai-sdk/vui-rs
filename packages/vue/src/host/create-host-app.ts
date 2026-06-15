@@ -293,14 +293,17 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   /** True while a left-drag text selection is in progress (between down and up). */
   let selecting = false
 
-  // A user-initiated scroll invalidates an active selection (the screen-absolute
-  // selection coords would otherwise highlight the wrong glyphs once content moves).
-  // Guarded to never clear mid-drag — a bare `selection.clear()` mid-drag would leave
-  // `selecting === true` with a dead anchor, since `update` no-ops on a cleared
-  // selection. The scroll-box calls this only from its `apply()` path (real user
-  // scroll), never from the stick-to-bottom auto-pin.
-  ctx.invalidateSelection = (): void => {
-    if (!selecting && ctx.selection.active) {
+  // A user-initiated scroll clears a settled selection, but preserves an active
+  // drag by capturing selected rows before the scroll offset moves them out of
+  // the viewport. The scroll-box calls this only from its `apply()` path (real
+  // user scroll), never from the stick-to-bottom auto-pin.
+  ctx.invalidateSelection = (deltaY, viewport, focus): void => {
+    if (selecting) {
+      const r = ctx.renderer
+      if (r && deltaY && viewport) ctx.selection.captureScroll(r, deltaY, viewport, focus)
+      return
+    }
+    if (ctx.selection.active) {
       ctx.selection.clear()
       ctx.scheduleRender()
     }
@@ -337,6 +340,13 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     return false
   }
 
+  function selectionBoundaryFor(node: Renderable): Renderable | null {
+    for (let n: Renderable | null = node; n; n = n.parent) {
+      if (n.props.selectionBoundary === true) return n
+    }
+    return null
+  }
+
   /** Drive drag-selection over static `<text>`/`<markdown>`. Returns true if consumed. */
   function handleSelectionMouse(ev: import('@vui-rs/core').MouseEvent): boolean {
     const sel = ctx.selection
@@ -353,7 +363,9 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
       { selecting, selectionActive: sel.active, selectableHit },
       { copyOnSelect },
     )
-    if (action.begin && hit?.screenRect) sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1)
+    if (action.begin && hit?.screenRect) {
+      sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1, selectionBoundaryFor(hit))
+    }
     if (action.copy) {
       // D6: clear only AFTER a successful copy, so a lingering selection can't make
       // the next Ctrl+C re-copy (instead of arming the host's exit path).

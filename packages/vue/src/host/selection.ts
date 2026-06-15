@@ -8,6 +8,7 @@
 // handles wrapped markdown without a semantic glyph map.
 
 import { Attr, CELL_BYTES, type Renderer } from '@vui-rs/core'
+import type { Clip, Renderable } from './renderable.ts'
 
 export interface SelPoint {
   x: number
@@ -20,6 +21,13 @@ export class HostSelection {
   /** Left/right screen columns (half-open) of the anchored text region. */
   left = 0
   right = 0
+  /** Optional vertical screen clip for selections that originate inside a viewport. */
+  top: number | null = null
+  bottom: number | null = null
+  #scope: Renderable | null = null
+  #scopeRect: Clip | null = null
+  #before: string[] = []
+  #after: string[] = []
 
   /** True once the drag covers more than the single anchor cell. */
   get active(): boolean {
@@ -28,20 +36,33 @@ export class HostSelection {
     )
   }
 
-  begin(x: number, y: number, left: number, right: number): void {
-    this.anchor = { x, y }
-    this.focus = { x, y }
+  begin(x: number, y: number, left: number, right: number, scope?: Renderable | null): void {
+    this.#scope = scope ?? null
+    this.#scopeRect = scope?.screenRect ? { ...scope.screenRect } : null
+    const anchor = this.clampPoint({ x, y })
+    this.anchor = anchor
+    this.focus = anchor
     this.left = left
     this.right = right
+    this.top = null
+    this.bottom = null
+    this.#before = []
+    this.#after = []
   }
 
   update(x: number, y: number): void {
-    if (this.anchor) this.focus = { x, y }
+    if (this.anchor) this.focus = this.clampPoint({ x, y })
   }
 
   clear(): void {
     this.anchor = null
     this.focus = null
+    this.top = null
+    this.bottom = null
+    this.#scope = null
+    this.#scopeRect = null
+    this.#before = []
+    this.#after = []
   }
 
   /** Anchor/focus ordered top-left-first, or null when no selection exists. */
@@ -61,9 +82,87 @@ export class HostSelection {
     const o = this.ordered()
     if (!o) return null
     if (y < o.start.y || y > o.end.y) return null
+    const scope = this.scopeRect()
+    if (scope && (y < scope.y0 || y >= scope.y1)) return null
     const x0 = y === o.start.y ? o.start.x : this.left
     const x1 = y === o.end.y ? o.end.x + 1 : this.right // include the end cell
-    return { x0: Math.max(x0, this.left), x1: Math.min(x1, this.right) }
+    return {
+      x0: Math.max(x0, this.left, scope?.x0 ?? -Infinity),
+      x1: Math.min(x1, this.right, scope?.x1 ?? Infinity),
+    }
+  }
+
+  /**
+   * Preserve selected rows that are about to leave a scroll viewport during an
+   * active drag. Selection coordinates are screen-relative, but copy needs the
+   * full swept transcript, including rows no longer visible when mouse-up lands.
+   */
+  captureScroll(renderer: Renderer, deltaY: number, viewport: Pick<Clip, 'y0' | 'y1'>, focus?: SelPoint): void {
+    if (!this.active || deltaY === 0 || viewport.y0 >= viewport.y1) return
+    const scope = this.scopeRect()
+    const y0 = Math.max(viewport.y0, scope?.y0 ?? -Infinity)
+    const y1 = Math.min(viewport.y1, scope?.y1 ?? Infinity)
+    if (y0 >= y1) return
+    this.top = y0
+    this.bottom = y1
+    const rows: string[] = []
+    const n = Math.min(Math.abs(Math.trunc(deltaY)), Math.max(0, y1 - y0))
+    if (n === 0) return
+    if (deltaY > 0) {
+      for (let y = y0; y < y0 + n; y++) {
+        const text = selectedRowText(renderer, this, y)
+        if (text !== null) rows.push(text)
+      }
+      if (rows.length) this.#before.push(...rows)
+    } else {
+      for (let y = y1 - n; y < y1; y++) {
+        const text = selectedRowText(renderer, this, y)
+        if (text !== null) rows.push(text)
+      }
+      if (rows.length) this.#after.unshift(...rows)
+    }
+    if (this.anchor) this.anchor = { x: this.anchor.x, y: this.anchor.y - Math.trunc(deltaY) }
+    if (focus) this.focus = this.clampPoint(focus)
+  }
+
+  visibleRows(renderer: Renderer): { startY: number; endY: number } | null {
+    const o = this.ordered()
+    if (!o || !this.active) return null
+    const scope = this.scopeRect()
+    const startY = Math.max(0, this.top ?? 0, scope?.y0 ?? 0, o.start.y)
+    const endY = Math.min(
+      renderer.height - 1,
+      (this.bottom ?? renderer.height) - 1,
+      (scope?.y1 ?? renderer.height) - 1,
+      o.end.y,
+    )
+    return startY <= endY ? { startY, endY } : null
+  }
+
+  private scopeRect(): Clip | null {
+    const current = this.#scope?.screenRect
+    if (current) {
+      this.#scopeRect = { ...current }
+      return current
+    }
+    return this.#scopeRect
+  }
+
+  private clampPoint(point: SelPoint): SelPoint {
+    const scope = this.scopeRect()
+    if (!scope) return { x: point.x, y: point.y }
+    return {
+      x: Math.max(scope.x0, Math.min(point.x, Math.max(scope.x0, scope.x1 - 1))),
+      y: Math.max(scope.y0, Math.min(point.y, Math.max(scope.y0, scope.y1 - 1))),
+    }
+  }
+
+  capturedBefore(): readonly string[] {
+    return this.#before
+  }
+
+  capturedAfter(): readonly string[] {
+    return this.#after
   }
 }
 
@@ -76,11 +175,11 @@ export class HostSelection {
  * pairing the renderer requires (both leader and its continuation get INVERSE).
  */
 export function paintSelection(renderer: Renderer, sel: HostSelection): void {
-  const o = sel.ordered()
-  if (!o || !sel.active) return
+  const bounds = sel.visibleRows(renderer)
+  if (!bounds) return
   const view = renderer.backBufferView()
   const dv = new DataView(view.buffer, view.byteOffset, view.byteLength)
-  for (let y = o.start.y; y <= o.end.y; y++) {
+  for (let y = bounds.startY; y <= bounds.endY; y++) {
     const range = sel.rowRange(y)
     if (!range || y < 0 || y >= renderer.height) continue
     for (let x = range.x0; x < range.x1; x++) {
@@ -97,27 +196,38 @@ export function paintSelection(renderer: Renderer, sel: HostSelection): void {
  * Wide-glyph continuation cells are skipped so a CJK char isn't duplicated.
  */
 export function selectionText(renderer: Renderer, sel: HostSelection): string {
-  const o = sel.ordered()
-  if (!o || !sel.active) return ''
+  const bounds = sel.visibleRows(renderer)
+  const before = sel.capturedBefore()
+  const after = sel.capturedAfter()
   const view = renderer.backBufferView()
   const dv = new DataView(view.buffer, view.byteOffset, view.byteLength)
-  const lines: string[] = []
-  for (let y = o.start.y; y <= o.end.y; y++) {
-    const range = sel.rowRange(y)
-    if (!range || y < 0 || y >= renderer.height) {
-      lines.push('')
-      continue
+  const lines: string[] = [...before]
+  if (bounds) {
+    for (let y = bounds.startY; y <= bounds.endY; y++) {
+      lines.push(selectedRowTextFromView(renderer, sel, y, dv) ?? '')
     }
-    let line = ''
-    for (let x = range.x0; x < range.x1; x++) {
-      if (x < 0 || x >= renderer.width) continue
-      const base = (y * renderer.width + x) * CELL_BYTES
-      const attrs = dv.getUint16(base + 12, true)
-      if (attrs & Attr.WIDE_CONTINUATION) continue
-      const ch = dv.getUint32(base, true)
-      if (ch !== 0) line += String.fromCodePoint(ch)
-    }
-    lines.push(line.replace(/\s+$/u, ''))
   }
+  lines.push(...after)
   return lines.join('\n')
+}
+
+function selectedRowText(renderer: Renderer, sel: HostSelection, y: number): string | null {
+  const view = renderer.backBufferView()
+  const dv = new DataView(view.buffer, view.byteOffset, view.byteLength)
+  return selectedRowTextFromView(renderer, sel, y, dv)
+}
+
+function selectedRowTextFromView(renderer: Renderer, sel: HostSelection, y: number, dv: DataView): string | null {
+  const range = sel.rowRange(y)
+  if (!range || y < 0 || y >= renderer.height) return null
+  let line = ''
+  for (let x = range.x0; x < range.x1; x++) {
+    if (x < 0 || x >= renderer.width) continue
+    const base = (y * renderer.width + x) * CELL_BYTES
+    const attrs = dv.getUint16(base + 12, true)
+    if (attrs & Attr.WIDE_CONTINUATION) continue
+    const ch = dv.getUint32(base, true)
+    if (ch !== 0) line += String.fromCodePoint(ch)
+  }
+  return line.replace(/\s+$/u, '')
 }

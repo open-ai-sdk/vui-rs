@@ -1,6 +1,6 @@
 import { defineComponent, h, nextTick, onMounted, onUnmounted, shallowRef, watch } from '@vue/runtime-core'
 import type { DispatchableEvent, DispatchableMouseEvent } from '../focus.ts'
-import type { Renderable } from '../renderable.ts'
+import type { Clip, Renderable } from '../renderable.ts'
 import { VuiScrollBar } from './scroll-bar.ts'
 
 function clamp(value: number, max: number): number {
@@ -23,6 +23,16 @@ function laidOutHeight(node: Renderable | undefined): number {
     h = Math.max(h, Math.round(child.rect.y + laidOutHeight(child)))
   }
   return h
+}
+
+function contentViewport(node: Renderable | undefined): Pick<Clip, 'y0' | 'y1'> | undefined {
+  const rect = node?.rect
+  const screen = node?.screenRect
+  if (!rect || !screen) return undefined
+  return {
+    y0: screen.y0 + Math.round(rect.border.top) + Math.round(rect.padding.top),
+    y1: screen.y1 - Math.round(rect.border.bottom) - Math.round(rect.padding.bottom),
+  }
 }
 
 interface ViewState {
@@ -60,6 +70,7 @@ export const VuiScrollBox = defineComponent({
     // the scroll offset or content size changes (incl. stick-to-bottom in
     // afterLayout), so the thumb follows even when nothing else re-renders.
     const view = shallowRef<ViewState>({ y: 0, viewportHeight: 0, contentHeight: 0 })
+    let scrollFocus: { x: number; y: number } | undefined
 
     const currentProp = (): number | undefined => props.scrollY ?? props.modelValue
 
@@ -91,6 +102,7 @@ export const VuiScrollBox = defineComponent({
 
     function apply(value: number): void {
       const max = maxScroll()
+      const prev = current()
       const next = clamp(value, max)
       // A real offset change marks this as a user scroll (wheel/keys/scrollbar-drag
       // all flow through here). The stick-to-bottom auto-pin writes scrollY directly
@@ -98,7 +110,14 @@ export const VuiScrollBox = defineComponent({
       // controlled mode a parent-driven prop reassignment also routes through here
       // but with `next === current()` (both read the new prop), so it's treated as
       // non-user and intentionally does NOT clear — only user gestures invalidate.
-      const moved = next !== current()
+      const moved = next !== prev
+      if (moved) {
+        // When a wheel stream arrives faster than scheduled paints, the back buffer
+        // can still show the previous scroll position. Selection capture reads
+        // from that buffer, so settle it before recording the row leaving view.
+        if (viewport.value?.ctx.selection.active) viewport.value.ctx.flushNow()
+        viewport.value?.ctx.invalidateSelection?.(next - prev, contentViewport(viewport.value), scrollFocus)
+      }
       localScrollY = next
       // At (or below) the last row → re-pin; scrolled up → release the pin.
       if (props.stickToBottom) stuck = next >= max
@@ -109,9 +128,6 @@ export const VuiScrollBox = defineComponent({
       emit('update:modelValue', next)
       emit('update:scrollY', next)
       emit('scroll', next)
-      // Drop an active selection on a genuine user scroll — its screen-absolute
-      // coords would otherwise highlight the wrong glyphs once content moves.
-      if (moved) viewport.value?.ctx.invalidateSelection?.()
       refreshView()
       viewport.value?.ctx.scheduleRender()
     }
@@ -175,7 +191,12 @@ export const VuiScrollBox = defineComponent({
     function onWheel(ev: DispatchableMouseEvent): void {
       if (ev.type === 'mouse' && ev.kind === 'wheel') {
         ev.preventDefault()
-        scrollBy(ev.button === 'wheelUp' ? -props.step : props.step)
+        scrollFocus = { x: ev.x, y: ev.y }
+        try {
+          scrollBy(ev.button === 'wheelUp' ? -props.step : props.step)
+        } finally {
+          scrollFocus = undefined
+        }
         return
       }
       ;(attrs.onWheel as ((ev: DispatchableMouseEvent) => void) | undefined)?.(ev)
