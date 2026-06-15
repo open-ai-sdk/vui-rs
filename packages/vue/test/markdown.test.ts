@@ -90,6 +90,52 @@ describe('VuiMarkdown render', () => {
     cleanup()
   })
 
+  // The table fits columns to its MEASURED width (useElementRect), so settle a few
+  // layout/render cycles for the re-measure to land before asserting.
+  async function settle(app: { context: { flushNow: () => void } }): Promise<void> {
+    for (let i = 0; i < 3; i++) {
+      await nextTick()
+      app.context.flushNow()
+    }
+  }
+
+  // The table fits to the width its container gives it; mirror the real transcript
+  // by placing the markdown inside a definite-width column (otherwise an auto-width
+  // ancestor would let it size to content and never wrap).
+  const framed = (w: number, content: string) => () =>
+    h('box', { width: w, flexDirection: 'column', alignItems: 'stretch' }, [h(VuiMarkdown, { content })])
+
+  test('table renders inside a rounded border', async () => {
+    const { app, renderer, cleanup } = mount(40, 12, framed(40, '| A | B |\n|---|---|\n| 1 | 2 |'))
+    await settle(app)
+    expect(allGlyphs(renderer)).toContain('╭') // rounded top-left corner
+    expect(allGlyphs(renderer)).toContain('╯') // rounded bottom-right corner
+    expect(allGlyphs(renderer)).toContain('A')
+    expect(allGlyphs(renderer)).toContain('1')
+    cleanup()
+  })
+
+  test('a long table cell wraps instead of overflowing off-screen', async () => {
+    // A narrow terminal forces the long second-column cell to wrap to >1 row.
+    const long = 'the quick brown fox jumps over the lazy dog repeatedly'
+    const { app, renderer, cleanup } = mount(28, 16, framed(28, `| # | Note |\n|---|---|\n| 1 | ${long} |`))
+    await settle(app)
+    // Every word survives somewhere on screen (nothing clipped past the edge).
+    const glyphs = allGlyphs(renderer)
+    expect(glyphs).toContain('repeatedly')
+    // The cell wrapped: 'fox' and 'repeatedly' land on different rows.
+    let foxRow = -1
+    let lastRow = -1
+    for (let y = 0; y < 16; y++) {
+      const row = rowGlyphs(renderer, y)
+      if (row.includes('fox')) foxRow = y
+      if (row.includes('repeatedly')) lastRow = y
+    }
+    expect(foxRow).toBeGreaterThanOrEqual(0)
+    expect(lastRow).toBeGreaterThan(foxRow)
+    cleanup()
+  })
+
   test('reacts to content changes', async () => {
     const content = ref('alpha')
     const { app, renderer, cleanup } = mount(20, 6, () => h(VuiMarkdown, { content: content.value }))

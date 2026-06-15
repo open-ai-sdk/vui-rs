@@ -297,4 +297,33 @@ describe('user-scroll selection clear', () => {
     app.unmount()
     r.free()
   })
+
+  test('wheel while dragging preserves rows that leave the scroll viewport', async () => {
+    const r = new Renderer(10, 2)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h(VuiScrollBox, { width: 10, height: 2, focused: true }, () => [
+          h('text', {}, 'alpha'),
+          h('text', {}, 'bravo'),
+          h('text', {}, 'gamma'),
+          h('text', {}, 'delta'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.context.flushNow()
+    app.dispatchInput(mouse({ kind: 'up', x: 4, y: 1 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma'])
+    expect(app.context.selection.active).toBe(false)
+
+    app.unmount()
+    r.free()
+  })
 })

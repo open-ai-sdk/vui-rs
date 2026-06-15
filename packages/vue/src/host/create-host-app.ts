@@ -293,14 +293,17 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   /** True while a left-drag text selection is in progress (between down and up). */
   let selecting = false
 
-  // A user-initiated scroll invalidates an active selection (the screen-absolute
-  // selection coords would otherwise highlight the wrong glyphs once content moves).
-  // Guarded to never clear mid-drag — a bare `selection.clear()` mid-drag would leave
-  // `selecting === true` with a dead anchor, since `update` no-ops on a cleared
-  // selection. The scroll-box calls this only from its `apply()` path (real user
-  // scroll), never from the stick-to-bottom auto-pin.
-  ctx.invalidateSelection = (): void => {
-    if (!selecting && ctx.selection.active) {
+  // A user-initiated scroll clears a settled selection, but preserves an active
+  // drag by capturing selected rows before the scroll offset moves them out of
+  // the viewport. The scroll-box calls this only from its `apply()` path (real
+  // user scroll), never from the stick-to-bottom auto-pin.
+  ctx.invalidateSelection = (deltaY, viewport): void => {
+    if (selecting) {
+      const r = ctx.renderer
+      if (r && deltaY && viewport) ctx.selection.captureScroll(r, deltaY, viewport)
+      return
+    }
+    if (ctx.selection.active) {
       ctx.selection.clear()
       ctx.scheduleRender()
     }
