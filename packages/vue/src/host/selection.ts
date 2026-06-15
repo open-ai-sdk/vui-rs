@@ -197,14 +197,15 @@ export function paintSelection(renderer: Renderer, sel: HostSelection): void {
  */
 export function selectionText(renderer: Renderer, sel: HostSelection): string {
   const bounds = sel.visibleRows(renderer)
-  if (!bounds) return ''
   const before = sel.capturedBefore()
   const after = sel.capturedAfter()
   const view = renderer.backBufferView()
   const dv = new DataView(view.buffer, view.byteOffset, view.byteLength)
   const lines: string[] = [...before]
-  for (let y = bounds.startY; y <= bounds.endY; y++) {
-    lines.push(selectedRowTextFromView(renderer, sel, y, dv) ?? '')
+  if (bounds) {
+    for (let y = bounds.startY; y <= bounds.endY; y++) {
+      lines.push(selectedRowTextFromView(renderer, sel, y, dv) ?? '')
+    }
   }
   lines.push(...after)
   return lines.join('\n')

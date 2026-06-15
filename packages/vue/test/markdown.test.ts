@@ -136,6 +136,16 @@ describe('VuiMarkdown render', () => {
     cleanup()
   })
 
+  test('a grapheme wider than its table column does not create a blank visual row', async () => {
+    const { app, renderer, cleanup } = mount(8, 10, framed(5, '| A |\n|---|\n| 界 |'))
+    await settle(app)
+    const rows = Array.from({ length: 10 }, (_, y) => rowGlyphs(renderer, y))
+    const ruleRow = rows.findIndex((row) => row.includes('│') && row.includes('─'))
+    expect(ruleRow).toBeGreaterThanOrEqual(0)
+    expect(rowGlyphs(renderer, ruleRow + 1)).toContain('界')
+    cleanup()
+  })
+
   test('reacts to content changes', async () => {
     const content = ref('alpha')
     const { app, renderer, cleanup } = mount(20, 6, () => h(VuiMarkdown, { content: content.value }))

@@ -80,4 +80,20 @@ describe('selection highlight + copy', () => {
     app.unmount()
     r.free()
   })
+
+  test('copy keeps captured scroll rows when no selected row is currently visible', () => {
+    const r = new Renderer(10, 2)
+    const App = defineComponent({ setup: () => () => h('text', {}, 'alpha') })
+    const app = createHostApp(App).mount({ renderer: r })
+
+    app.context.selection.begin(0, 0, 0, 10)
+    app.context.selection.update(4, 0)
+    app.context.selection.captureScroll(r, 1, { y0: 0, y1: 2 }, { x: 4, y: -1 })
+
+    expect(app.context.selection.visibleRows(r)).toBeNull()
+    expect(selectionText(r, app.context.selection)).toBe('alpha')
+
+    app.unmount()
+    r.free()
+  })
 })

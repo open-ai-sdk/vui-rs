@@ -188,8 +188,10 @@ function wrapSpans(spans: MdSpan[], width: number): MdSpan[][] {
         for (const seg of segmenter.segment(part)) {
           const gw = Math.max(charWidth(seg.segment.codePointAt(0) ?? 0), 1)
           if (chunkW + gw > w) {
-            line.push({ ...span, text: chunk })
-            flush()
+            if (chunk) {
+              line.push({ ...span, text: chunk })
+              flush()
+            }
             chunk = seg.segment
             chunkW = gw
           } else {
