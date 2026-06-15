@@ -135,6 +135,12 @@ function applyPaint(el: Renderable, key: string, next: unknown): boolean {
     case 'borderColor':
       p.borderColor = parseColor(next)
       return true
+    case 'rail':
+      p.rail = next === 'open' ? 'open' : 'none'
+      return true
+    case 'railColor':
+      p.railColor = parseColor(next)
+      return true
     case 'title':
       p.title = next == null ? '' : String(next)
       return true

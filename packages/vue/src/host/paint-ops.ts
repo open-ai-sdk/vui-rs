@@ -85,6 +85,27 @@ export function drawChrome(
       drawTitle(buf, clip, x0, x1, y0, paint.title, paint.fg ?? defaults?.fg ?? DEFAULT_FG, paint.bg, paint.titleAlign)
     }
   }
+  // Drawn AFTER the border so it wins the left column if both are set (they are
+  // mutually exclusive by convention; this just makes the precedence explicit).
+  if (paint.rail !== 'none') drawRail(buf, ctx, paint.railColor ?? defaults?.border ?? DEFAULT_FG, paint.bg)
+}
+
+/**
+ * Open left guide rail (Amp aesthetic): a `│` spine down the box's left gutter
+ * from the top of the border box to the content-box bottom, capped by a rounded
+ * `╰` foot with a trailing `─`. A subset of `drawBorder` — left column only, no
+ * top/right/bottom ring. Paints in column `x0`; the consumer reserves the gutter
+ * via `padding.left>=2` so children stay clear of it. `nodeBg` undefined →
+ * transparent (each cell keeps the bg under it, mirroring `drawBorder`).
+ */
+export function drawRail(buf: PaintBuffer, ctx: PaintCtx, fg: number, nodeBg: number | undefined): void {
+  const { x0, y0, x1, cy1, clip } = ctx
+  const foot = cy1 - 1
+  if (foot < y0) return // too short to draw a foot
+  const bgAt = (x: number, y: number): number => nodeBg ?? buf.bgUnder(x, y)
+  for (let y = y0; y < foot; y++) put(buf, clip, x0, y, cp('│'), fg, bgAt(x0, y), 0)
+  put(buf, clip, x0, foot, cp('╰'), fg, bgAt(x0, foot), 0)
+  if (x0 + 1 < x1) put(buf, clip, x0 + 1, foot, cp('─'), fg, bgAt(x0 + 1, foot), 0)
 }
 
 /** Border ring (paint.rs `draw_border`). `nodeBg` undefined → transparent (keep bg under). */
