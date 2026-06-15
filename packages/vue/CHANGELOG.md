@@ -1,5 +1,16 @@
 # @vui-rs/vue
 
+## 0.10.0
+
+### Minor Changes
+
+- ac87f36: enhance VuiScrollBox to allow parent-driven scrolling and expose scroll methods
+
+### Patch Changes
+
+- Updated dependencies [ac87f36]
+  - @vui-rs/core@0.8.0
+
 ## 0.9.0
 
 ### Minor Changes

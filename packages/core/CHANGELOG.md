@@ -1,5 +1,11 @@
 # @vui-rs/core
 
+## 0.8.0
+
+### Minor Changes
+
+- ac87f36: enhance VuiScrollBox to allow parent-driven scrolling and expose scroll methods
+
 ## 0.7.0
 
 ### Minor Changes
