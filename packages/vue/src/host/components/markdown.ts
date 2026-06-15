@@ -229,7 +229,7 @@ function logicalRow(cells: MdSpan[][], widths: number[], theme: Theme, header: b
       children.push(...spanNodes(lineSpans, theme))
       const pad = widths[c]! - spansWidth(lineSpans)
       if (pad > 0) children.push(' '.repeat(pad))
-      if (c < cols - 1) children.push(h('span', { fg: theme.muted }, CELL_SEP))
+      if (c < cols - 1) children.push(h('span', { fg: theme.border }, CELL_SEP))
     }
     out.push(h('text', { wrap: 'nowrap' }, children))
   }
@@ -272,7 +272,9 @@ const MarkdownTable = defineComponent({
 
       const lineNodes: VNode[] = []
       lineNodes.push(...logicalRow(props.header, widths, theme, true))
-      lineNodes.push(h('text', { wrap: 'nowrap', fg: theme.muted }, widths.map((w) => '─'.repeat(w)).join(RULE_SEP)))
+      // Inner separators + header rule use the SAME `theme.border` tone as the outer
+      // border so the frame and the grid lines read as one consistent weight.
+      lineNodes.push(h('text', { wrap: 'nowrap', fg: theme.border }, widths.map((w) => '─'.repeat(w)).join(RULE_SEP)))
       for (const row of props.rows) lineNodes.push(...logicalRow(row, widths, theme, false))
 
       return h(
