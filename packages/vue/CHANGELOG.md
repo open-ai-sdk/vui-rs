@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.13.0
+
+### Minor Changes
+
+- 91627c1: render markdown tables inside a rounded border with word-wrapping cells: column widths fit the table's measured width and long cells wrap to multiple lines (preserving inline bold/code styling) instead of overflowing off-screen
+
 ## 0.12.0
 
 ### Minor Changes
