@@ -299,7 +299,7 @@ export interface HostContext {
    * one visible screen. Never called from the stick-to-bottom auto-pin. Wired by
    * `createHostApp` (the host owns the drag state); undefined offscreen/until mount.
    */
-  invalidateSelection?: (deltaY?: number, viewport?: Pick<Clip, 'y0' | 'y1'>) => void
+  invalidateSelection?: (deltaY?: number, viewport?: Pick<Clip, 'y0' | 'y1'>, focus?: { x: number; y: number }) => void
   /** Renderer size at the last layout pass; a change (resize) forces a relayout. */
   layoutW: number
   layoutH: number

@@ -297,10 +297,10 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
   // drag by capturing selected rows before the scroll offset moves them out of
   // the viewport. The scroll-box calls this only from its `apply()` path (real
   // user scroll), never from the stick-to-bottom auto-pin.
-  ctx.invalidateSelection = (deltaY, viewport): void => {
+  ctx.invalidateSelection = (deltaY, viewport, focus): void => {
     if (selecting) {
       const r = ctx.renderer
-      if (r && deltaY && viewport) ctx.selection.captureScroll(r, deltaY, viewport)
+      if (r && deltaY && viewport) ctx.selection.captureScroll(r, deltaY, viewport, focus)
       return
     }
     if (ctx.selection.active) {

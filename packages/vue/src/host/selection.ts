@@ -21,6 +21,9 @@ export class HostSelection {
   /** Left/right screen columns (half-open) of the anchored text region. */
   left = 0
   right = 0
+  /** Optional vertical screen clip for selections that originate inside a viewport. */
+  top: number | null = null
+  bottom: number | null = null
   #before: string[] = []
   #after: string[] = []
 
@@ -36,6 +39,8 @@ export class HostSelection {
     this.focus = { x, y }
     this.left = left
     this.right = right
+    this.top = null
+    this.bottom = null
     this.#before = []
     this.#after = []
   }
@@ -47,6 +52,8 @@ export class HostSelection {
   clear(): void {
     this.anchor = null
     this.focus = null
+    this.top = null
+    this.bottom = null
     this.#before = []
     this.#after = []
   }
@@ -78,8 +85,10 @@ export class HostSelection {
    * active drag. Selection coordinates are screen-relative, but copy needs the
    * full swept transcript, including rows no longer visible when mouse-up lands.
    */
-  captureScroll(renderer: Renderer, deltaY: number, viewport: Pick<Clip, 'y0' | 'y1'>): void {
+  captureScroll(renderer: Renderer, deltaY: number, viewport: Pick<Clip, 'y0' | 'y1'>, focus?: SelPoint): void {
     if (!this.active || deltaY === 0 || viewport.y0 >= viewport.y1) return
+    this.top = viewport.y0
+    this.bottom = viewport.y1
     const rows: string[] = []
     const n = Math.min(Math.abs(Math.trunc(deltaY)), Math.max(0, viewport.y1 - viewport.y0))
     if (n === 0) return
@@ -96,6 +105,16 @@ export class HostSelection {
       }
       if (rows.length) this.#after.unshift(...rows)
     }
+    if (this.anchor) this.anchor = { x: this.anchor.x, y: this.anchor.y - Math.trunc(deltaY) }
+    if (focus) this.focus = { x: focus.x, y: focus.y }
+  }
+
+  visibleRows(renderer: Renderer): { startY: number; endY: number } | null {
+    const o = this.ordered()
+    if (!o || !this.active) return null
+    const startY = Math.max(0, this.top ?? 0, o.start.y)
+    const endY = Math.min(renderer.height - 1, (this.bottom ?? renderer.height) - 1, o.end.y)
+    return startY <= endY ? { startY, endY } : null
   }
 
   capturedBefore(): readonly string[] {
@@ -116,11 +135,11 @@ export class HostSelection {
  * pairing the renderer requires (both leader and its continuation get INVERSE).
  */
 export function paintSelection(renderer: Renderer, sel: HostSelection): void {
-  const o = sel.ordered()
-  if (!o || !sel.active) return
+  const bounds = sel.visibleRows(renderer)
+  if (!bounds) return
   const view = renderer.backBufferView()
   const dv = new DataView(view.buffer, view.byteOffset, view.byteLength)
-  for (let y = o.start.y; y <= o.end.y; y++) {
+  for (let y = bounds.startY; y <= bounds.endY; y++) {
     const range = sel.rowRange(y)
     if (!range || y < 0 || y >= renderer.height) continue
     for (let x = range.x0; x < range.x1; x++) {
@@ -137,14 +156,14 @@ export function paintSelection(renderer: Renderer, sel: HostSelection): void {
  * Wide-glyph continuation cells are skipped so a CJK char isn't duplicated.
  */
 export function selectionText(renderer: Renderer, sel: HostSelection): string {
-  const o = sel.ordered()
-  if (!o || !sel.active) return ''
+  const bounds = sel.visibleRows(renderer)
+  if (!bounds) return ''
   const before = sel.capturedBefore()
   const after = sel.capturedAfter()
   const view = renderer.backBufferView()
   const dv = new DataView(view.buffer, view.byteOffset, view.byteLength)
   const lines: string[] = [...before]
-  for (let y = o.start.y; y <= o.end.y; y++) {
+  for (let y = bounds.startY; y <= bounds.endY; y++) {
     lines.push(selectedRowTextFromView(renderer, sel, y, dv) ?? '')
   }
   lines.push(...after)

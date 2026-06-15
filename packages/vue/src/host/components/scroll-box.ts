@@ -70,6 +70,7 @@ export const VuiScrollBox = defineComponent({
     // the scroll offset or content size changes (incl. stick-to-bottom in
     // afterLayout), so the thumb follows even when nothing else re-renders.
     const view = shallowRef<ViewState>({ y: 0, viewportHeight: 0, contentHeight: 0 })
+    let scrollFocus: { x: number; y: number } | undefined
 
     const currentProp = (): number | undefined => props.scrollY ?? props.modelValue
 
@@ -110,7 +111,13 @@ export const VuiScrollBox = defineComponent({
       // but with `next === current()` (both read the new prop), so it's treated as
       // non-user and intentionally does NOT clear — only user gestures invalidate.
       const moved = next !== prev
-      if (moved) viewport.value?.ctx.invalidateSelection?.(next - prev, contentViewport(viewport.value))
+      if (moved) {
+        // When a wheel stream arrives faster than scheduled paints, the back buffer
+        // can still show the previous scroll position. Selection capture reads
+        // from that buffer, so settle it before recording the row leaving view.
+        if (viewport.value?.ctx.selection.active) viewport.value.ctx.flushNow()
+        viewport.value?.ctx.invalidateSelection?.(next - prev, contentViewport(viewport.value), scrollFocus)
+      }
       localScrollY = next
       // At (or below) the last row → re-pin; scrolled up → release the pin.
       if (props.stickToBottom) stuck = next >= max
@@ -184,7 +191,12 @@ export const VuiScrollBox = defineComponent({
     function onWheel(ev: DispatchableMouseEvent): void {
       if (ev.type === 'mouse' && ev.kind === 'wheel') {
         ev.preventDefault()
-        scrollBy(ev.button === 'wheelUp' ? -props.step : props.step)
+        scrollFocus = { x: ev.x, y: ev.y }
+        try {
+          scrollBy(ev.button === 'wheelUp' ? -props.step : props.step)
+        } finally {
+          scrollFocus = undefined
+        }
         return
       }
       ;(attrs.onWheel as ((ev: DispatchableMouseEvent) => void) | undefined)?.(ev)
