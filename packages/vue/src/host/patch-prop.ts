@@ -80,6 +80,11 @@ function applyProp(el: Renderable, key: string, prev: unknown, next: unknown): v
     el.ctx.scheduleRender()
     return
   }
+  if (key === 'selectionBoundary') {
+    el.props.selectionBoundary = next === true ? true : undefined
+    el.ctx.scheduleRender()
+    return
+  }
   if (el.kind === 'edit' && applyEdit(el as EditRenderable, key, next)) {
     el.markDirty()
     el.ctx.scheduleRender()

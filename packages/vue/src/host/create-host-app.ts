@@ -340,6 +340,13 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     return false
   }
 
+  function selectionBoundaryFor(node: Renderable): Renderable | null {
+    for (let n: Renderable | null = node; n; n = n.parent) {
+      if (n.props.selectionBoundary === true) return n
+    }
+    return null
+  }
+
   /** Drive drag-selection over static `<text>`/`<markdown>`. Returns true if consumed. */
   function handleSelectionMouse(ev: import('@vui-rs/core').MouseEvent): boolean {
     const sel = ctx.selection
@@ -356,7 +363,9 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
       { selecting, selectionActive: sel.active, selectableHit },
       { copyOnSelect },
     )
-    if (action.begin && hit?.screenRect) sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1)
+    if (action.begin && hit?.screenRect) {
+      sel.begin(ev.x, ev.y, hit.screenRect.x0, hit.screenRect.x1, selectionBoundaryFor(hit))
+    }
     if (action.copy) {
       // D6: clear only AFTER a successful copy, so a lingering selection can't make
       // the next Ctrl+C re-copy (instead of arming the host's exit path).

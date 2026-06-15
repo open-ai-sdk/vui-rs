@@ -419,4 +419,64 @@ describe('user-scroll selection clear', () => {
     app.unmount()
     r.free()
   })
+
+  test('selectionBoundary clamps drag-copy to the originating panel', async () => {
+    const r = new Renderer(12, 5)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h('box', { width: 12, height: 5, flexDirection: 'column' }, [
+          h('box', { width: 12, height: 3, flexDirection: 'column', selectionBoundary: true }, [
+            h('text', {}, 'alpha'),
+            h('text', {}, 'bravo'),
+            h('text', {}, 'gamma'),
+          ]),
+          h('text', {}, 'composer'),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 7, y: 3 }))
+    app.dispatchInput(mouse({ kind: 'up', x: 7, y: 3 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma'])
+    expect(cellAttrs(r, 0, 3) & Attr.INVERSE).toBeFalsy()
+
+    app.unmount()
+    r.free()
+  })
+
+  test('selectionBoundary prevents wheel-expanded copy from crossing into the next panel', async () => {
+    const r = new Renderer(12, 2)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () =>
+        h(VuiScrollBox, { width: 12, height: 2, focused: true }, () => [
+          h('box', { width: 12, flexDirection: 'column', selectionBoundary: true }, [
+            h('text', {}, 'alpha'),
+            h('text', {}, 'bravo'),
+            h('text', {}, 'gamma'),
+          ]),
+          h('box', { width: 12, flexDirection: 'column', selectionBoundary: true }, [h('text', {}, 'outside')]),
+        ]),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (text) => copied.push(text) })
+    await nextTick()
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.dispatchInput(mouse({ kind: 'wheel', button: 'wheelDown', x: 4, y: 1 }))
+    app.context.flushNow()
+    app.dispatchInput(mouse({ kind: 'up', x: 4, y: 1 }))
+
+    expect(copied).toEqual(['alpha\nbravo\ngamma'])
+
+    app.unmount()
+    r.free()
+  })
 })

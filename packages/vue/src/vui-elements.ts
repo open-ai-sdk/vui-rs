@@ -114,10 +114,19 @@ interface FocusProps {
   onBlur?: () => void
 }
 
+interface SelectionProps {
+  /**
+   * Clamp static text selection that starts inside this element to this element's
+   * painted box. Useful for tool/output panels where drag-copy must not bleed
+   * into neighboring transcript content.
+   */
+  selectionBoundary?: boolean
+}
+
 /** `<box>` — a flex container; the only element that may hold boxes/text. */
-export type BoxProps = LayoutProps & PaintProps & FocusProps
+export type BoxProps = LayoutProps & PaintProps & FocusProps & SelectionProps
 /** `<text>` — holds strings + inline run-style tags; sizes/colors its content. */
-export type TextProps = LayoutProps & PaintProps & FocusProps
+export type TextProps = LayoutProps & PaintProps & FocusProps & SelectionProps
 
 interface ScrollProps {
   /** Paint-time child offset; layout still measures the full child tree. */

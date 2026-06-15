@@ -8,7 +8,7 @@
 // handles wrapped markdown without a semantic glyph map.
 
 import { Attr, CELL_BYTES, type Renderer } from '@vui-rs/core'
-import type { Clip } from './renderable.ts'
+import type { Clip, Renderable } from './renderable.ts'
 
 export interface SelPoint {
   x: number
@@ -24,6 +24,8 @@ export class HostSelection {
   /** Optional vertical screen clip for selections that originate inside a viewport. */
   top: number | null = null
   bottom: number | null = null
+  #scope: Renderable | null = null
+  #scopeRect: Clip | null = null
   #before: string[] = []
   #after: string[] = []
 
@@ -34,9 +36,12 @@ export class HostSelection {
     )
   }
 
-  begin(x: number, y: number, left: number, right: number): void {
-    this.anchor = { x, y }
-    this.focus = { x, y }
+  begin(x: number, y: number, left: number, right: number, scope?: Renderable | null): void {
+    this.#scope = scope ?? null
+    this.#scopeRect = scope?.screenRect ? { ...scope.screenRect } : null
+    const anchor = this.clampPoint({ x, y })
+    this.anchor = anchor
+    this.focus = anchor
     this.left = left
     this.right = right
     this.top = null
@@ -46,7 +51,7 @@ export class HostSelection {
   }
 
   update(x: number, y: number): void {
-    if (this.anchor) this.focus = { x, y }
+    if (this.anchor) this.focus = this.clampPoint({ x, y })
   }
 
   clear(): void {
@@ -54,6 +59,8 @@ export class HostSelection {
     this.focus = null
     this.top = null
     this.bottom = null
+    this.#scope = null
+    this.#scopeRect = null
     this.#before = []
     this.#after = []
   }
@@ -75,9 +82,14 @@ export class HostSelection {
     const o = this.ordered()
     if (!o) return null
     if (y < o.start.y || y > o.end.y) return null
+    const scope = this.scopeRect()
+    if (scope && (y < scope.y0 || y >= scope.y1)) return null
     const x0 = y === o.start.y ? o.start.x : this.left
     const x1 = y === o.end.y ? o.end.x + 1 : this.right // include the end cell
-    return { x0: Math.max(x0, this.left), x1: Math.min(x1, this.right) }
+    return {
+      x0: Math.max(x0, this.left, scope?.x0 ?? -Infinity),
+      x1: Math.min(x1, this.right, scope?.x1 ?? Infinity),
+    }
   }
 
   /**
@@ -87,34 +99,62 @@ export class HostSelection {
    */
   captureScroll(renderer: Renderer, deltaY: number, viewport: Pick<Clip, 'y0' | 'y1'>, focus?: SelPoint): void {
     if (!this.active || deltaY === 0 || viewport.y0 >= viewport.y1) return
-    this.top = viewport.y0
-    this.bottom = viewport.y1
+    const scope = this.scopeRect()
+    const y0 = Math.max(viewport.y0, scope?.y0 ?? -Infinity)
+    const y1 = Math.min(viewport.y1, scope?.y1 ?? Infinity)
+    if (y0 >= y1) return
+    this.top = y0
+    this.bottom = y1
     const rows: string[] = []
-    const n = Math.min(Math.abs(Math.trunc(deltaY)), Math.max(0, viewport.y1 - viewport.y0))
+    const n = Math.min(Math.abs(Math.trunc(deltaY)), Math.max(0, y1 - y0))
     if (n === 0) return
     if (deltaY > 0) {
-      for (let y = viewport.y0; y < viewport.y0 + n; y++) {
+      for (let y = y0; y < y0 + n; y++) {
         const text = selectedRowText(renderer, this, y)
         if (text !== null) rows.push(text)
       }
       if (rows.length) this.#before.push(...rows)
     } else {
-      for (let y = viewport.y1 - n; y < viewport.y1; y++) {
+      for (let y = y1 - n; y < y1; y++) {
         const text = selectedRowText(renderer, this, y)
         if (text !== null) rows.push(text)
       }
       if (rows.length) this.#after.unshift(...rows)
     }
     if (this.anchor) this.anchor = { x: this.anchor.x, y: this.anchor.y - Math.trunc(deltaY) }
-    if (focus) this.focus = { x: focus.x, y: focus.y }
+    if (focus) this.focus = this.clampPoint(focus)
   }
 
   visibleRows(renderer: Renderer): { startY: number; endY: number } | null {
     const o = this.ordered()
     if (!o || !this.active) return null
-    const startY = Math.max(0, this.top ?? 0, o.start.y)
-    const endY = Math.min(renderer.height - 1, (this.bottom ?? renderer.height) - 1, o.end.y)
+    const scope = this.scopeRect()
+    const startY = Math.max(0, this.top ?? 0, scope?.y0 ?? 0, o.start.y)
+    const endY = Math.min(
+      renderer.height - 1,
+      (this.bottom ?? renderer.height) - 1,
+      (scope?.y1 ?? renderer.height) - 1,
+      o.end.y,
+    )
     return startY <= endY ? { startY, endY } : null
+  }
+
+  private scopeRect(): Clip | null {
+    const current = this.#scope?.screenRect
+    if (current) {
+      this.#scopeRect = { ...current }
+      return current
+    }
+    return this.#scopeRect
+  }
+
+  private clampPoint(point: SelPoint): SelPoint {
+    const scope = this.scopeRect()
+    if (!scope) return { x: point.x, y: point.y }
+    return {
+      x: Math.max(scope.x0, Math.min(point.x, Math.max(scope.x0, scope.x1 - 1))),
+      y: Math.max(scope.y0, Math.min(point.y, Math.max(scope.y0, scope.y1 - 1))),
+    }
   }
 
   capturedBefore(): readonly string[] {
