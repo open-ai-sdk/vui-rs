@@ -148,6 +148,28 @@ describe('key parser', () => {
     expect(evs).toEqual([{ type: 'paste', text: 'hello world' }])
   })
 
+  test('absolute path paste: leading slash preserved in one chunk', () => {
+    // Regression guard: a paste of an absolute path must arrive with the leading
+    // slash intact. Previously, without bracketed-paste mode the ESC[200~ marker
+    // could garble the first real character — verify the parser captures it verbatim.
+    const ev = one('\x1b[200~/Volumes/x\x1b[201~')
+    expect(ev).toEqual({ type: 'paste', text: '/Volumes/x' })
+    expect((ev as { text: string }).text.startsWith('/')).toBe(true)
+  })
+
+  test('absolute path paste: leading slash preserved across two stdin reads', () => {
+    // The 201~ terminator may arrive in a separate read from the rest of the paste.
+    // The decoder must reassemble across the chunk boundary before emitting.
+    const d = createKeyDecoder()
+    // First read: everything up to (but not including) the end marker.
+    expect(d.feed('\x1b[200~/Volumes/x')).toEqual([])
+    // Second read: the end marker arrives; decoder flushes exactly one paste event.
+    const evs = d.feed('\x1b[201~')
+    expect(evs).toHaveLength(1)
+    expect(evs[0]).toEqual({ type: 'paste', text: '/Volumes/x' })
+    expect((evs[0] as { text: string }).text.startsWith('/')).toBe(true)
+  })
+
   test('decoder emits complete events and holds only the partial tail', () => {
     const d = createKeyDecoder()
     const evs = d.feed('ab\x1b[') as KeyEvent[] // "a","b" now; CSI tail buffered
