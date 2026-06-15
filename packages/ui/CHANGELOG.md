@@ -1,5 +1,16 @@
 # @vui-rs/ui
 
+## 0.5.0
+
+### Minor Changes
+
+- beec99e: add VuiTable component with display width and column computation functions
+
+### Patch Changes
+
+- Updated dependencies [beec99e]
+  - @vui-rs/vue@0.11.0
+
 ## 0.4.1
 
 ### Patch Changes
