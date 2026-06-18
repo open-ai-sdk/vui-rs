@@ -211,6 +211,34 @@ describe('key parser', () => {
     expect(one('\x1b[<65;1;1M')).toMatchObject({ type: 'mouse', kind: 'wheel', button: 'wheelDown', x: 0, y: 0 })
   })
 
+  test('flush() does not leak a partial mouse report as literal text', () => {
+    // A wheel burst splits a report across reads; the idle/escape timer fires on
+    // the buffered head. It must keep buffering (emit nothing), then complete the
+    // wheel event on the next read — never dump `[<65;29;` into a focused input.
+    const d = createKeyDecoder()
+    expect(d.feed('\x1b[<65;29;')).toEqual([]) // truncated SGR tail buffered
+    expect(d.flush()).toEqual([]) // escape-timeout must NOT force-parse it as text
+    expect(d.feed('25M')).toMatchObject([{ type: 'mouse', kind: 'wheel', button: 'wheelDown' }])
+  })
+
+  test('flush() lone ESC then a late mouse body re-attaches as a mouse event', () => {
+    // The chunk split right after the ESC byte; the timer flushed the ESC as a real
+    // Escape. The continuation (`[<64;…M`) must parse as a wheel event, not as the
+    // literal text `[<64;29;25M`.
+    const d = createKeyDecoder()
+    expect(d.feed('\x1b')).toEqual([]) // lone ESC buffered
+    expect(d.flush()).toMatchObject([{ type: 'key', name: 'escape' }]) // arms recovery
+    expect(d.feed('[<64;29;25M')).toMatchObject([{ type: 'mouse', kind: 'wheel', button: 'wheelUp' }])
+  })
+
+  test('recovery after a flushed ESC does not corrupt a following ordinary key', () => {
+    const d = createKeyDecoder()
+    expect(d.feed('\x1b')).toEqual([])
+    expect(d.flush()).toMatchObject([{ type: 'key', name: 'escape' }])
+    // A real Escape keypress followed by typing 'a' — 'a' stays a plain key.
+    expect(d.feed('a')).toMatchObject([{ type: 'key', name: 'a' }])
+  })
+
   test('X10 mouse fallback parses button events', () => {
     const seq = '\x1b[M' + String.fromCharCode(32) + String.fromCharCode(37) + String.fromCharCode(35)
     expect(one(seq)).toMatchObject({ type: 'mouse', kind: 'down', button: 'left', x: 4, y: 2 })
