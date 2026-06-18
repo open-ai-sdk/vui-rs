@@ -9,6 +9,7 @@ import catppuccin from './builtin/catppuccin.json'
 import dracula from './builtin/dracula.json'
 import everforest from './builtin/everforest.json'
 import gruvbox from './builtin/gruvbox.json'
+import monokaiPro from './builtin/monokai-pro.json'
 import nord from './builtin/nord.json'
 import tokyonight from './builtin/tokyonight.json'
 
@@ -18,6 +19,7 @@ export const BUILTIN_THEMES: Record<string, ThemeJson> = {
   dracula: dracula as ThemeJson,
   everforest: everforest as ThemeJson,
   gruvbox: gruvbox as ThemeJson,
+  'monokai-pro': monokaiPro as ThemeJson,
   nord: nord as ThemeJson,
   tokyonight: tokyonight as ThemeJson,
 }
