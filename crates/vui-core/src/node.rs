@@ -454,11 +454,19 @@ fn measure_node(
             height: 1.0,
         };
     };
-    // Definite width constrains wrapping; an intrinsic-sizing probe flows with a
-    // very large budget so the node reports its natural width.
+    // The wrap budget mirrors taffy's three intrinsic-sizing probes, which must
+    // stay distinct: a definite width wraps to that width; a max-content probe
+    // flows with a huge budget so the node reports its natural single-line width;
+    // a min-content probe wraps as tightly as the mode allows (budget 1) so the
+    // node reports its narrowest width — the widest token under word wrap, one
+    // cell under char wrap. Collapsing min-content into max-content makes a text
+    // node's automatic minimum size (`min-width: auto`) equal its full line, so a
+    // `flex-grow` text child in a flex ROW can never shrink and its content
+    // overflows instead of wrapping (e.g. a markdown list item: bullet + content).
     let budget = match available_space.width {
         AvailableSpace::Definite(w) => w.max(1.0) as u32,
-        AvailableSpace::MinContent | AvailableSpace::MaxContent => 1_000_000,
+        AvailableSpace::MaxContent => 1_000_000,
+        AvailableSpace::MinContent => 1,
     };
     let mut buf = TextBuffer::new();
     buf.set_styled_runs(text.runs.iter().map(|run| StyledRun {
@@ -489,7 +497,86 @@ fn root_style(width: u32, height: u32) -> Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::style::StyleFfi;
+    use crate::text::WrapMode;
     use taffy::TraversePartialTree;
+
+    fn set_text(t: &mut NodeTree, id: NodeId, s: &str, wrap: WrapMode) {
+        let node = t.get_mut(id).unwrap();
+        node.text = Some(TextContent {
+            runs: vec![TextRun {
+                text: s.to_string(),
+                fg: None,
+                bg: None,
+                attrs: 0,
+            }],
+        });
+        node.wrap = wrap;
+    }
+
+    fn len(value: f32) -> crate::style::DimFfi {
+        crate::style::DimFfi {
+            kind: 1,
+            value,
+        }
+    }
+
+    /// A wrapped `<text>` that is a `flex-grow` child of a fixed-width flex ROW
+    /// (the markdown list-item shape: bullet + growing content column) must shrink
+    /// to the row's available width and wrap — not lay out at its natural single-
+    /// line width and overflow. Regresses if a text node reports its max-content
+    /// width as its MIN-content width (then `min-width:auto` pins the column wide).
+    #[test]
+    fn wrapped_text_in_flex_row_shrinks_to_available_width() {
+        let mut t = NodeTree::new(40, 24);
+        let root = t.root();
+
+        let row = t.create(NodeKind::Box);
+        let mut row_style = StyleFfi::default();
+        row_style.flex_direction = 0; // row
+        row_style.width = len(40.0);
+        t.set_style(row, &row_style);
+        t.append_child(root, row);
+
+        let bullet = t.create(NodeKind::Text);
+        set_text(&mut t, bullet, "• ", WrapMode::None);
+        t.append_child(row, bullet);
+
+        let content = t.create(NodeKind::Box);
+        let mut content_style = StyleFfi::default();
+        content_style.flex_direction = 1; // column
+        content_style.align_items = 7; // stretch
+        content_style.flex_grow = 1.0;
+        t.set_style(content, &content_style);
+        t.append_child(row, content);
+
+        let txt = t.create(NodeKind::Text);
+        set_text(
+            &mut t,
+            txt,
+            "the quick brown fox jumps over the lazy dog and then keeps running",
+            WrapMode::Word,
+        );
+        t.append_child(content, txt);
+
+        t.compute_layout(40, 24);
+
+        let txt_box = crate::layout::node_box(&t, txt).unwrap();
+        // Bullet is 2 cells, so the wrapped text can be at most 38 cells wide.
+        assert!(
+            txt_box.w <= 38.0,
+            "wrapped text overflowed its flex-row: width = {}",
+            txt_box.w
+        );
+        // Wraps to exactly 2 lines at this width. The upper bound also locks that
+        // the min-content probe's (tall) height never leaks into the final layout —
+        // taffy must re-measure height against the resolved definite width.
+        assert!(
+            (2.0..=3.0).contains(&txt_box.h),
+            "text should wrap to ~2 lines, got height {}",
+            txt_box.h
+        );
+    }
 
     #[test]
     fn root_exists_and_is_root_kind() {

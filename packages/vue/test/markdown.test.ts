@@ -136,6 +136,39 @@ describe('VuiMarkdown render', () => {
     cleanup()
   })
 
+  test('a long list item wraps inside a bordered box instead of overpainting the border', async () => {
+    // The compaction/summary shape: markdown inside an accent-bordered, padded box.
+    // A list item is a flex ROW (bullet + growing content), so a long line must
+    // shrink to the inner width and wrap — never lay out at its natural single-line
+    // width and bleed across the right border.
+    const long = '- the quick brown fox jumps over the lazy dog and then keeps on running'
+    const bordered = () =>
+      h('box', { width: 40, flexDirection: 'column', border: 'rounded', padding: { left: 1, right: 1 } }, [
+        h(VuiMarkdown, { content: long }),
+      ])
+    const { app, renderer, cleanup } = mount(40, 16, bordered)
+    await settle(app)
+    const glyphs = allGlyphs(renderer)
+    // Nothing clipped off-screen: the last word survives.
+    expect(glyphs).toContain('running')
+    // It actually wrapped: an early word and a late word land on different rows.
+    let foxRow = -1
+    let lastRow = -1
+    for (let y = 0; y < 16; y++) {
+      const row = rowGlyphs(renderer, y)
+      if (row.includes('fox')) foxRow = y
+      if (row.includes('running')) lastRow = y
+    }
+    expect(foxRow).toBeGreaterThanOrEqual(0)
+    expect(lastRow).toBeGreaterThan(foxRow)
+    // The right border (column 39) stays intact on every wrapped body row — text
+    // never reached or overpainted it.
+    for (let y = foxRow; y <= lastRow; y++) {
+      expect(rowGlyphs(renderer, y)[39]).toBe('│')
+    }
+    cleanup()
+  })
+
   test('a grapheme wider than its table column does not create a blank visual row', async () => {
     const { app, renderer, cleanup } = mount(8, 10, framed(5, '| A |\n|---|\n| 界 |'))
     await settle(app)
