@@ -1,6 +1,6 @@
 {
   "name": "@vui-rs/core-darwin-x64",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "vui-rs native renderer engine — prebuilt cdylib for macOS x64",
   "license": "MIT",
   "repository": {
