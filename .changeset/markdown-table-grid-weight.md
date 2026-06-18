@@ -1,5 +1,5 @@
 ---
-'@vui-rs/vue': minor
+'@vui-rs/vue': patch
 ---
 
 Markdown tables: use the brighter `borderSubtle` tone for the frame, header rule
