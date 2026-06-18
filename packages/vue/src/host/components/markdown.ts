@@ -231,7 +231,7 @@ function logicalRow(cells: MdSpan[][], widths: number[], theme: Theme, header: b
       children.push(...spanNodes(lineSpans, theme))
       const pad = widths[c]! - spansWidth(lineSpans)
       if (pad > 0) children.push(' '.repeat(pad))
-      if (c < cols - 1) children.push(h('span', { fg: theme.borderSubtle }, CELL_SEP))
+      if (c < cols - 1) children.push(h('span', { fg: theme.borderActive }, CELL_SEP))
     }
     out.push(h('text', { wrap: 'nowrap' }, children))
   }
@@ -274,10 +274,12 @@ const MarkdownTable = defineComponent({
 
       // A horizontal rule spanning every column, joined at the column gaps. Drawn
       // under the header AND between every data row so the grid reads as a fully
-      // ruled table. Uses the same `borderSubtle` tone as the outer frame and the
-      // cell separators, so the whole grid carries one consistent, legible weight.
+      // ruled table. Uses the same `borderActive` tone as the outer frame and the
+      // cell separators — the most prominent border token, which (unlike the
+      // standard or subtle border) stays clearly visible above the background in
+      // every theme, so the whole grid carries one consistent, legible weight.
       const ruleLine = (): VNode =>
-        h('text', { wrap: 'nowrap', fg: theme.borderSubtle }, widths.map((w) => '─'.repeat(w)).join(RULE_SEP))
+        h('text', { wrap: 'nowrap', fg: theme.borderActive }, widths.map((w) => '─'.repeat(w)).join(RULE_SEP))
 
       const lineNodes: VNode[] = []
       lineNodes.push(...logicalRow(props.header, widths, theme, true))
@@ -292,7 +294,7 @@ const MarkdownTable = defineComponent({
         {
           ref: boxRef,
           border: 'rounded',
-          borderColor: theme.borderSubtle,
+          borderColor: theme.borderActive,
           flexDirection: 'column',
           alignItems: 'stretch',
           width: { pct: 1 },
