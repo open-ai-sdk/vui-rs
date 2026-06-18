@@ -59,6 +59,24 @@ describe('resolveSelectionMouseAction (pure decision)', () => {
     expect(a).toMatchObject({ begin: true, selecting: true, consumed: true, copy: false, clear: false })
   })
 
+  test('down on an editable → anchor a selection but do NOT consume (click still focuses)', () => {
+    const a = resolveSelectionMouseAction({ kind: 'down', button: 'left' }, state({ editableHit: true }), {
+      copyOnSelect: true,
+    })
+    // begin+selecting so a following drag selects-to-copy; consumed:false so the
+    // press still falls through to focus the input / place the cursor.
+    expect(a).toMatchObject({ begin: true, selecting: true, consumed: false, copy: false, clear: false })
+  })
+
+  test('selectable static text wins over editable when both flags are set', () => {
+    const a = resolveSelectionMouseAction(
+      { kind: 'down', button: 'left' },
+      state({ selectableHit: true, editableHit: true }),
+      { copyOnSelect: false },
+    )
+    expect(a).toMatchObject({ begin: true, selecting: true, consumed: true })
+  })
+
   test('down off text with a prior selection → clear and fall through to focus', () => {
     const a = resolveSelectionMouseAction({ kind: 'down', button: 'left' }, state({ selectionActive: true }), {
       copyOnSelect: false,
@@ -119,6 +137,47 @@ describe('copy-on-select (end-to-end via dispatchInput)', () => {
     expect(copied).toEqual(['hello']) // fired exactly once with the swept text
     expect(osc.count()).toBe(1) // OSC 52 staged once
     expect(app.context.selection.active).toBe(false) // cleared after copy (D6)
+
+    app.unmount()
+    r.free()
+  })
+
+  test('drag over an editable (composer) selects-to-copy its visible text', () => {
+    const r = new Renderer(20, 3)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () => h('input', { value: 'hello world', focused: true, width: { pct: 1 } }),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (t) => copied.push(t) })
+    app.context.flushNow()
+    const osc = spyPassthrough(r)
+
+    app.dispatchInput(mouse({ kind: 'down', x: 0, y: 0 })) // anchors a selection AND focuses the input
+    app.dispatchInput(mouse({ kind: 'drag', x: 4, y: 0 })) // sweep "hello"
+    app.dispatchInput(mouse({ kind: 'up', x: 4, y: 0 })) // copy on release
+
+    expect(copied).toEqual(['hello'])
+    expect(osc.count()).toBe(1)
+    expect(app.context.selection.active).toBe(false)
+
+    app.unmount()
+    r.free()
+  })
+
+  test('plain click on an editable (no drag) does not copy and leaves no selection', () => {
+    const r = new Renderer(20, 3)
+    const copied: string[] = []
+    const App = defineComponent({
+      setup: () => () => h('input', { value: 'hello world', focused: true, width: { pct: 1 } }),
+    })
+    const app = createHostApp(App).mount({ renderer: r, copyOnSelect: true, onCopy: (t) => copied.push(t) })
+    app.context.flushNow()
+
+    app.dispatchInput(mouse({ kind: 'down', x: 2, y: 0 }))
+    app.dispatchInput(mouse({ kind: 'up', x: 2, y: 0 }))
+
+    expect(copied).toEqual([]) // a click is not a selection
+    expect(app.context.selection.active).toBe(false)
 
     app.unmount()
     r.free()

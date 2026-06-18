@@ -88,6 +88,9 @@ export interface SelectionMouseState {
   selectionActive: boolean
   /** The mouse-down landed on selectable static text (no interactive ancestor). */
   selectableHit: boolean
+  /** The mouse-down landed on an editable's visible text (composer/textarea). Lets a
+   *  drag select-to-copy its content while a plain click still focuses/edits it. */
+  editableHit?: boolean
 }
 
 /**
@@ -120,6 +123,11 @@ export function resolveSelectionMouseAction(
   const none: SelectionMouseAction = { begin: false, copy: false, clear: false, consumed: false }
   if (ev.kind === 'down' && ev.button === 'left') {
     if (state.selectableHit) return { ...none, begin: true, selecting: true, consumed: true }
+    // An editable: anchor a selection so a drag can select-to-copy its visible text,
+    // but DON'T consume — the press must still fall through to focus the input and
+    // place the cursor. A plain click (no drag) leaves the anchor inactive and the
+    // `up` branch clears it.
+    if (state.editableHit) return { ...none, begin: true, selecting: true, consumed: false }
     // Off any text region: drop a prior selection, then fall through to focus.
     return { ...none, clear: state.selectionActive, selecting: false, consumed: false }
   }
@@ -356,11 +364,14 @@ export function createHostApp(rootComponent: Component, rootProps?: Record<strin
     let hit: Renderable | null = null
     if (ev.kind === 'down' && ev.button === 'left') hit = hitTestTopmost(ctx, ev.x, ev.y)
     const selectableHit = !!(hit && hit.kind === 'text' && hit.screenRect && !hasInteractiveAncestor(hit))
+    // An editable (composer/textarea) is selectable-to-copy on drag. Only when it
+    // isn't already a plain selectable text hit, so static text keeps its path.
+    const editableHit = !selectableHit && !!(hit && (hit.kind === 'edit' || hit.kind === 'textarea') && hit.screenRect)
     if (selecting && (ev.kind === 'drag' || ev.kind === 'up')) sel.update(ev.x, ev.y)
 
     const action = resolveSelectionMouseAction(
       { kind: ev.kind, button: ev.button },
-      { selecting, selectionActive: sel.active, selectableHit },
+      { selecting, selectionActive: sel.active, selectableHit, editableHit },
       { copyOnSelect },
     )
     if (action.begin && hit?.screenRect) {

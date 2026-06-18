@@ -234,6 +234,16 @@ export interface KeyDecoder {
   pending(): string
 }
 
+/** True for a buffered tail that is an in-progress mouse report (SGR `CSI <…` or
+ *  X10 `CSI M…`) still missing its terminator/bytes. Such a tail must never be
+ *  force-flushed as literal text: the rest of the report arrives on the next read
+ *  (a wheel burst splits across chunks), and dumping the head injects garbage like
+ *  `[<65;29;` into a focused input. */
+function isPartialMouse(p: string): boolean {
+  if (p.startsWith('\x1b[<')) return true // SGR: digits/`;` accumulate until M/m
+  return p.startsWith('\x1b[M') && p.length < 6 // X10: fixed 6 bytes
+}
+
 /**
  * Stateful decoder for live input: it carries a partial trailing escape/paste
  * across chunks, so a sequence (or a large paste) split over multiple stdin reads
@@ -241,10 +251,20 @@ export interface KeyDecoder {
  */
 export function createKeyDecoder(): KeyDecoder {
   let pending = ''
+  // Set when flush() emitted a lone ESC on the idle timeout. If the very next
+  // chunk is a CSI/SS3 body, that ESC was actually the head of a sequence split
+  // right after its ESC byte (common with a wheel burst), so we re-attach it
+  // rather than let the body (`[<64;…M`) parse as literal text.
+  let recoverEsc = false
   const mouse = newMouseState()
   return {
     feed(data) {
-      const s = pending + (typeof data === 'string' ? data : decoder.decode(data))
+      let chunk = typeof data === 'string' ? data : decoder.decode(data)
+      if (recoverEsc) {
+        recoverEsc = false
+        if (chunk[0] === '[' || chunk[0] === 'O') chunk = '\x1b' + chunk
+      }
+      const s = pending + chunk
       const events: InputEvent[] = []
       let i = 0
       while (i < s.length) {
@@ -264,6 +284,17 @@ export function createKeyDecoder(): KeyDecoder {
       // Don't force-flush an in-progress bracketed paste — it legitimately spans
       // reads and must wait for its end marker (or the MAX_PENDING backstop).
       if (pending === '' || pending.startsWith(PASTE_START)) return []
+      // Likewise a partial mouse report: keep buffering its tail so the rest of a
+      // wheel/drag burst completes it on the next read instead of leaking as text.
+      if (isPartialMouse(pending)) return []
+      // A lone trailing ESC is treated as a real Escape keypress now (so it fires
+      // on first press, not the next key), but we arm one-chunk recovery in case
+      // it was really a sequence split right after its ESC byte.
+      if (pending === '\x1b') {
+        pending = ''
+        recoverEsc = true
+        return [key('escape', { raw: '\x1b' })]
+      }
       const events = parseKeys(pending)
       pending = ''
       return events
