@@ -1,5 +1,20 @@
 # @vui-rs/vue
 
+## 0.14.0
+
+### Minor Changes
+
+- c3a4495: Add a built-in "monokai-pro" theme (Monokai Pro palette). Available via
+  `listThemes()` / `resolveTheme('monokai-pro')` like the other built-ins. It is a
+  dark-only theme, so it renders the same palette in both light and dark modes.
+
+### Patch Changes
+
+- c3a4495: Markdown tables: use the brighter `borderSubtle` tone for the frame, header rule
+  and cell separators (was the near-invisible `border` tone), and draw a horizontal
+  rule between every data row so the grid is fully ruled instead of rows stacking
+  with no divider.
+
 ## 0.13.0
 
 ### Minor Changes
