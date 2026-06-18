@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from '@vui-rs/vue'
+import { ref, type SelectItemValue } from '@vui-rs/vue'
 
 const BASE = '#111827'
 const SURFACE = '#1f2937'
@@ -49,7 +49,7 @@ const GREEN = '#34d399'
 const SUBTLE = '#9ca3af'
 
 const items = ['bun', 'node', 'deno', 'wasmtime', 'quickjs', 'spidermonkey', 'javascriptcore', 'v8']
-const selected = ref('bun')
+const selected = ref<SelectItemValue>('bun')
 const scrollY = ref(0)
 
 function keepActiveVisible(index: number): void {
