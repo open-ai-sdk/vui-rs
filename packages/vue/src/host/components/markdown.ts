@@ -3,12 +3,22 @@
 // resulting block tree onto the built-in `box`/`text`/`span` kinds. Inline
 // emphasis folds into native styled runs; fenced code is delegated to `<code>`
 // with the same pluggable highlighter. No custom paint — pure composition.
-import { type PropType, computed, defineComponent, h, ref, type VNode } from '@vue/runtime-core'
+import {
+  type PropType,
+  computed,
+  defineComponent,
+  getCurrentScope,
+  h,
+  inject,
+  onScopeDispose,
+  shallowRef,
+  type VNode,
+} from '@vue/runtime-core'
 import { charWidth } from '@vui-rs/core'
 import type { Highlighter } from '../highlighter.ts'
 import { type MdBlock, type MdList, type MdSpan, parseMarkdown } from '../markdown-parser.ts'
 import { useTheme } from '../../use-theme.ts'
-import { useElementRect } from '../../use-element-rect.ts'
+import { HostContextSymbol } from '../renderable.ts'
 import { VuiCode } from './code.ts'
 import type { Theme } from '../../theme.ts'
 
@@ -96,9 +106,13 @@ function renderList(list: MdList, ctx: RenderCtx, margin: Record<string, unknown
 // so the `─┼─` rule under the header lines up with the ` │ ` cell separators.
 const CELL_SEP = ' │ '
 const RULE_SEP = '─┼─'
-// Width used to size columns before the table's real width is measured (first
-// frame only; `useElementRect` corrects it on the next layout pass).
+// Fallback budget when the terminal width can't be read (no host context, e.g.
+// an offscreen/unit-test render). Normally the live terminal width is used.
 const FALLBACK_TABLE_WIDTH = 80
+// Columns reserved for the host container's own chrome (scroll padding, a
+// scrollbar gutter). The table sizes to `terminalWidth − this`, so it never
+// overflows a typical scroll viewport and clips its rightmost column.
+const RESERVED_CHROME = 4
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
@@ -240,9 +254,12 @@ function logicalRow(cells: MdSpan[][], widths: number[], theme: Theme, header: b
 
 /**
  * Aligned markdown table inside a rounded border (Amp-style). Column widths are fit
- * to the table's MEASURED width (`useElementRect`); each cell word-wraps so long
- * content reads on multiple lines instead of overflowing off-screen. Inline span
- * styling (bold / code / links) is preserved across wrapped lines.
+ * SYNCHRONOUSLY to the live terminal width (read at render time), so the table is
+ * sized correctly on its first paint — never measured-then-reflowed. That matters
+ * when the host commits rendered rows to scrollback: a wrong-width first frame
+ * would be permanent, and the reflow would leave the earlier, narrower (taller)
+ * layout ghosted between the corrected rows. Each cell word-wraps so long content
+ * reads on multiple lines; inline span styling is preserved across wrapped lines.
  */
 const MarkdownTable = defineComponent({
   name: 'MarkdownTable',
@@ -253,8 +270,18 @@ const MarkdownTable = defineComponent({
   },
   setup(props) {
     const theme = useTheme()
-    const boxRef = ref()
-    const rect = useElementRect(boxRef)
+    // Terminal width, read synchronously so the FIRST render is already correct.
+    // Kept reactive (refreshed off the layout tick) so a resize reflows columns.
+    const ctx = inject(HostContextSymbol, null)
+    const termWidth = shallowRef(ctx?.renderer?.width ?? FALLBACK_TABLE_WIDTH)
+    if (ctx) {
+      const syncWidth = (): void => {
+        const w = ctx.renderer?.width ?? FALLBACK_TABLE_WIDTH
+        if (w !== termWidth.value) termWidth.value = w
+      }
+      ctx.layoutListeners.add(syncWidth)
+      if (getCurrentScope()) onScopeDispose(() => ctx.layoutListeners.delete(syncWidth))
+    }
 
     return () => {
       const cols = props.header.length
@@ -265,9 +292,11 @@ const MarkdownTable = defineComponent({
         for (const row of props.rows) w = Math.max(w, spansWidth(row[c] ?? []))
         natural[c] = Math.max(w, 1)
       }
-      // Available width for cell content = box width − border (2) − padding (2) −
-      // the inter-column separators. Falls back until the first layout measures it.
-      const outer = rect.value?.width ?? FALLBACK_TABLE_WIDTH
+      // Budget the table to the terminal width (minus the host's chrome), then size
+      // cell content = budget − border (2) − padding (2) − inter-column separators.
+      // The box itself is content-sized (no `pct` width), so it can never be wider
+      // than this budget and overflow the viewport.
+      const outer = termWidth.value - RESERVED_CHROME
       const sepTotal = Math.max(0, cols - 1) * CELL_SEP.length
       const avail = Math.max(cols, outer - 2 - 2 - sepTotal)
       const widths = fitColumns(natural, avail)
@@ -292,14 +321,12 @@ const MarkdownTable = defineComponent({
       return h(
         'box',
         {
-          ref: boxRef,
           border: 'rounded',
           borderColor: theme.borderActive,
           flexDirection: 'column',
           alignItems: 'stretch',
-          width: { pct: 1 },
-          // Clip the first (pre-measure) frame if the fallback width overshot; once
-          // measured, content fits exactly so this never clips real content.
+          // Safety net: every content line is already sized to fit, so this only
+          // guards against a pathologically narrow terminal.
           overflow: 'hidden',
           padding: { left: 1, right: 1 },
           ...props.margin,
