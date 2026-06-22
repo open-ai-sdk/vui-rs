@@ -80,7 +80,14 @@ export {
   defaultHighlighter,
   syntaxPaletteFromTheme,
 } from './host/highlighter.ts'
-export { type MdBlock, type MdSpan, parseMarkdown } from './host/markdown-parser.ts'
+export {
+  type MdBlock,
+  type MdSpan,
+  type ParseState,
+  parseMarkdown,
+  parseMarkdownIncremental,
+  tokensToBlocks,
+} from './host/markdown-parser.ts'
 export { type DiffLine, type DiffLineKind, parseUnifiedDiff } from './host/diff-parser.ts'
 
 // Re-export the element prop types AND pull `vui-elements` into the module graph

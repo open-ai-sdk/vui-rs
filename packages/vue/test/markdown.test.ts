@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Renderer } from '@vui-rs/core'
 import { createHostApp } from '../src/host/create-host-app.ts'
-import { parseMarkdown } from '../src/host/markdown-parser.ts'
+import { parseMarkdown, parseMarkdownIncremental, tokensToBlocks } from '../src/host/markdown-parser.ts'
 import { VuiMarkdown } from '../src/host/components/markdown.ts'
 import { defineComponent, h, nextTick, ref } from '../src/index.ts'
 import { allGlyphs, cellAttrs, rowGlyphs } from './helpers/read-buffer.ts'
@@ -70,6 +70,37 @@ describe('markdown-parser', () => {
 
   test('empty content yields no blocks', () => {
     expect(parseMarkdown('')).toEqual([])
+  })
+})
+
+describe('parseMarkdownIncremental', () => {
+  test('reuses the unchanged token prefix across an append (no full re-lex)', () => {
+    const first = '# Title\n\nfirst paragraph done.\n\n'
+    const s1 = parseMarkdownIncremental(first, null, 2)
+    // The settled heading token is the same object after appending more content —
+    // i.e. it was carried over, not re-lexed.
+    const s2 = parseMarkdownIncremental(first + 'second paragraph still typ', s1, 2)
+    expect(s2.tokens[0]).toBe(s1.tokens[0])
+    expect(s2.tokens[0]).toMatchObject({ type: 'heading' })
+  })
+
+  test('a clean parse (no prior state) matches the canonical full parse', () => {
+    const doc = '# H\n\npara **bold**\n\n- a\n- b\n\n```ts\nlet y = 1\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |'
+    const state = parseMarkdownIncremental(doc, null, 0)
+    expect(tokensToBlocks(state.tokens)).toEqual(parseMarkdown(doc))
+  })
+
+  test('the growing tail re-lexes (newest text always reflected)', () => {
+    const a = parseMarkdownIncremental('# Hi', null, 2)
+    const b = parseMarkdownIncremental('# Hi there world', a, 2)
+    const [heading] = tokensToBlocks(b.tokens) as [{ type: string; spans: { text: string }[] }]
+    expect(heading.type).toBe('heading')
+    expect(heading.spans.map((s) => s.text).join('')).toBe('Hi there world')
+  })
+
+  test('empty content resets state', () => {
+    const s = parseMarkdownIncremental('', null, 2)
+    expect(s).toEqual({ content: '', tokens: [], stableTokenCount: 0 })
   })
 })
 
@@ -190,6 +221,42 @@ describe('VuiMarkdown render', () => {
     const glyphs = allGlyphs(renderer)
     expect(glyphs).toContain('omega')
     expect(glyphs).not.toContain('alpha')
+    cleanup()
+  })
+
+  test('streaming mode renders growing content correctly', async () => {
+    const content = ref('# Title')
+    const { app, renderer, cleanup } = mount(30, 8, () => h(VuiMarkdown, { content: content.value, streaming: true }))
+    await nextTick()
+    expect(allGlyphs(renderer)).toContain('Title')
+    // Append a paragraph the way a stream would; the new block must appear.
+    content.value = '# Title\n\nbody text here'
+    await nextTick()
+    app.context.flushNow()
+    const glyphs = allGlyphs(renderer)
+    expect(glyphs).toContain('Title')
+    expect(glyphs).toContain('body')
+    cleanup()
+  })
+
+  test('a table streamed in then settled renders as a bordered table, not paragraphs', async () => {
+    // Reproduces the streaming hazard: a partial table lexes as paragraphs; once
+    // the stream settles (streaming → false) it must render as a real table.
+    const content = ref('| A | B |\n')
+    const streaming = ref(true)
+    const { app, renderer, cleanup } = mount(40, 12, () =>
+      h('box', { width: 40, flexDirection: 'column', alignItems: 'stretch' }, [
+        h(VuiMarkdown, { content: content.value, streaming: streaming.value }),
+      ]),
+    )
+    await settle(app)
+    content.value = '| A | B |\n|---|---|\n| 1 | 2 |'
+    streaming.value = false
+    await settle(app)
+    const glyphs = allGlyphs(renderer)
+    expect(glyphs).toContain('╭') // settled into a bordered table
+    expect(glyphs).toContain('A')
+    expect(glyphs).toContain('1')
     cleanup()
   })
 })

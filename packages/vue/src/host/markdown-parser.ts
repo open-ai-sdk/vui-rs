@@ -63,7 +63,79 @@ export function parseMarkdown(content: string): MdBlock[] {
   return tokensToBlocks(marked.lexer(content))
 }
 
-function tokensToBlocks(tokens: Token[]): MdBlock[] {
+/**
+ * Incremental lex state, threaded across successive `parseMarkdownIncremental`
+ * calls so a growing (streamed) document is not re-lexed from scratch each update.
+ */
+export interface ParseState {
+  /** The content these tokens were lexed from. */
+  content: string
+  /** The lexed token list (stable prefix reused from the previous parse + fresh tail). */
+  tokens: Token[]
+  /** How many leading tokens are considered settled (not subject to re-lex). */
+  stableTokenCount: number
+}
+
+/**
+ * Incrementally lex `content`, reusing the unchanged token prefix from `prev` so
+ * only the growing tail is re-lexed. This turns the naive "re-lex the whole
+ * document on every streamed token" (O(n²) over a stream — enough to peg the
+ * event loop and freeze input/animation) into roughly O(n).
+ *
+ * A token is reused when its `raw` text still matches at the same offset in the
+ * new content. `trailingUnstable` holds the last N matched tokens back from the
+ * stable prefix and re-lexes them anyway — a block's interpretation can depend on
+ * the text that follows it (e.g. `# Hi` → `# Hi there`, or a paragraph that turns
+ * into a list/table as more arrives), so the tail must stay fluid while streaming.
+ * Pass 0 once the content is final to settle every token.
+ */
+export function parseMarkdownIncremental(content: string, prev: ParseState | null, trailingUnstable = 0): ParseState {
+  if (!content) return { content: '', tokens: [], stableTokenCount: 0 }
+
+  if (!prev || prev.tokens.length === 0) {
+    const tokens = lex(content)
+    return { content, tokens, stableTokenCount: Math.max(0, tokens.length - trailingUnstable) }
+  }
+
+  // Walk the previous tokens from the start; each whose raw still matches at the
+  // running offset is unchanged and can be kept without re-lexing.
+  let offset = 0
+  let reuse = 0
+  for (const tok of prev.tokens) {
+    const len = tok.raw.length
+    if (offset + len <= content.length && content.startsWith(tok.raw, offset)) {
+      reuse++
+      offset += len
+    } else break
+  }
+
+  reuse = Math.max(0, reuse - trailingUnstable)
+  offset = 0
+  for (let i = 0; i < reuse; i++) offset += prev.tokens[i]!.raw.length
+
+  const stable = prev.tokens.slice(0, reuse)
+  const rest = content.slice(offset)
+  if (!rest) return { content, tokens: stable, stableTokenCount: stable.length }
+
+  const tail = lex(rest)
+  return {
+    content,
+    tokens: [...stable, ...tail],
+    stableTokenCount: trailingUnstable === 0 ? stable.length + tail.length : stable.length,
+  }
+}
+
+/** Lex markdown to tokens; an unexpected lexer throw degrades to no tokens. */
+function lex(content: string): Token[] {
+  try {
+    return marked.lexer(content)
+  } catch {
+    return []
+  }
+}
+
+/** Map a lexed token list to renderable blocks (skips space/html and unknowns). */
+export function tokensToBlocks(tokens: Token[]): MdBlock[] {
   const blocks: MdBlock[] = []
   for (const tok of tokens) {
     const block = tokenToBlock(tok)
