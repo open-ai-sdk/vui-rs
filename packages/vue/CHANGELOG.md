@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.14.5
+
+### Patch Changes
+
+- c99ff7e: implement incremental markdown parsing for streaming content
+
 ## 0.14.4
 
 ### Patch Changes
