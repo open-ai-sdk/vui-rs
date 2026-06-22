@@ -289,6 +289,12 @@ export interface SelectListProps extends LayoutProps, PaintProps, FocusProps {
 export interface MarkdownProps extends LayoutProps, PaintProps {
   content?: string
   highlighter?: Highlighter
+  /**
+   * Set while `content` is still streaming in. Enables incremental lexing (reuse
+   * the already-parsed prefix, only re-lex the growing tail) so a large streamed
+   * document doesn't re-parse from scratch each update and freeze the UI.
+   */
+  streaming?: boolean
 }
 
 /** `<code>` — a syntax-highlighted code block (pluggable highlighter). */

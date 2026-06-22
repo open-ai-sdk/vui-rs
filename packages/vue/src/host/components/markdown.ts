@@ -5,7 +5,6 @@
 // with the same pluggable highlighter. No custom paint — pure composition.
 import {
   type PropType,
-  computed,
   defineComponent,
   getCurrentScope,
   h,
@@ -13,10 +12,19 @@ import {
   onScopeDispose,
   shallowRef,
   type VNode,
+  watch,
 } from '@vue/runtime-core'
 import { charWidth } from '@vui-rs/core'
 import type { Highlighter } from '../highlighter.ts'
-import { type MdBlock, type MdList, type MdSpan, parseMarkdown } from '../markdown-parser.ts'
+import {
+  type MdBlock,
+  type MdList,
+  type MdSpan,
+  type ParseState,
+  parseMarkdown,
+  parseMarkdownIncremental,
+  tokensToBlocks,
+} from '../markdown-parser.ts'
 import { useTheme } from '../../use-theme.ts'
 import { HostContextSymbol } from '../renderable.ts'
 import { VuiCode } from './code.ts'
@@ -33,10 +41,37 @@ export const VuiMarkdown = defineComponent({
     content: { type: String, default: '' },
     /** Highlighter for fenced code; defaults to the built-in highlight.js one. */
     highlighter: { type: Object as PropType<Highlighter>, default: undefined },
+    /**
+     * Set while `content` is still being appended (e.g. a streaming response).
+     * Enables incremental lexing with an unstable tail so the document is not
+     * re-lexed from scratch on every update — keeps the event loop responsive
+     * during large streams. Flip to false (the default) once content is final.
+     */
+    streaming: { type: Boolean, default: false },
   },
   setup(props, { attrs }) {
     const theme = useTheme()
-    const blocks = computed(() => parseMarkdown(props.content))
+    // Incremental lex state, persisted across updates so a streamed document
+    // reuses its already-lexed prefix instead of re-parsing the whole string.
+    const blocks = shallowRef<MdBlock[]>([])
+    let parseState: ParseState | null = null
+    const refresh = (): void => {
+      if (props.streaming) {
+        // Live stream: reuse the already-lexed prefix, only re-lex the growing
+        // tail (last 2 tokens kept fluid). Keeps the event loop free during large
+        // streams. A trailing block whose shape isn't final yet (e.g. a table
+        // mid-arrival) may render approximately for a frame — it self-corrects as
+        // the rest streams in, and the settle below guarantees the final view.
+        parseState = parseMarkdownIncremental(props.content, parseState, 2)
+        blocks.value = tokensToBlocks(parseState.tokens)
+      } else {
+        // Settled / static content: a clean full lex, so the final render always
+        // matches the canonical parse (no stale token reused from a partial state).
+        parseState = null
+        blocks.value = parseMarkdown(props.content)
+      }
+    }
+    watch([() => props.content, () => props.streaming], refresh, { immediate: true })
 
     return () => {
       const ctx: RenderCtx = { theme, highlighter: props.highlighter }
