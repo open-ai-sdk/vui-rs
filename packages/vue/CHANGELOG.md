@@ -1,5 +1,11 @@
 # @vui-rs/vue
 
+## 0.14.6
+
+### Patch Changes
+
+- eaa8d94: Implement performance tracking for rendering phases
+
 ## 0.14.5
 
 ### Patch Changes
