@@ -11,6 +11,8 @@
 use crate::color::Rgba;
 use crate::style::StyleFfi;
 use crate::text::{StyledRun, TextBuffer, TextBufferView, WrapMode};
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use taffy::geometry::Size;
 use taffy::style::{AvailableSpace, Dimension, Style};
 use taffy::{NodeId as TaffyId, TaffyTree};
@@ -90,11 +92,27 @@ pub struct RenderNode {
     pub text: Option<TextContent>,
     /// Text flow mode (`<text>` only) — drives the measure wrap budget.
     pub wrap: WrapMode,
+    /// Monotonic stamp bumped (via `mark_text_dirty`) whenever this node's runs or
+    /// wrap change — i.e. whenever its measured size could differ. The measure
+    /// cache keys on it so an unchanged `<text>` is never re-wrapped, even when a
+    /// distant dirty node forces taffy to re-run layout over the whole tree.
+    measure_version: u64,
 }
 
 struct Slot {
     node: Option<RenderNode>,
     generation: u32,
+}
+
+/// Cached `measure_node` output for one taffy node: the wrap results for each
+/// probed budget (min/max/definite), valid while `version` matches the node's
+/// `measure_version`. A stale version (content changed, or the taffy id was reused
+/// for a different node) misses and recomputes. `budgets`/`sizes` are tiny (≤3).
+#[derive(Default)]
+struct MeasureCacheEntry {
+    version: u64,
+    budgets: Vec<u32>,
+    sizes: Vec<Size<f32>>,
 }
 
 pub struct NodeTree {
@@ -103,6 +121,10 @@ pub struct NodeTree {
     pub taffy: TaffyTree,
     root: NodeId,
     dirty: bool,
+    /// Source of `measure_version` stamps; bumped on every `mark_text_dirty`.
+    version_counter: u64,
+    /// Per-taffy-node memo of wrap results, keyed/validated by `measure_version`.
+    measure_cache: HashMap<TaffyId, MeasureCacheEntry>,
 }
 
 impl NodeTree {
@@ -117,6 +139,8 @@ impl NodeTree {
             taffy,
             root: NodeId::NULL,
             dirty: true,
+            version_counter: 0,
+            measure_cache: HashMap::new(),
         };
         tree.root = tree.alloc(RenderNode {
             kind: NodeKind::Root,
@@ -125,6 +149,7 @@ impl NodeTree {
             children: Vec::new(),
             text: None,
             wrap: WrapMode::Word,
+            measure_version: 0,
         });
         tree
     }
@@ -198,6 +223,7 @@ impl NodeTree {
             children: Vec::new(),
             text,
             wrap: WrapMode::Word,
+            measure_version: 0,
         })
     }
 
@@ -299,6 +325,7 @@ impl NodeTree {
             self.free_subtree(c);
         }
         let _ = self.taffy.remove(taffy);
+        self.measure_cache.remove(&taffy);
         let slot = &mut self.slots[id.index()];
         slot.node = None;
         // Bump generation so the freed handle can never resolve again; skip 0 on
@@ -327,7 +354,17 @@ impl NodeTree {
     /// node's layout — so a text/wrap change that doesn't also change the style
     /// must dirty the taffy node explicitly, or the cached (stale) size survives.
     pub fn mark_text_dirty(&mut self, id: NodeId) {
-        if let Some(taffy) = self.taffy_of(id) {
+        // Stamp a fresh version so the measure cache treats this node's prior wrap
+        // results as stale (its runs/wrap just changed). Other nodes keep theirs.
+        self.version_counter += 1;
+        let v = self.version_counter;
+        let taffy = if let Some(node) = self.get_mut(id) {
+            node.measure_version = v;
+            Some(node.taffy)
+        } else {
+            None
+        };
+        if let Some(taffy) = taffy {
             let _ = self.taffy.mark_dirty(taffy);
         }
         self.dirty = true;
@@ -344,19 +381,52 @@ impl NodeTree {
             return;
         };
         // Disjoint field borrows: taffy mutably for the compute, slots immutably
-        // for the measure lookup. The closure only touches `slots`.
+        // for the node lookup, the measure cache mutably for memoized wrap results.
         let taffy = &mut self.taffy;
         let slots = &self.slots;
-        let _ = taffy.compute_layout_with_measure(
-            root_taffy,
-            Size {
-                width: AvailableSpace::Definite(width as f32),
-                height: AvailableSpace::Definite(height as f32),
-            },
-            |_known, available_space, node_id, _ctx, _style| {
-                measure_node(slots, node_id, available_space)
-            },
-        );
+        let cache = &mut self.measure_cache;
+        // Build a `TaffyId → node` map once per layout (O(N)) so each measure-
+        // closure firing is an O(1) lookup. Taffy fires the closure once per leaf
+        // PER intrinsic-sizing probe (min/max/definite) per pass — on a large tree
+        // that's thousands of calls, so a per-call linear slab scan would be O(N²)
+        // and dominate the frame.
+        let index: HashMap<TaffyId, &RenderNode> = slots
+            .iter()
+            .filter_map(|s| s.node.as_ref())
+            .map(|n| (n.taffy, n))
+            .collect();
+        let avail = Size {
+            width: AvailableSpace::Definite(width as f32),
+            height: AvailableSpace::Definite(height as f32),
+        };
+        if crate::perf::enabled() {
+            // Timed path: count measure-closure firings and the time inside them
+            // so the per-frame line can prove whether measure scales with changed
+            // leaves (Taffy's cache holds) or all leaves (it doesn't).
+            let start = Instant::now();
+            let mut calls: u64 = 0;
+            let mut measure_dur = Duration::ZERO;
+            let _ = taffy.compute_layout_with_measure(
+                root_taffy,
+                avail,
+                |_known, available_space, node_id, _ctx, _style| {
+                    calls += 1;
+                    let m0 = Instant::now();
+                    let size = measure_node(&index, cache, node_id, available_space);
+                    measure_dur += m0.elapsed();
+                    size
+                },
+            );
+            crate::perf::record_layout(start.elapsed(), calls, measure_dur);
+        } else {
+            let _ = taffy.compute_layout_with_measure(
+                root_taffy,
+                avail,
+                |_known, available_space, node_id, _ctx, _style| {
+                    measure_node(&index, cache, node_id, available_space)
+                },
+            );
+        }
         self.dirty = false;
     }
 
@@ -424,11 +494,12 @@ fn mix(h: &mut u64, v: u64) {
 /// dims win" itself (`known.or(style_size).unwrap_or(measured)`), so this only
 /// needs to return the content size.
 ///
-/// The `TaffyId → RenderNode` lookup is a linear scan of the slab: measure runs
-/// per leaf per layout pass (not per frame), and TUI trees are small, so this is
-/// fine. If trees ever grow large, swap in a `TaffyId → NodeId` side-index.
+/// The `TaffyId → RenderNode` lookup is O(1) via a map built once per layout in
+/// `compute_layout`. Taffy fires this closure once per leaf per intrinsic-sizing
+/// probe per pass, so a per-call slab scan would make a large tree O(N²).
 fn measure_node(
-    slots: &[Slot],
+    index: &HashMap<TaffyId, &RenderNode>,
+    cache: &mut HashMap<TaffyId, MeasureCacheEntry>,
     taffy_id: TaffyId,
     available_space: Size<AvailableSpace>,
 ) -> Size<f32> {
@@ -436,24 +507,12 @@ fn measure_node(
         width: 0.0,
         height: 0.0,
     };
-    let Some(node) = slots
-        .iter()
-        .filter_map(|s| s.node.as_ref())
-        .find(|n| n.taffy == taffy_id)
-    else {
+    let Some(node) = index.get(&taffy_id) else {
         return zero;
     };
     if node.kind != NodeKind::Text {
         return zero;
     }
-    let Some(text) = node.text.as_ref() else {
-        // A text node should always carry content; treat a missing one as a blank
-        // line so it still reserves a row.
-        return Size {
-            width: 0.0,
-            height: 1.0,
-        };
-    };
     // The wrap budget mirrors taffy's three intrinsic-sizing probes, which must
     // stay distinct: a definite width wraps to that width; a max-content probe
     // flows with a huge budget so the node reports its natural single-line width;
@@ -468,19 +527,44 @@ fn measure_node(
         AvailableSpace::MaxContent => 1_000_000,
         AvailableSpace::MinContent => 1,
     };
-    let mut buf = TextBuffer::new();
-    buf.set_styled_runs(text.runs.iter().map(|run| StyledRun {
-        text: &run.text,
-        fg: run.fg,
-        bg: run.bg,
-        attrs: run.attrs,
-    }));
-    let mut view = TextBufferView::new(&buf);
-    let measured = view.measure(budget, node.wrap);
-    Size {
-        width: measured.max_width as f32,
-        height: measured.line_count as f32,
+    // Memoized fast path: an unchanged node (same `measure_version`) returns its
+    // already-wrapped size for this budget without re-running the wrap. Taffy
+    // re-invokes this for the whole tree whenever any distant node is dirtied, so
+    // this cache is what keeps an animating/idle frame O(changed) not O(total).
+    let entry = cache.entry(taffy_id).or_default();
+    if entry.version != node.measure_version {
+        entry.version = node.measure_version;
+        entry.budgets.clear();
+        entry.sizes.clear();
+    } else if let Some(pos) = entry.budgets.iter().position(|&b| b == budget) {
+        return entry.sizes[pos];
     }
+    let size = match node.text.as_ref() {
+        // A text node should always carry content; treat a missing one as a blank
+        // line so it still reserves a row.
+        None => Size {
+            width: 0.0,
+            height: 1.0,
+        },
+        Some(text) => {
+            let mut buf = TextBuffer::new();
+            buf.set_styled_runs(text.runs.iter().map(|run| StyledRun {
+                text: &run.text,
+                fg: run.fg,
+                bg: run.bg,
+                attrs: run.attrs,
+            }));
+            let mut view = TextBufferView::new(&buf);
+            let measured = view.measure(budget, node.wrap);
+            Size {
+                width: measured.max_width as f32,
+                height: measured.line_count as f32,
+            }
+        }
+    };
+    entry.budgets.push(budget);
+    entry.sizes.push(size);
+    size
 }
 
 /// Default root style: a flex container sized exactly to the terminal in cells.
@@ -515,10 +599,7 @@ mod tests {
     }
 
     fn len(value: f32) -> crate::style::DimFfi {
-        crate::style::DimFfi {
-            kind: 1,
-            value,
-        }
+        crate::style::DimFfi { kind: 1, value }
     }
 
     /// A wrapped `<text>` that is a `flex-grow` child of a fixed-width flex ROW
@@ -584,6 +665,80 @@ mod tests {
         let root = t.root();
         assert_eq!(t.get(root).unwrap().kind, NodeKind::Root);
         assert_ne!(root, NodeId::NULL);
+    }
+
+    /// The measure cache must NOT serve a stale size after a node's text changes.
+    /// `mark_text_dirty` (the FFI text/wrap setters' shared tail) bumps the node's
+    /// `measure_version`, which invalidates its cached wrap results.
+    /// A fixed-width column (align stretch) whose single text child's height is its
+    /// wrapped content height — a wrapped-text-in-a-pane shape. Returns (tree, text id).
+    fn text_in_fixed_column(width: f32, s: &str) -> (NodeTree, NodeId) {
+        let mut t = NodeTree::new((width as u32) + 20, 24);
+        let root = t.root();
+        let col = t.create(NodeKind::Box);
+        let mut col_style = StyleFfi::default();
+        col_style.flex_direction = 1; // column
+        col_style.align_items = 7; // stretch (cross-axis = width)
+        col_style.width = len(width);
+        t.set_style(col, &col_style);
+        t.append_child(root, col);
+        let txt = t.create(NodeKind::Text);
+        set_text(&mut t, txt, s, WrapMode::Word);
+        t.mark_text_dirty(txt); // mirror vui_node_set_text_runs' dirty tail
+        t.append_child(col, txt);
+        (t, txt)
+    }
+
+    #[test]
+    fn measure_cache_invalidates_on_text_change() {
+        let (mut t, txt) = text_in_fixed_column(20.0, "hi");
+        t.compute_layout(40, 24);
+        let h1 = crate::layout::node_box(&t, txt).unwrap().h;
+        assert_eq!(h1, 1.0, "single short line should be one row");
+
+        // Replace with content that must wrap to several lines at width 20.
+        set_text(
+            &mut t,
+            txt,
+            "alpha bravo charlie delta echo foxtrot golf hotel india juliet",
+            WrapMode::Word,
+        );
+        t.mark_text_dirty(txt);
+        t.compute_layout(40, 24);
+        let h2 = crate::layout::node_box(&t, txt).unwrap().h;
+        assert!(
+            h2 > h1,
+            "stale measure cache: height did not grow after text change (h1={h1}, h2={h2})",
+        );
+    }
+
+    /// A node whose content is unchanged keeps its size across re-layouts even when
+    /// a DIFFERENT node is dirtied (the case the cache fixes: a frequently-changing
+    /// sibling must not force the unchanged text to re-wrap to a wrong size).
+    #[test]
+    fn measure_cache_stable_when_unrelated_node_dirties() {
+        // `a` wraps to several lines in a fixed-width column; `b` is a sibling that
+        // changes every layout (a frequently-redrawn node).
+        let (mut t, a) = text_in_fixed_column(20.0, "alpha bravo charlie delta echo foxtrot golf");
+        let col = t.get(a).unwrap().parent.unwrap();
+        let b = t.create(NodeKind::Text);
+        set_text(&mut t, b, "x", WrapMode::Word);
+        t.mark_text_dirty(b);
+        t.append_child(col, b);
+
+        t.compute_layout(40, 24);
+        let a_h = crate::layout::node_box(&t, a).unwrap().h;
+        assert!(a_h >= 2.0, "test setup: `a` should wrap to multiple lines, got {a_h}");
+
+        // Dirty only `b` (a frequently-redrawn node) and re-layout; `a` is untouched.
+        set_text(&mut t, b, "y", WrapMode::Word);
+        t.mark_text_dirty(b);
+        t.compute_layout(40, 24);
+        assert_eq!(
+            crate::layout::node_box(&t, a).unwrap().h,
+            a_h,
+            "unchanged node's measured height must survive an unrelated node's change",
+        );
     }
 
     #[test]

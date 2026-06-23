@@ -11,6 +11,7 @@ pub mod ffi;
 pub mod image;
 pub mod layout;
 pub mod node;
+pub mod perf;
 pub mod renderer;
 pub mod style;
 pub mod text;

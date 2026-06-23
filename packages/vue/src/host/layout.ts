@@ -3,6 +3,7 @@
 // `computeLayout` (no paint), then read every node's box back into `Renderable.
 // rect`. Dirty-gated: an unchanged tree (and a non-first frame) does no FFI.
 // The paint walk (Phase 04) then places each Renderable from its `rect`.
+import { counters, perfEnabled, perfNow, recordDirty, recordReadRects } from './perf.ts'
 import { type HostContext, type Renderable } from './renderable.ts'
 import { flattenRuns } from './runs.ts'
 import { type TextRenderable } from './text-renderable.ts'
@@ -13,6 +14,7 @@ export function runLayout(ctx: HostContext): void {
   if (!renderer || !ctx.root) return
 
   syncTextareaAutoSize(ctx.root)
+  if (perfEnabled) recordDirty(ctx.dirtyLayout.size, ctx.dirtyText.size)
   const hadWork = ctx.dirtyLayout.size > 0 || ctx.dirtyText.size > 0
 
   // 1. Push changed layout styles to the taffy nodes.
@@ -42,7 +44,12 @@ export function runLayout(ctx: HostContext): void {
   renderer.computeLayout()
   ctx.layoutW = renderer.width
   ctx.layoutH = renderer.height
+  // Time readRects on its own — the per-node `layoutRect()` FFI fan-out is the
+  // red-team's prime per-frame-cost suspect; `counters.layoutRectCalls` is bumped
+  // inside the walk so the per-frame line shows whether it scales with all nodes.
+  const r0 = perfNow()
   readRects(ctx.root)
+  if (perfEnabled) recordReadRects(perfNow() - r0)
   // Layout actually recomputed — notify measurement subscribers (`useElementRect`)
   // so anchored popups re-read their element's screen rect off the fresh rects.
   // Skipped on the dirty-gated early return above (nothing moved ⇒ no re-measure).
@@ -57,6 +64,7 @@ function syncTextareaAutoSize(node: Renderable): void {
 /** Walk the Renderable tree, reading each layout node's box into `rect`. */
 function readRects(node: Renderable): void {
   if (node.layoutNode) {
+    if (perfEnabled) counters.layoutRectCalls++
     const rect = node.layoutNode.layoutRect()
     if (rect) node.rect = rect
   }

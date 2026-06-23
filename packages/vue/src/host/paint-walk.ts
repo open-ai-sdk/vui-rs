@@ -7,6 +7,7 @@
 // host owns the buffer; the native tree compose is bypassed (`renderer.flush`).
 import { NativePaintBuffer } from './paint-buffer.ts'
 import { drawBackdrop, overlaysInPaintOrder } from './overlay.ts'
+import { counters, perfEnabled } from './perf.ts'
 import { type Clip, type HostContext, type PaintBuffer, type Renderable } from './renderable.ts'
 import { paintSelection } from './selection.ts'
 
@@ -121,6 +122,9 @@ function paintOrder(children: Renderable[]): Renderable[] {
 }
 
 function paintNode(buf: PaintBuffer, node: Renderable, parentX: number, parentY: number, clip: Clip): void {
+  // Count every visited node (cullsOut already skips off-screen subtrees before
+  // the recursive call) so the per-frame line shows paint is O(visible).
+  if (perfEnabled) counters.paintVisits++
   const b = node.rect
   node.screenRect = null
   if (!b) return
