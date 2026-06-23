@@ -35,9 +35,6 @@ interface Window {
   paintMax: number
   rectCalls: number
   paintVisits: number
-  dirtyTextTotal: number
-  dirtyTextMax: number
-  dirtyLayoutTotal: number
 }
 
 function fresh(): Window {
@@ -53,9 +50,6 @@ function fresh(): Window {
     paintMax: 0,
     rectCalls: 0,
     paintVisits: 0,
-    dirtyTextTotal: 0,
-    dirtyTextMax: 0,
-    dirtyLayoutTotal: 0,
   }
 }
 
@@ -74,18 +68,6 @@ export function markRenderEntry(at: number): void {
 /** Time the `runLayout` readRects walk in isolation (the FFI-fan-out suspect). */
 export function recordReadRects(ms: number): void {
   w.readRectsTotal += ms
-}
-
-/**
- * Record how many nodes the host marked dirty this layout — the host-vs-native
- * discriminator for a re-measure explosion. High dirtyText ⇒ Vue re-rendered the
- * tree (host-side); low dirty with high native measure_calls ⇒ Taffy re-measures
- * despite few changes (native/available-space side).
- */
-export function recordDirty(dirtyLayout: number, dirtyText: number): void {
-  w.dirtyLayoutTotal += dirtyLayout
-  w.dirtyTextTotal += dirtyText
-  if (dirtyText > w.dirtyTextMax) w.dirtyTextMax = dirtyText
 }
 
 /** A timing helper: returns `performance.now()` only when perf is on (else 0). */
@@ -123,8 +105,6 @@ function emitLine(): void {
     `readRects_avg=${(w.readRectsTotal / f).toFixed(3)}ms ` +
     `rectCalls_avg=${(w.rectCalls / f).toFixed(0)} ` +
     `paint_avg=${(w.paintTotal / f).toFixed(3)}ms paint_max=${w.paintMax.toFixed(3)}ms ` +
-    `visits_avg=${(w.paintVisits / f).toFixed(0)} ` +
-    `dirtyText_avg=${(w.dirtyTextTotal / f).toFixed(0)} dirtyText_max=${w.dirtyTextMax.toFixed(0)} ` +
-    `dirtyLayout_avg=${(w.dirtyLayoutTotal / f).toFixed(0)}`
+    `visits_avg=${(w.paintVisits / f).toFixed(0)}`
   process.stderr.write(line + '\n')
 }

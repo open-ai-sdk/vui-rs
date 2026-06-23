@@ -3,7 +3,7 @@
 // `computeLayout` (no paint), then read every node's box back into `Renderable.
 // rect`. Dirty-gated: an unchanged tree (and a non-first frame) does no FFI.
 // The paint walk (Phase 04) then places each Renderable from its `rect`.
-import { counters, perfEnabled, perfNow, recordDirty, recordReadRects } from './perf.ts'
+import { counters, perfEnabled, perfNow, recordReadRects } from './perf.ts'
 import { type HostContext, type Renderable } from './renderable.ts'
 import { flattenRuns } from './runs.ts'
 import { type TextRenderable } from './text-renderable.ts'
@@ -14,7 +14,6 @@ export function runLayout(ctx: HostContext): void {
   if (!renderer || !ctx.root) return
 
   syncTextareaAutoSize(ctx.root)
-  if (perfEnabled) recordDirty(ctx.dirtyLayout.size, ctx.dirtyText.size)
   const hadWork = ctx.dirtyLayout.size > 0 || ctx.dirtyText.size > 0
 
   // 1. Push changed layout styles to the taffy nodes.
