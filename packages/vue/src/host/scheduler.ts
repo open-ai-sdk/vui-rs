@@ -11,6 +11,7 @@
 // the last animation finishes the loop stops, restoring zero-render-on-idle.
 import { queuePostFlushCb } from '@vue/runtime-core'
 import { type AnimationRegistry, createAnimationRegistry } from './animation/timeline.ts'
+import { markRenderEntry, perfEnabled, perfNow, recordFrame } from './perf.ts'
 import { type HostContext } from './renderable.ts'
 
 const FRAME_MS = 16
@@ -110,12 +111,26 @@ export function createHostScheduler(ctx: HostContext): HostScheduler {
 
   function render(): void {
     if (disposed) return
-    lastRenderAt = Date.now()
-    ctx.layout?.(ctx) // dirty-gated layout (Phase 03)
-    // Post-layout, pre-paint: viewports clamp/stick their scroll offset to the
-    // freshly-laid-out content size (stick-to-bottom with no one-frame lag).
+    const now = Date.now()
+    lastRenderAt = now
+    if (!perfEnabled) {
+      ctx.layout?.(ctx) // dirty-gated layout (Phase 03)
+      // Post-layout, pre-paint: viewports clamp/stick their scroll offset to the
+      // freshly-laid-out content size (stick-to-bottom with no one-frame lag).
+      for (const cb of ctx.afterLayout) cb()
+      ctx.paint?.(ctx) // tree walk + native diff/emit (Phase 04)
+      ctx.renderCount++
+      return
+    }
+    // Timed path: inter-frame wall-gap + layout-vs-paint split. The afterLayout
+    // viewport clamping is folded into the layout span (it runs on fresh rects).
+    markRenderEntry(now)
+    const l0 = perfNow()
+    ctx.layout?.(ctx)
     for (const cb of ctx.afterLayout) cb()
-    ctx.paint?.(ctx) // tree walk + native diff/emit (Phase 04)
+    const l1 = perfNow()
+    ctx.paint?.(ctx)
+    recordFrame(l1 - l0, perfNow() - l1)
     ctx.renderCount++
   }
 

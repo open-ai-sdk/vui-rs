@@ -20,6 +20,7 @@ use crate::color::Rgba;
 use crate::node::{NodeId, NodeTree};
 use std::collections::HashMap;
 use std::io::Write;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Pen {
@@ -324,6 +325,26 @@ impl Renderer {
     /// clears + stamps the back buffer via the clip-aware draw prims, then calls
     /// this to emit. (`render` is kept as an alias of `flush_only` for the FFI.)
     pub fn flush_only(&mut self) {
+        if crate::perf::enabled() {
+            // Split the compose/diff/ANSI-byte build (`paint`) from the stdout
+            // write+flush (`emit`) so an emit-bound frame (slow/SSH terminal) is
+            // distinguishable from a compose-bound one.
+            let p0 = Instant::now();
+            self.paint();
+            let paint = p0.elapsed();
+            let nbytes = self.out.len();
+            if self.out.is_empty() {
+                crate::perf::record_paint(paint, Duration::ZERO, 0);
+                return;
+            }
+            let e0 = Instant::now();
+            let stdout = std::io::stdout();
+            let mut lock = stdout.lock();
+            let _ = lock.write_all(&self.out);
+            let _ = lock.flush();
+            crate::perf::record_paint(paint, e0.elapsed(), nbytes);
+            return;
+        }
         self.paint();
         if self.out.is_empty() {
             return;
@@ -493,7 +514,8 @@ mod tests {
     #[test]
     fn passthrough_emits_inside_sync_wrapper_and_clears() {
         let mut r = Renderer::new(4, 1);
-        r.back_mut().draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .draw_text(0, 0, "Hi", DEFAULT_FG, DEFAULT_BG, 0);
         r.paint(); // first paint syncs front, drains nothing staged
         // Stage a raw sequence with NO cell change: it must still emit, forced.
         r.stage_passthrough(b"\x1b]52;c;Zm9v\x07");
@@ -504,7 +526,10 @@ mod tests {
         assert!(s.ends_with("\x1b[?2026l"), "frame closes with sync end");
         // Channel cleared: a following paint with nothing staged emits nothing.
         r.paint();
-        assert!(r.out.is_empty(), "passthrough must not persist across frames");
+        assert!(
+            r.out.is_empty(),
+            "passthrough must not persist across frames"
+        );
     }
 
     #[test]
@@ -533,9 +558,12 @@ mod tests {
         r.stage_link(1, "https://x.io".into());
         // Two cells carrying link id 1 (high byte), then a plain cell.
         let linked = (1u16 << attr::LINK_SHIFT) | 0;
-        r.back_mut().set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, linked);
-        r.back_mut().set_cell(1, 0, 'b' as u32, DEFAULT_FG, DEFAULT_BG, linked);
-        r.back_mut().set_cell(2, 0, 'c' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut()
+            .set_cell(1, 0, 'b' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut()
+            .set_cell(2, 0, 'c' as u32, DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         // Exactly one open (run of 2 linked cells) + one close, URI present.
@@ -554,11 +582,16 @@ mod tests {
         // No URI staged for id 1: the linked cells must emit NEITHER an open nor a
         // close (an unbalanced close would corrupt link state on the terminal).
         let linked = 1u16 << attr::LINK_SHIFT;
-        r.back_mut().set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, linked);
-        r.back_mut().set_cell(1, 0, 'b' as u32, DEFAULT_FG, DEFAULT_BG, 0);
+        r.back_mut()
+            .set_cell(0, 0, 'a' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut()
+            .set_cell(1, 0, 'b' as u32, DEFAULT_FG, DEFAULT_BG, 0);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
-        assert!(!s.contains("\x1b]8;;"), "no OSC 8 sequence for an unstaged link id");
+        assert!(
+            !s.contains("\x1b]8;;"),
+            "no OSC 8 sequence for an unstaged link id"
+        );
     }
 
     #[test]
@@ -567,12 +600,16 @@ mod tests {
         // A malicious href with an embedded clear-screen escape must be neutered.
         r.stage_link(1, "h\x1b[2Jp".into());
         let linked = 1u16 << attr::LINK_SHIFT;
-        r.back_mut().set_cell(0, 0, 'x' as u32, DEFAULT_FG, DEFAULT_BG, linked);
+        r.back_mut()
+            .set_cell(0, 0, 'x' as u32, DEFAULT_FG, DEFAULT_BG, linked);
         r.paint();
         let s = String::from_utf8_lossy(&r.out);
         // The ESC is stripped, breaking the contiguous clear-screen sequence; the
         // printable tail survives as harmless URI text (same rule as `safe_glyph`).
-        assert!(!s.contains("\x1b[2J"), "control bytes leaked through OSC 8 URI");
+        assert!(
+            !s.contains("\x1b[2J"),
+            "control bytes leaked through OSC 8 URI"
+        );
         assert!(s.contains("h[2Jp"), "printable URI chars should survive");
     }
 

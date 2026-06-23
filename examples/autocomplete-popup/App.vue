@@ -1,7 +1,7 @@
 <template>
   <!-- The app shell holds focus so global keys dispatch while "busy", but
        clickFocus:false means a click on the transcript never steals focus from the
-       input — the composer keeps typing. A miniature of the 1sc composer. -->
+       input — the composer keeps typing. A miniature chat-composer example. -->
   <box
     :width="{ pct: 1 }"
     :height="{ pct: 1 }"
