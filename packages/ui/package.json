@@ -1,6 +1,6 @@
 {
   "name": "@vui-rs/ui",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "description": "Application-level component library for vui-rs terminal UIs — dialogs, fuzzy select, command palette, toasts, autocomplete, status bars, virtual list, and busy indicators.",
   "keywords": [
     "bun",
