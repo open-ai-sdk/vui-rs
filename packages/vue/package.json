@@ -1,6 +1,6 @@
 {
   "name": "@vui-rs/vue",
-  "version": "0.14.5",
+  "version": "0.14.6",
   "description": "Vue 3 custom renderer for vui-rs — build reactive terminal UIs with Vue components, reactivity, and lifecycle over the native cell buffer.",
   "keywords": [
     "bun",
