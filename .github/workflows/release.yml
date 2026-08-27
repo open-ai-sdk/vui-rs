@@ -59,7 +59,7 @@ jobs:
       # → runs `ci:publish`: cross-compile natives, build packages, `bun publish`
       # each, then tag.
       - name: Changesets — version PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           version: bun run ci:version
           publish: bun run ci:publish
