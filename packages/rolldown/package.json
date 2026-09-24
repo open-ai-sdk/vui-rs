@@ -41,7 +41,7 @@
     "unplugin-vue": "^7"
   },
   "devDependencies": {
-    "rolldown": "~1.1.0"
+    "rolldown": "~1.2.9"
   },
   "peerDependencies": {
     "rolldown": "^1"
